@@ -1,0 +1,4 @@
+FROM alpine:3.20
+WORKDIR /app
+COPY switch-nexd-arm64 /app/switch-nexd
+ENTRYPOINT ["/app/switch-nexd"]
