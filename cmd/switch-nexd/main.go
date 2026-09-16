@@ -26,6 +26,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -358,44 +359,7 @@ func main() {
 		if len(want) > 0 && !want[t.name] {
 			continue
 		}
-		env := protocols.NewEnv(t.name, *stationAddress, t.base)
-		if t.env != nil {
-			t.env(env)
-		}
-		targetKey := switchnex.DeriveKey([]byte(securePassword), env.SecurePID)
-
-		auth := &prudplite.Endpoint{
-			StreamID:  1,
-			AccessKey: t.accessKey,
-			OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-				return handleAuthRMC(recall, env, targetKey, c, msg)
-			},
-		}
-		secure := &prudplite.Endpoint{
-			StreamID:    1,
-			IsSecure:    true,
-			AccessKey:   t.accessKey,
-			KerberosKey: targetKey,
-			RecallPID: func(host string) (uint64, bool) {
-				pid, ok := recall.take(host)
-				if ok {
-					log.Printf("[%s] secure: recalled pid=%d for %s", env.Name, pid, host)
-				}
-				return pid, ok
-			},
-			OnConnect: func(c *prudplite.Connection) {
-				log.Printf("[%s] secure: connected pid=%d cid=%d host=%s", env.Name, c.PID, c.CID, c.Host)
-			},
-			OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-				return protocols.Dispatch(env, c, msg)
-			},
-			OnDisconnect: func(c *prudplite.Connection) {
-				env.Disconnected(c.PID)
-			},
-		}
-		// The secure endpoint is also the path the server originates on:
-		// notification events and NAT probe relays go back out over it.
-		env.BindPush(secure)
+		svc := newService(t, *stationAddress, recall)
 
 		authLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
 		if err != nil {
@@ -408,11 +372,72 @@ func main() {
 			continue
 		}
 		log.Printf("[%s] serving auth :%d secure :%d", t.name, t.base, t.base+1)
-		go auth.Listen(authLn)
-		go secure.Listen(secureLn)
+		svc.serve(authLn, secureLn)
 	}
 
 	select {} // serve forever
+}
+
+// service is one title's pair of endpoints plus the state they share. Built
+// away from main so a test can drive the whole stack in process: the harness
+// exercises the same construction production does, which is the only way an
+// end-to-end assertion means anything.
+type service struct {
+	env       *protocols.Env
+	targetKey []byte
+	auth      *prudplite.Endpoint
+	secure    *prudplite.Endpoint
+}
+
+// newService wires one title: the auth endpoint that mints tickets and the
+// secure endpoint that spends them, sharing the derived secure-account key.
+func newService(t title, stationAddress string, recall *recall) *service {
+	env := protocols.NewEnv(t.name, stationAddress, t.base)
+	if t.env != nil {
+		t.env(env)
+	}
+	targetKey := switchnex.DeriveKey([]byte(securePassword), env.SecurePID)
+
+	s := &service{env: env, targetKey: targetKey}
+	s.auth = &prudplite.Endpoint{
+		StreamID:  1,
+		AccessKey: t.accessKey,
+		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+			return handleAuthRMC(recall, env, targetKey, c, msg)
+		},
+	}
+	s.secure = &prudplite.Endpoint{
+		StreamID:    1,
+		IsSecure:    true,
+		AccessKey:   t.accessKey,
+		KerberosKey: targetKey,
+		RecallPID: func(host string) (uint64, bool) {
+			pid, ok := recall.take(host)
+			if ok {
+				log.Printf("[%s] secure: recalled pid=%d for %s", env.Name, pid, host)
+			}
+			return pid, ok
+		},
+		OnConnect: func(c *prudplite.Connection) {
+			log.Printf("[%s] secure: connected pid=%d cid=%d host=%s", env.Name, c.PID, c.CID, c.Host)
+		},
+		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+			return protocols.Dispatch(env, c, msg)
+		},
+		OnDisconnect: func(c *prudplite.Connection) {
+			env.Disconnected(c.PID)
+		},
+	}
+	// The secure endpoint is also the path the server originates on:
+	// notification events and NAT probe relays go back out over it.
+	env.BindPush(s.secure)
+	return s
+}
+
+// serve starts both endpoints on already-open listeners.
+func (s *service) serve(authLn, secureLn net.Listener) {
+	go s.auth.Listen(authLn)
+	go s.secure.Listen(secureLn)
 }
 
 // handleAuthRMC answers the auth-connection RMCs: TicketGranting 0x0A methods
@@ -469,7 +494,7 @@ func handleLoginEx(recall *recall, env *protocols.Env, targetKey []byte, c *prud
 	if withStructHeader {
 		body = switchnexTicketResult(env.Name, url, ticket, now, pid, sourceKey)
 	} else {
-		body = switchnexResult(env.Name, env.StationScheme, url, ticket, now, pid, sourceKey)
+		body = switchnexResult(env.Name, url, ticket, now, pid, sourceKey)
 	}
 
 	recall.remember(c.Host, pid)

@@ -10,15 +10,17 @@ import (
 // switchnexResult builds the flat ValidateAndRequestTicketResult body for a
 // title's LoginEx (0x02) response. Method 0x06 is NOT this body with a header
 // on it — it is a different field list; see switchnexTicketResult.
-func switchnexResult(name, scheme, url string, ticket []byte, now uint64, pid uint64, sourceKey []byte) []byte {
+func switchnexResult(name, url string, ticket []byte, now uint64, pid uint64, sourceKey []byte) []byte {
 	return switchnex.Result{
 		RetVal:     rmc.ResultSuccess,
 		SourcePID:  pid,
 		Ticket:     ticket,
 		StationURL: url,
-		// The special station is a bare scheme-only URL, which renders with
-		// its "://" separator. The word alone is a different string.
-		SpecialStation: switchnex.EmptyString(scheme),
+		// The special station is always the plain "prudp" scheme, even for a
+		// title whose main station is "prudps" — it is a placeholder for a
+		// facility we do not offer, not a second address of ours. It renders
+		// with its separator; the bare word is a different string.
+		SpecialStation: switchnex.EmptyString("prudp"),
 		CurrentUTCTime: now,
 		ReturnMsg:      "OpenPak " + name,
 		SourceKeyHex:   switchnex.SourceKeyHex(sourceKey),
