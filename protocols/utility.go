@@ -1,19 +1,30 @@
 // Utility (0x6E) — identity-adjacent odds and ends the games call during
-// online bring-up. Behaviour matched to the working reference:
+// online bring-up.
 //
-//	0x01 AcquireNexUniqueID              -> u64 (process-local counter)
-//	0x02..0x04, 0x06 unique-ID assoc.    -> empty success
-//	0x05 GetAssociatedNexUniqueIDWithMyPrincipalID -> u64
-//	0x07 GetIntegerSettings(u32 index)   -> map<u16,u32> (empty unless the title overrides)
+//	0x01 AcquireNexUniqueID              -> u64 (the caller's PID)
+//	0x02 AcquireNexUniqueIDWithPassword  -> UniqueIDInfo{u64 id, u64 password}
+//	0x03 AssociateNexUniqueIDWithMyPrincipalID -> empty success
+//	0x04, 0x06 unique-id association     -> empty success
+//	0x05 GetAssociatedNexUniqueIDWithMyPrincipalID -> UniqueIDInfo
+//	0x07 GetIntegerSettings(u32 index)   -> map<u16,u32>, ascending key order
 //	0x08 GetStringSettings(u32 index)    -> map<u16,string> (empty)
 //	0x09 AcquireTagId(list<u64>)         -> u64 (PID-derived; 0 -> 1)
-//	0x0A UpdateCurrentUser               -> empty success (the Splatoon 2
-//	                                        network-ready gate — measured
-//	                                        zero-byte answer)
+//	0x0A UpdateCurrentUser               -> empty success
 //
-// GetIntegerSettings runs right after SecureConnection::Register on MPS/LM3;
-// an answer the client cannot parse drops the connection about a second
-// later, so the shape (u32 count first) is load-bearing.
+// The unique id is DERIVED from the PID, never allocated. A title asks for one
+// the first time an account goes online and then keeps it locally, so it has to
+// survive a restart and be the same number on the next session — a counter
+// hands a returning account somebody else's id. The PID is already a stable
+// per-account number we own, so it is the id.
+//
+// Methods 2 and 5 answer a structure, not a bare u64. An empty answer to 2 is
+// what a fresh account gets, which is why it looks like "it works for most
+// people" right up until a new player joins.
+//
+// GetIntegerSettings runs right after SecureConnection::Register; an answer the
+// client cannot parse drops the connection about a second later, so the shape
+// (u32 count first) is load-bearing — and so is the ORDER, because the client
+// reads positions rather than keys.
 package protocols
 
 import (
@@ -21,24 +32,43 @@ import (
 	"github.com/openpak/switch-nex/rmc"
 )
 
+// writeUniqueIDInfo renders the UniqueIDInfo structure both 0x02 and 0x05
+// answer: the id and the password a title stores alongside it. Nothing checks
+// the password against a store — the id IS the account's PID and the account is
+// already authenticated by its kerberos ticket before any of this runs — so it
+// only has to be stable and to match what we hand out.
+func writeUniqueIDInfo(pid uint64) []byte {
+	w := rmc.NewWriter()
+	w.StructOf(1, func(w *rmc.Writer) {
+		w.U64(pid)
+		w.U64(pid ^ uniqueIDPasswordSalt)
+	})
+	return w.Bytes()
+}
+
+// uniqueIDPasswordSalt turns a unique id into its password.
+const uniqueIDPasswordSalt uint64 = 0x4E45585F50574421
+
 func utilityHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
 	switch msg.MethodID {
 	case 0x01: // AcquireNexUniqueID -> u64
 		return success(msg, func() []byte {
 			w := rmc.NewWriter()
-			w.U64(env.uniqueID.Add(1))
+			w.U64(c.PID)
 			return w.Bytes()
 		}())
 
-	case 0x05: // GetAssociatedNexUniqueIDWithMyPrincipalID -> u64
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.U64(env.uniqueID.Load())
-			return w.Bytes()
-		}())
+	case 0x02, 0x05: // AcquireNexUniqueIDWithPassword / GetAssociated… -> UniqueIDInfo
+		// The same answer for both: our ids are derived, never allocated, so a
+		// lookup cannot find anything an acquisition would not have returned,
+		// and an account that never acquired one is not a miss.
+		return success(msg, writeUniqueIDInfo(c.PID))
 
-	case 0x02, 0x03, 0x04, 0x06:
+	case 0x03, 0x04, 0x06:
+		// The title associates an id with its account. Ours are derived from
+		// the PID, so the association is already true by construction and
+		// there is nothing to record — but it still has to be acknowledged.
 		return success(msg, nil)
 
 	case 0x07: // GetIntegerSettings(u32) -> map<u16,u32>
@@ -53,7 +83,11 @@ func utilityHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 		if errCode != 0 {
 			return errorResp(msg, errCode)
 		}
-		return success(msg, writeU16U32Map(settings))
+		return success(msg, func() []byte {
+			w := rmc.NewWriter()
+			w.U16U32Map(settings)
+			return w.Bytes()
+		}())
 
 	case 0x08: // GetStringSettings(u32) -> map<u16,string>
 		return success(msg, writeU16StringMap(nil))
@@ -84,16 +118,6 @@ func notificationHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		return success(msg, nil)
 	}
 	return notImplemented(env, msg)
-}
-
-func writeU16U32Map(m map[uint16]uint32) []byte {
-	w := rmc.NewWriter()
-	w.List(len(m))
-	for k, v := range m {
-		w.U16(k)
-		w.U32(v)
-	}
-	return w.Bytes()
 }
 
 func writeU16StringMap(m map[uint16]string) []byte {

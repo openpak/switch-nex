@@ -24,6 +24,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	switchnex "github.com/openpak/switch-nex"
@@ -48,10 +49,24 @@ type Endpoint struct {
 	OnRMC        func(c *Connection, msg *rmc.RMCMessage) (response []byte)
 	OnDisconnect func(c *Connection)
 
-	ln    net.Listener
-	mu    sync.Mutex
-	conns map[string]*Connection
-	quit  chan struct{}
+	ln     net.Listener
+	mu     sync.Mutex
+	conns  map[string]*Connection
+	quit   chan struct{}
+	nextID atomic.Uint32
+}
+
+// ConnectionByPID returns the live connection for a principal, if it has one.
+// Server-initiated pushes address a player, not a socket.
+func (e *Endpoint) ConnectionByPID(pid uint64) (*Connection, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, c := range e.conns {
+		if c.PID == pid && c.State == StateConnected {
+			return c, true
+		}
+	}
+	return nil, false
 }
 
 // Listen starts serving the endpoint on an already-open TLS listener.
@@ -97,6 +112,10 @@ func (e *Endpoint) acceptLoop() {
 			Remote:   tcp,
 			Host:     tcp.IP.String(),
 			conn:     conn,
+			// The connection id the client is told to call itself (RVCID).
+			// Per connection, never a constant: two consoles handed the same
+			// id cannot address each other in the P2P mesh.
+			ID: e.nextID.Add(1),
 		}
 		e.mu.Lock()
 		e.conns[c.Host] = c
@@ -122,9 +141,16 @@ type Connection struct {
 	Host     string // client IP — the recall key
 
 	PID        uint64
-	CID        uint32
+	ID         uint32 // the connection id we assign (RVCID)
+	CID        uint32 // the connection id the client claimed in its CONNECT
 	Signature  []byte // our connection signature (SYN-ACK)
 	SessionKey []byte
+
+	// stations are the client's station URLs as last reported: its LAN
+	// address and the public one we observed or it told us. ReplaceURL
+	// rewrites them mid-session, and the NAT probe path reads them.
+	stationMu sync.Mutex
+	stations  []string
 
 	// Learned virtual ports (from the client's SYN): we answer AS the
 	// port the client targeted and address the client's source port.
@@ -137,6 +163,30 @@ type Connection struct {
 	fragBuf []byte
 	conn    net.Conn
 	writeMu sync.Mutex
+}
+
+// SetStations replaces the connection's station list.
+func (c *Connection) SetStations(urls []string) {
+	c.stationMu.Lock()
+	c.stations = append([]string(nil), urls...)
+	c.stationMu.Unlock()
+}
+
+// Stations returns the connection's station list.
+func (c *Connection) Stations() []string {
+	c.stationMu.Lock()
+	defer c.stationMu.Unlock()
+	return append([]string(nil), c.stations...)
+}
+
+// SendRMC pushes a serialised RMC message to the client on its own reply path.
+// The virtual-port routing is the one learned from the client's SYN, which is
+// what the console requires — a hardcoded source port is dropped silently.
+func (c *Connection) SendRMC(payload []byte) error {
+	if c.State != StateConnected {
+		return fmt.Errorf("prudplite: push to a connection that is not connected")
+	}
+	return c.sendData(payload, 0)
 }
 
 // Connection states.

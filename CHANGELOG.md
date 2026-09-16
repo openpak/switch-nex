@@ -63,3 +63,58 @@
   SMB35 settings table.
 
 ## 2026-09-15 — initial import
+
+## 2026-09-16 — reference parity pass
+
+Closed all 43 findings from `docs/legacy-gap-report.md`.
+
+Login and connection setup:
+- `ValidateAndRequestTicketWithParam` (0x0A/0x06) now answers its own structure
+  instead of the LoginEx body with a header on it — no retval, and the secure
+  endpoint as a plain URL string plus the server time. The old shape was
+  rejected as an invalid argument by every NEX 4.4+ title.
+- `Login` (0x0A/0x01) shares the LoginEx answer.
+- The login special-station field renders as `prudp:/`, not the bare word.
+- `SecureConnection::Register` (0x0B/0x01) answers the same three fields as
+  RegisterEx, and both hand back the CLIENT's public station — derived from the
+  stations it reported, stamped with its PID and connection id — rather than our
+  own secure address, which Pia cannot recognise as itself.
+- Connection ids are per connection; they were all 1.
+- `ReplaceURL` stores the re-reported station instead of discarding it.
+- Public-station `type` and `Pa` follow each title's Pia version, and the
+  station scheme is per title (`prudps` for MPS, Golf, ARMS, SMO).
+- The IP-to-PID recall table survives a restart (`-recall-file`).
+
+Wire fixes:
+- `DataStore::NotFound` went out as 0x80069004; the measured value is
+  0x80690004. The constant had two digits transposed.
+- Ranking2 common data uses QBuffers for the Mii and binary blobs, and a
+  zero-length string for an unnamed player.
+- Ranking2 category settings write the reset month as a u16.
+- `GetEstimateMyRank` is method 11, not 10.
+- `GetCommonData` for an unknown player answers an empty structure, not an error.
+- Referee `EndRoundWithoutReport` is method 5; method 4 is the partial report.
+- Utility unique ids derive from the PID and answer a framed structure on
+  methods 2 and 5.
+- Integer settings and matchmake parameters are written in key order; Go's map
+  iteration made both non-deterministic between calls.
+- RMC protocol ids from 0x80 up escape to a u16.
+
+New behaviour:
+- Server-initiated pushes: participation, disconnect, ownership, host change,
+  gathering teardown, referee round start, and the NAT `InitiateProbe` relay.
+- `GetRelaySignatureKey` answers a well-formed "no relay offered".
+- NAT properties are classified and incompatible peers are not seated together.
+- Host migration on 0x15 (0x24/0x28/0x2A/0x2B/0x2C) and when an owner leaves.
+- Room and arena codes (0x37/0x38/0x44/0x45) and tournaments (0x39/0x3F/0x42/0x43).
+- `CustomGetSimplePlayingSession` (0x6D/0x3C) resolves a friend's gathering; it
+  answered an empty list, which is why friend-joins failed.
+- `FindMatchmakeSessionByParticipant` parses its structure header, and serves
+  real results only for the title that uses it.
+- Ranking 0x70 serves the reference's method set, including common-data-by-PIDs.
+- Mario Strikers' bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A.
+- DataStore stub shapes are per title.
+
+Corrected `docs/legacy-parity.md`: the per-title table wrongly recorded eight
+titles as having no Ranking, and SMB35's secure PID as a retail constant rather
+than 2.

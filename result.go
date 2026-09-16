@@ -33,6 +33,44 @@ type Result struct {
 	SourceKeyHex     string
 }
 
+// TicketResult is the ValidateAndRequestTicketResult body of a successful
+// TicketGranting ValidateAndRequestTicketWithParam (0x06) response — the NEX
+// 4.4+ login path. It is NOT the LoginEx body wrapped in a header: there is no
+// leading retval, and the secure endpoint is a bare StationURL string followed
+// by the server time, where LoginEx carries a whole RVConnectionData structure.
+//
+// Wire shape, all inside one structure (u8 version=1, u32 content length):
+//
+//	u64 SourcePID
+//	u32 len + Ticket
+//	String ServiceNodeURL
+//	u64 CurrentUTCTime
+//	String ReturnMsg
+//	String SourceKey (hex)
+type TicketResult struct {
+	SourcePID      uint64
+	Ticket         []byte
+	StationURL     string
+	CurrentUTCTime uint64
+	ReturnMsg      string
+	SourceKeyHex   string
+}
+
+// Bytes serialises the structure-wrapped method-0x06 response body.
+func (r TicketResult) Bytes() []byte {
+	c := binary.LittleEndian.AppendUint64(nil, r.SourcePID)
+	c = binary.LittleEndian.AppendUint32(c, uint32(len(r.Ticket)))
+	c = append(c, r.Ticket...)
+	c = appendString(c, r.StationURL)
+	c = binary.LittleEndian.AppendUint64(c, r.CurrentUTCTime)
+	c = appendString(c, r.ReturnMsg)
+	c = appendString(c, r.SourceKeyHex)
+
+	out := append([]byte{1}, 0, 0, 0, 0) // structure version 1 + content length
+	binary.LittleEndian.PutUint32(out[1:], uint32(len(c)))
+	return append(out, c...)
+}
+
 // appendString writes a NEX String: u16 length including the trailing NUL,
 // then the UTF-8 bytes and the NUL.
 func appendString(b []byte, s string) []byte {

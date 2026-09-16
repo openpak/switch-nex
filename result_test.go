@@ -3,6 +3,7 @@ package switchnex
 import (
 	"bytes"
 	"encoding/binary"
+	"strings"
 	"testing"
 )
 
@@ -70,5 +71,107 @@ func TestResultSpecialProtocols(t *testing.T) {
 	}
 	if content[countOff+4] != 3 || content[countOff+5] != 5 {
 		t.Fatalf("special protocol values %x", content[countOff+4:countOff+6])
+	}
+}
+
+// TestTicketResultIsNotLoginExWithAHeader pins the difference between the two
+// login methods. LoginEx (0x02) is the flat layout led by a retval and carrying
+// a whole RVConnectionData structure; ValidateAndRequestTicketWithParam (0x06)
+// has NO retval and carries the secure endpoint as a plain URL string followed
+// by the server time. Wrapping the first in a header does not produce the
+// second, and the client rejects it as an invalid argument.
+func TestTicketResultIsNotLoginExWithAHeader(t *testing.T) {
+	const url = "prudp:/address=10.0.0.1;port=22151"
+	ticket := []byte{1, 2, 3, 4}
+
+	body := TicketResult{
+		SourcePID:      4242,
+		Ticket:         ticket,
+		StationURL:     url,
+		CurrentUTCTime: 0x1234,
+		ReturnMsg:      "OpenPak test",
+		SourceKeyHex:   "abcd",
+	}.Bytes()
+
+	if body[0] != 1 {
+		t.Fatalf("structure version = %d, want 1", body[0])
+	}
+	if got := binary.LittleEndian.Uint32(body[1:5]); int(got) != len(body)-5 {
+		t.Fatalf("content length = %d, but %d bytes follow", got, len(body)-5)
+	}
+
+	// The first field is the PID. If a retval had crept in, this would read
+	// 0x00010001 instead.
+	rest := body[5:]
+	if pid := binary.LittleEndian.Uint64(rest[0:8]); pid != 4242 {
+		t.Fatalf("first field = %#x; a leading retval would show up exactly here", pid)
+	}
+	off := 8
+	if n := binary.LittleEndian.Uint32(rest[off:]); int(n) != len(ticket) {
+		t.Fatalf("ticket length = %d, want %d", n, len(ticket))
+	}
+	off += 4 + len(ticket)
+
+	// A bare String, not an RVConnectionData structure: the next two bytes are
+	// the string length, not a version byte and a length prefix.
+	gotURL, off := readNEXString(t, rest, off)
+	if gotURL != url {
+		t.Fatalf("station URL = %q, want %q", gotURL, url)
+	}
+	if when := binary.LittleEndian.Uint64(rest[off:]); when != 0x1234 {
+		t.Fatalf("server time = %#x, want 0x1234", when)
+	}
+	off += 8
+	if msg, next := readNEXString(t, rest, off); msg != "OpenPak test" {
+		t.Fatalf("message = %q", msg)
+	} else {
+		off = next
+	}
+	if key, next := readNEXString(t, rest, off); key != "abcd" {
+		t.Fatalf("source key = %q", key)
+	} else if next != len(rest) {
+		t.Fatalf("%d trailing bytes", len(rest)-next)
+	}
+}
+
+// readNEXString reads a u16 length (including the trailing NUL) and its bytes.
+func readNEXString(t *testing.T, b []byte, off int) (string, int) {
+	t.Helper()
+	n := int(binary.LittleEndian.Uint16(b[off:]))
+	off += 2
+	s := b[off : off+n]
+	for len(s) > 0 && s[len(s)-1] == 0 {
+		s = s[:len(s)-1]
+	}
+	return string(s), off + n
+}
+
+// TestEmptyStationRendersWithItsSeparator: the special-station field carries a
+// scheme-only URL, which is "prudp:/" — the bare word is a different string.
+func TestEmptyStationRendersWithItsSeparator(t *testing.T) {
+	if got := EmptyString("prudp"); got != "prudp:/" {
+		t.Fatalf("EmptyString = %q, want %q", got, "prudp:/")
+	}
+	if got := EmptyString(""); got != "prudp:/" {
+		t.Fatalf("default scheme = %q", got)
+	}
+}
+
+// TestStationURLRoundTrip: what we render, we can read back.
+func TestStationURLRoundTrip(t *testing.T) {
+	u := NewScheme("prudps", "10.0.0.1", 22151)
+	u.SetInt("RVCID", 9)
+	back := Parse(u.String())
+	if back.Scheme != "prudps" {
+		t.Fatalf("scheme = %q", back.Scheme)
+	}
+	if back.Get("address") != "10.0.0.1" || back.Get("port") != "22151" || back.Get("RVCID") != "9" {
+		t.Fatalf("round trip lost parameters: %s", back)
+	}
+	// Remove takes the key out of the ORDER too; left behind it re-emits as
+	// "k=", which is not the same as absent.
+	back.Remove("RVCID")
+	if back.Has("RVCID") || strings.Contains(back.String(), "RVCID") {
+		t.Fatalf("RVCID survived removal: %s", back)
 	}
 }

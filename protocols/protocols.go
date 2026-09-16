@@ -32,6 +32,7 @@ const (
 	ProtoDataStore        uint16 = 0x73
 	ProtoMatchmakeReferee uint16 = 0x78
 	ProtoRanking2         uint16 = 0x7A
+	ProtoPresence         uint16 = 0x79
 )
 
 // Env is one title's serving environment: identity of the server on the wire
@@ -39,11 +40,19 @@ const (
 type Env struct {
 	Name string
 
-	// StationURL parameters for the secure endpoint handed out at login and
-	// served by SecureConnection::RegisterEx/RequestURLs.
+	// StationURL parameters for the secure endpoint handed out at login.
 	StationAddress string
 	SecurePort     uint16
-	SecurePID      uint64 // station URL PID= (2 by convention; SMB35 carries the retail constant)
+	SecurePID      uint64 // station URL PID= (2 for every title)
+
+	// StationScheme is the station URL scheme this title's console parses,
+	// "prudp" or the secure "prudps". It is part of the string, so it is per
+	// title and not a constant.
+	StationScheme string
+
+	// Pia is the public-station shape Register hands back, following the
+	// title's Pia version (see PiaStationShape).
+	Pia PiaStationShape
 
 	// SourceKeyBytes is the per-login kerberos source key size. 32 on Switch
 	// generally (MK8D, MPS, ACNH, LM3, S2, SMM2 measured), 16 attested for
@@ -66,6 +75,11 @@ type Env struct {
 	// the working reference (sessions arrive closed and deadlock two searchers
 	// — the fix opens every session at create time).
 	ForceOpenParticipation bool
+
+	// FindByParticipant serves real results from 0x6D/0x33. Off by default:
+	// the titles that do not use the method start up against an empty list,
+	// and a populated one changes what they do at boot.
+	FindByParticipant bool
 
 	// SanitizeDetailFind implements Mario Party Superstars behaviour:
 	// FindMatchmakeSessionByGatheringIDDetail is answerable by anyone holding
@@ -92,7 +106,7 @@ type Env struct {
 	// methods (0x30 GetUsers etc.) answer with reference shapes.
 	// dsClubhouse: Clubhouse Games' account-setup answers — GetPersistenceInfos
 	// (0x1E) empty + NotFound per slot, GetMeta NotFound, everything else a
-	// bare empty list.
+	// bare empty list. See the DSMode table for the per-title shapes.
 	DataStore DSMode
 
 	// Ranking present (0x70). Ranking2/Referee/Messaging/Presence are keyed
@@ -103,12 +117,19 @@ type Env struct {
 	MessageDelivery  bool // SMB35
 	Presence         bool // LM3 0x79
 
+	// StrikersInit serves Mario Strikers' bring-up table on the five protocols
+	// its Pia interrogates at startup (see strikers.go).
+	StrikersInit bool
+
 	// internal state
-	uniqueID atomic.Uint64
-	dataID   atomic.Uint64
-	referee  roundStore
-	ranking  rankingStore
-	r2common r2CommonStore
+	dataID      atomic.Uint64
+	push        pusher
+	nat         natStore
+	codes       codeStore
+	tournaments tournamentStore
+	referee     roundStore
+	ranking     rankingStore
+	r2common    r2CommonStore
 }
 
 // DSMode selects the DataStore behaviour.
@@ -117,11 +138,17 @@ type DSMode int
 // DataStore behaviour levels.
 const (
 	DSOff           DSMode = iota
-	DSStub                 // reference answers: empties + NotFound + real data IDs
+	DSEmptyList            // GetMeta -> NotFound, everything else a bare empty list
+	DSEmptySuccess         // every method, GetMeta included, answers an empty body
+	DSStub                 // + real data IDs from PostMetaBinary, search ranges
 	DSBalloonErrors        // + title balloon methods answer NotImplemented (SMO)
 	DSSMM2                 // + SMM2 title methods (0x2F-0x31, 0x3C) answer in shapes
 	DSClubhouse            // account-setup answers: GetPersistenceInfos empties + per-slot NotFound
 )
+
+// BindPush attaches the title's secure endpoint so the server can originate
+// RMC requests on it (notification events, NAT probe relays).
+func (e *Env) BindPush(endpoint *prudplite.Endpoint) { e.push.bind(endpoint) }
 
 // NewEnv builds a title environment.
 func NewEnv(name, stationAddress string, portBase int) *Env {
@@ -131,12 +158,14 @@ func NewEnv(name, stationAddress string, portBase int) *Env {
 		SecurePort:     uint16(portBase + 1),
 		SecurePID:      2,
 		SourceKeyBytes: 32,
+		StationScheme:  "prudp",
+		Pia:            Pia519(),
 	}
 }
 
 // SecureStationURL renders the secure station URL this title hands out.
 func (e *Env) SecureStationURL() string {
-	u := switchnex.New(e.StationAddress, e.SecurePort)
+	u := switchnex.NewScheme(e.StationScheme, e.StationAddress, e.SecurePort)
 	u.SetInt("PID", e.SecurePID)
 	return u.String()
 }
@@ -186,11 +215,15 @@ func handlersFor(env *Env) map[uint16]handler {
 	if env.MatchmakeReferee {
 		h[ProtoMatchmakeReferee] = refereeHandler
 	}
-	if env.MessageDelivery {
-		h[ProtoMessageDelivery] = messageDeliveryHandler
-	}
 	if env.Presence {
-		h[0x79] = presenceHandler
+		h[ProtoPresence] = presenceHandler
+	}
+	if env.StrikersInit {
+		// The bring-up shapes win over the generic handlers for exactly the
+		// protocols this title interrogates at boot.
+		for _, proto := range []uint16{ProtoUtility, ProtoDataStore, ProtoRanking2, ProtoMatchmakeReferee, ProtoPresence} {
+			h[proto] = strikersHandler(proto)
+		}
 	}
 	return h
 }

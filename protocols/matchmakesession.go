@@ -8,6 +8,8 @@
 package protocols
 
 import (
+	"sort"
+
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -211,10 +213,19 @@ func readStringVariantMap(r *rmc.Reader) (map[string]rmc.Variant, error) {
 	return m, nil
 }
 
+// writeStringVariantMap writes the matchmake parameters in ascending key order.
+// Go ranges a map in a randomised order, so without the sort a session echoed
+// back to a console comes out in a different order every call — and re-encoding
+// a session we just parsed does not reproduce its own bytes.
 func writeStringVariantMap(w *rmc.Writer, m map[string]rmc.Variant) {
-	w.List(len(m))
-	for k, v := range m {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	w.List(len(keys))
+	for _, k := range keys {
 		w.String(k)
-		w.WriteVariant(v)
+		w.WriteVariant(m[k])
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sort"
 )
 
 // Reader walks an RMC body.
@@ -112,6 +113,23 @@ func (r *Reader) Buffer() ([]byte, error) {
 	return v, nil
 }
 
+// QBuffer reads a u16-length-prefixed byte block. Distinct from Buffer: the
+// Ranking2 common-data blobs (mii, binary) are QBuffers, and reading them as
+// u32 blobs swallows two bytes of whatever follows.
+func (r *Reader) QBuffer() ([]byte, error) {
+	n, err := r.U16()
+	if err != nil {
+		return nil, err
+	}
+	if err := r.need(int(n)); err != nil {
+		return nil, err
+	}
+	v := make([]byte, n)
+	copy(v, r.b[r.o:r.o+int(n)])
+	r.o += int(n)
+	return v, nil
+}
+
 // StructHeader reads a structure header (u8 version, u32 content length).
 // The returned length is the content length that follows.
 func (r *Reader) StructHeader() (version uint8, contentLen uint32, err error) {
@@ -181,6 +199,24 @@ func (w *Writer) Buffer(b []byte) {
 	w.b = append(w.b, b...)
 }
 
+// QBuffer appends a u16-length-prefixed byte block.
+func (w *Writer) QBuffer(b []byte) {
+	w.U16(uint16(len(b)))
+	w.b = append(w.b, b...)
+}
+
+// StringEmptyZero appends a NEX string, but writes an empty string as a bare
+// length 0 with no bytes at all — where String writes length 1 and a lone NUL.
+// The one-byte difference shifts everything after it; the measured servers hit
+// it twice (SMM2 user info, then every unnamed player in a Ranking2 board).
+func (w *Writer) StringEmptyZero(s string) {
+	if s == "" {
+		w.U16(0)
+		return
+	}
+	w.String(s)
+}
+
 // Raw appends bytes verbatim.
 func (w *Writer) Raw(b []byte) { w.b = append(w.b, b...) }
 
@@ -196,6 +232,23 @@ func (w *Writer) StructOf(version uint8, build func(nested *Writer)) {
 	n := NewWriter()
 	build(n)
 	w.Struct(version, n.Bytes())
+}
+
+// U16U32Map appends a NEX Map<u16,u32> in ascending key order. Order is
+// load-bearing: the client reads settings by POSITION, not by key, so a Go map
+// ranged in its native (randomised) order produces a different table on every
+// call.
+func (w *Writer) U16U32Map(m map[uint16]uint32) {
+	keys := make([]uint16, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	w.List(len(keys))
+	for _, k := range keys {
+		w.U16(k)
+		w.U32(m[k])
+	}
 }
 
 // List appends a list count; the caller then appends count elements.
@@ -271,14 +324,19 @@ func (w *Writer) WriteVariant(v Variant) {
 }
 
 // Result codes (pre-error-bit). The error bit 0x80000000 is added by
-// EncodeError; DataStore::NotFound therefore goes on the wire as 0x80690004,
-// the value measured against the working reference servers.
+// EncodeError, so DataStore::NotFound below goes on the wire as 0x80690004.
 const (
 	ResultSuccess            uint32 = 0x00010001 // Core::Unknown — the observed success marker
 	ResultNotImplemented     uint32 = 0x00010002 // Core::NotImplemented
 	ResultInvalidArgument    uint32 = 0x0001000A // Core::InvalidArgument
+	ResultAccessDenied       uint32 = 0x00010006 // Core::AccessDenied
+	ResultInvalidPID         uint32 = 0x0003006B // RendezVous::InvalidPID
 	ResultSessionVoid        uint32 = 0x00030073 // RendezVous::SessionVoid
-	ResultDataStoreNotFound  uint32 = 0x00069004 // DataStore::NotFound
+	ResultSessionFull        uint32 = 0x000300C8 // RendezVous::SessionFull
+	ResultPermissionDenied   uint32 = 0x000300D9 // RendezVous::PermissionDenied
+	ResultAuthTokenParse     uint32 = 0x00680002 // Authentication::TokenParseError
+	ResultAuthUnknown        uint32 = 0x0068000E // Authentication::Unknown
+	ResultDataStoreNotFound  uint32 = 0x00690004 // DataStore::NotFound -> 0x80690004 on the wire
 	ResultRanking2InvalidArg uint32 = 0x00710002 // Ranking2::InvalidArgument
 	ResultRefereeInvalidArg  uint32 = 0x006F0002 // MatchmakeReferee::InvalidArgument
 	ResultRefereeNotJoined   uint32 = 0x006F0004 // MatchmakeReferee::NotParticipatedGathering

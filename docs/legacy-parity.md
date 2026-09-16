@@ -55,21 +55,32 @@ Per-title matchmaking rules measured on the reference and implemented here:
 
 | Title (base) | Reference protocol set | Our state |
 |---|---|---|
-| Mario Party Superstars (22110) | MM 0x15, MMX 0x6D, MME 0x32, NAT 0x03, UT 0x6E (+`MPS_INTEGER_SETTINGS` tables); deliberately no DataStore/Ranking | **implemented** incl. settings tables + detail-find sanitisation |
-| Mario Golf: Super Rush (22130) | MM, MMX, MME, NAT, UT; Ranking blocked upstream on the reference too | **implemented** |
-| ARMS (22140) | MM, MMX, MME, NAT, UT, DS 0x73 (real store); no Ranking | **implemented**; DataStore at stub level (see deviations) |
-| Mario Kart 8 Deluxe (22150) | MM, MMX, MME, NAT, UT, Ranking 0x70 (scores + common data) | **implemented** (pilot; plus `cmd/mk8d`) |
-| Super Mario Bros. 35 (22160) | MM, MMX, MME, NAT, UT (17-entry index-0 settings table), Ranking2 0x7A, Referee 0x78, MessageDelivery 0x1B; secure PID 257049437023956657; 16-byte source key | **implemented** behaviour-for-behaviour incl. round store, raw StartRoundParam echo, settings table; deviations below |
-| Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS (PostMetaBinary must return a u64!) | **implemented** |
-| Animal Crossing: New Horizons (22180) | MM + 0x33/0x2C, MMX, MME, NAT, UT 9/10, Ranking (0x25), DS | **implemented** at reference level |
-| Luigi's Mansion 3 (22190) | MM, MMX, MME, NAT, UT, presence 0x79 (methods 5/13/14/15); no DS/Ranking | **implemented**: 0x79 stub — publish methods ack empty, station queries answer empty record list ("no friends have a room open") |
-| Mario Strikers: Battle League (22300) | MM, MMX, MME, NAT, UT, DS (reference answered NotFound/empties; club data rides 0x6D.54+, unimplemented there too) | **implemented** at reference level; club methods NotImplemented |
-| Minecraft (22310) | MM, MMX, MME, NAT, UT; no DS/Ranking | **implemented** |
-| Splatoon 2 (22320) | MM (+0x3C), MMX, MME, NAT, UT (+9/10), Ranking (+0x12/0x13/0x19 empty lists), DS | **implemented** incl. splatfest empties |
-| Super Mario Maker 2 (22330) | MM, MMX, MME, NAT, UT, Ranking, DS + title methods (GetUsers 0x30 demanded 4× at boot) | **implemented**: GetUsers answers (empty UserInfo list, per-PID NotFound); Course World stays generic — same as the reference outcome |
-| Super Mario Odyssey (22340) | UT + DS only (no matchmaking at all); balloon methods 0x73.0x2F-0x35 NotImplemented | **implemented** incl. balloon NotImplemented stance |
-| Super Smash Bros. Ultimate (22350) | MM, MMX, MME, NAT, UT (real unique IDs), DS; Ranking never the blocker | **implemented** |
+| Mario Party Superstars (22110) | SC 0x0B, MM 0x15, MMX 0x6D, MME 0x32, NAT 0x03, UT 0x6E (+`MPS_INTEGER_SETTINGS`), DS 0x73 (empty-list stub), Ranking 0x70; `prudps`, legacy Pia | **implemented** incl. settings tables + detail-find sanitisation |
+| Mario Golf: Super Rush (22130) | MM, MMX, MME, NAT, UT, Ranking; `prudps`, legacy Pia | **implemented** |
+| ARMS (22140) | MM, MMX, MME, NAT, UT, Ranking, DS 0x73; `prudps`, legacy Pia | **implemented**; DataStore at stub level (see deviations) |
+| Mario Kart 8 Deluxe (22150) | MM, MMX, MME, NAT, UT, Ranking 0x70; Pia 5.19 | **implemented** (pilot; plus `cmd/mk8d`), incl. room codes and tournaments |
+| Super Mario Bros. 35 (22160) | MM, MMX, MME, UT (17-entry index-0 settings table), Ranking2 0x7A, Referee 0x78, MessageDelivery 0x1B; **no NAT, no Ranking 0x70**; 16-byte source key; legacy Pia | **implemented** behaviour-for-behaviour incl. round store, raw StartRoundParam echo, settings table |
+| Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented** |
+| Animal Crossing: New Horizons (22180) | MM + 0x33/0x2C, MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented**; the one title with find-by-participant serving real results |
+| Luigi's Mansion 3 (22190) | MM, MMX, MME, NAT, UT, Ranking, presence 0x79; legacy Pia | **implemented**: 0x79 stub |
+| Mario Strikers: Battle League (22300) | MM, MMX, MME, NAT, UT, Ranking, DS, plus a bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A; Pia 5.19 | **implemented** incl. the bring-up table (`protocols/strikers.go`) |
+| Minecraft (22310) | MM, MMX, MME, NAT, UT, Ranking | **implemented** |
+| Splatoon 2 (22320) | MM (+0x3C), MMX, MME, NAT, UT (+2/5), Ranking, DS (**empty success for every method, GetMeta included**); legacy Pia | **implemented** |
+| Super Mario Maker 2 (22330) | MM, MMX, MME, NAT, UT, Ranking, DS + title methods | **implemented**: GetUsers answers (empty UserInfo list, per-PID NotFound) — see deviation 1 |
+| Super Mario Odyssey (22340) | SC, UT, Ranking, DS — no matchmaking at all; balloon methods 0x73.0x2F-0x35 NotImplemented; `prudps` | **implemented** incl. balloon NotImplemented stance |
+| Super Smash Bros. Ultimate (22350) | MM, MMX, MME, NAT, UT, Ranking, DS (empty-list stub); arena codes 0x37/0x38; the 0x3A pre-match probe; Pia 5.19 | **implemented** |
 | Clubhouse Games 51 (22870) | MM, MMX, MME, NAT, UT, Ranking, DS (account-setup stub shapes); NEX 4.4.0, access key `8c3661ff`, secure PID 2, 32-byte session key, game server 2035BB00 | **implemented** (see the per-title rules above); new title, no nex-go predecessor |
+
+Corrected 2026-09-16 against the reference sources. The previous version of this
+table claimed MPS, Golf, ARMS, LM3, Minecraft, SMO, SSBU and Strikers had **no
+Ranking**, and that MPS deliberately had no DataStore. Both were wrong: the
+reference registers Ranking 0x70 for every one of them. It also recorded SMB35's
+secure PID as a retail constant; every reference title, SMB35 included, uses 2.
+See `docs/legacy-gap-report.md` conflicts 37-43.
+
+Reference NEX versions, for the record: MPS 40605, Golf 40605, ARMS 40305,
+MTA 40305, SMB35 40600, every other title 40000. Session key length is 32
+everywhere, SMB35 included; the 16 bytes that title carries is its SOURCE key.
 
 Not served by this lineage: **MHGU (22120)** — raw PRUDP over UDP, kerberos v0
 tickets, 3DS-lineage code under an AArch64 shim. Different transport; stays
@@ -82,27 +93,32 @@ on nex-go (MIGRATION.md).
    data IDs from PostMetaBinary, empty lists elsewhere). The Postgres/S3
    store from `servers/nex` (ARMS/ACNH/S2/SMM2/SMO generation) is the
    port-ready upgrade when a title needs real object persistence.
-2. **No server-initiated pushes yet**: the transport answers, it does not
-   originate DATA. Affected: SMB35 Eagle handoff (notification 200000 — the
-   reference's push was measured *never honoured* by the client anyway),
-   referee round-started (116000 — SMB35 learns by polling), gathering
-   join/leave events (3001/3007/109000 — the MPS join flow already polls).
-   Adding an outbound DATA path to `prudplite` is the enablement item.
+2. **Server-initiated pushes: implemented 2026-09-16.** `prudplite` originates
+   RMC requests on a client's own connection (`Connection.SendRMC`), and the
+   secure endpoint is bound to each title's `Env`. Participation (3001),
+   disconnect (3007), end-participation (3008), ownership (4000), gathering
+   teardown (109000), host change (110000), referee round-started (116000) and
+   added-to-gathering (122000) are all pushed, as is the NAT `InitiateProbe`
+   relay. The SMB35 Eagle handoff (200000) is still not sent: the reference
+   measured its push never honoured by the client, so there is nothing to
+   reproduce.
 3. **SMB35 listener shape**: the reference used a single listener with the
    secure stage on stream 2 (a nex-go limitation workaround). Here the secure
    stage is its own port (base+1) and the station URL carries `sid=1`, which
    the MK8D-verified station URL shape already covers (SPEC.md).
-4. **Access keys are recorded but not enforced**: PRUDPLite packet signature
-   verification (HMAC-MD5 under the access key) is not implemented yet; TLS
-   carries the channel. Measured keys live in the per-title env files of the
-   old lineage (`e915510f` MPS, `1cb8027c` Golf, `b6b34c51` ARMS,
-   `0a69c592` SMB35, `29f267b9` MTA, `v43a10em` ACNH, `aab95246` LM3,
-   `MAGNI5jG` Strikers, `f4983d87` Minecraft, `4eb18d39` S2, `fdf6617f` SMM2,
-   `afef0ecf` SMO, `9587602b` SSBU) — configuration, never literals in code.
-5. **MHGUs of the world aside, one fake identity stands in for accounts**:
-   PID derives deterministically from the login username; nx-baas-backed
-   identity/friend graphs are the integration item before real-console
-   cutover (MIGRATION.md checklist).
+4. **Access keys are now set for every title** and the CONNECT Lite-signature
+   check is enforced wherever one is present: `e915510f` MPS, `1cb8027c` Golf,
+   `b6b34c51` ARMS, `09c1c475` MK8D, `0a69c592` SMB35, `29f267b9` MTA,
+   `v43a10em` ACNH, `aab95246` LM3, `MAGNI5jG` Strikers, `f4983d87` Minecraft,
+   `4eb18d39` S2, `fdf6617f` SMM2, `afef0ecf` SMO, `9587602b` SSBU,
+   `8c3661ff` Clubhouse. They are public constants baked into the game
+   binaries, not secrets. PRUDPLite DATA frames are unsigned by protocol
+   design; TLS carries the channel.
+5. **One unverified identity still stands in for accounts**: the PID derives
+   from the login username, which is accepted without proof, and nx-baas never
+   sees the player. This is the largest open item on the lineage and is written
+   up separately in `docs/identity-gap.md` — it is not a parity gap against the
+   reference (which binds to nx-baas) but a gap against our own `servers/nex`.
 
 ## Clubhouse Games 51 — fact provenance (2026-09-16)
 

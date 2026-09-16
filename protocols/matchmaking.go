@@ -193,6 +193,12 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	case 0x1F: // GetSimplePlayingSession() -> list<(PID, gid, gameMode, attr0)>
 		return success(msg, simplePlayingSessionList(env, []uint64{c.PID}))
 
+	case 0x42: // TournamentCreate -> the descriptor, echoed
+		return createTournament(env, c, msg)
+
+	case 0x43: // TournamentDelete -> empty success (owner only)
+		return deleteTournament(env, c, msg, r)
+
 	case 0x22: // UpdateProgressScore(gid, u8)
 		if gid, err := r.U32(); err == nil {
 			if g, ok := env.Match.get(gid); ok {
@@ -275,7 +281,7 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 				return errorResp(msg, rmc.ResultInvalidArgument)
 			}
 			if g, ok := env.Match.get(gid); ok {
-				found = append(found, g.sess)
+				found = append(found, scrubbed(g.sess))
 			}
 		}
 		return success(msg, sessionList(found))
@@ -289,7 +295,9 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		if !ok {
 			return errorResp(msg, rmc.ResultSessionVoid)
 		}
-		return success(msg, g.sess.bytes())
+		// A read by id scrubs the key and the password: holding the id is not
+		// the same as being in the session.
+		return success(msg, scrubbed(g.sess).bytes())
 
 	case 0x32: // FindMatchmakeSessionByOwner(gid?, u32 resultRange) -> list<session>
 		if _, err := r.U32(); err != nil {
@@ -303,23 +311,62 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		}
 		return success(msg, sessionList(owned))
 
-	case 0x33: // FindMatchmakeSessionByParticipant(list<PID>, resultOptions[, blockList]) -> list<(PID, session)>
+	case 0x33: // FindMatchmakeSessionByParticipant(param) -> list<(PID, session)>
+		// The parameter is a STRUCTURE — header first, then the PID list, the
+		// options and a block list. Reading the list straight off the body
+		// consumes the version byte and half the length prefix as the count.
+		if _, _, err := r.StructHeader(); err != nil {
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
 		pids, err := readPIDList(r)
 		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument)
 		}
-		if len(pids) > 300 { // MPS measured bound
+		if !env.FindByParticipant {
+			// Only the titles that use this method get real results. The
+			// others start up against an empty list and a populated one
+			// changes what they do at boot.
+			return emptyList(msg)
+		}
+		return success(msg, participantResultList(env, c, pids))
+
+	case 0x3C: // CustomGetSimplePlayingSession(list<PID>, bool includeSelf)
+		// This is how the friend list learns WHICH gathering to join. An empty
+		// answer is why a friend-join fails: the joiner never gets a gathering
+		// id to look up, so there is nothing for it to join.
+		pids, err := readPIDList(r)
+		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument)
 		}
-		return success(msg, participantResultList(env, pids))
+		includeSelf, _ := r.Bool()
+		if !includeSelf {
+			kept := pids[:0]
+			for _, pid := range pids {
+				if pid != c.PID {
+					kept = append(kept, pid)
+				}
+			}
+			pids = kept
+		}
+		return success(msg, simplePlayingSessionList(env, pids))
 
-	case 0x3C: // title extension: get-simple-playing-session variant -> empty list
-		// (Splatoon 2 measured: the reference answered an empty list.)
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.EmptyList()
-			return w.Bytes()
-		}())
+	case 0x41: // CustomFriendsQuery -> empty list
+		return emptyList(msg)
+
+	case 0x37, 0x44: // arena / private-room code create -> (String code, DateTime)
+		return createRoomCode(env, c, msg)
+
+	case 0x38, 0x45: // arena / private-room code resolve -> u32 gid
+		return resolveRoomCode(env, msg, r)
+
+	case 0x3A: // one number, two meanings — see probeOrTournaments
+		return probeOrTournaments(env, msg)
+
+	case 0x39: // TournamentSearch -> list of tournament descriptors
+		return searchTournaments(env, msg)
+
+	case 0x3F: // TournamentJoin -> empty success
+		return success(msg, nil)
 
 	default:
 		return notImplemented(env, msg)
@@ -375,18 +422,67 @@ func finalizeCreatedSession(env *Env, s *Session) {
 	s.MatchmakeParam["@GIR"] = rmc.Variant{TypeID: 1, I64: 3}
 }
 
-// autoMatchmake creates when no open session exists, else joins the first.
+// autoMatchmake joins the first session the caller can actually reach, and
+// opens its own when there is none.
+//
+// "Can reach" is the load-bearing part: two peers behind unfriendly NATs never
+// punch through to each other, and dropping such a pair into one lobby gives
+// EVERYONE in it a communication error, not just the two. A player nobody can
+// reach ends up hosting alone, which is a worse experience for one person
+// rather than a broken one for five.
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session) []byte {
-	if open := env.Match.open(); len(open) > 0 {
-		target := open[0]
-		if g, ok := env.Match.get(target.GID); ok {
-			g.participants[c.PID] = true
+	for _, candidate := range env.Match.open() {
+		g, ok := env.Match.get(candidate.GID)
+		if !ok {
+			continue
 		}
-		target.ParticipationCount++
-		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%d", env.Name, target.GID, c.PID)
-		return success(msg, target.bytes())
+		if candidate.MaxParticipants > 0 && candidate.ParticipationCount >= uint32(candidate.MaxParticipants) {
+			continue
+		}
+		if !env.nat.compatibleWith(g, c.PID) {
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (NAT)", env.Name, candidate.GID, c.PID)
+			continue
+		}
+		if !g.participants[c.PID] {
+			g.participants[c.PID] = true
+			candidate.ParticipationCount++
+			env.notifyGathering(candidate.GID, c.PID, notificationEvent{
+				SourcePID: c.PID,
+				Type:      NotifyParticipate,
+				Param1:    uint64(candidate.GID),
+				Param2:    c.PID,
+			})
+		}
+		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%d", env.Name, candidate.GID, c.PID)
+		return success(msg, candidate.bytes())
 	}
 	return createSession(env, c, msg, sess)
+}
+
+// Disconnected tells a title's sessions that a player's connection went away:
+// drop them from every gathering, tell the rest, and hand on ownership if the
+// one that left owned it. Without this a session keeps a participant that is
+// no longer there and the count never comes back down.
+func (e *Env) Disconnected(pid uint64) {
+	if e.Match == nil || pid == 0 {
+		return
+	}
+	for _, g := range e.Match.all() {
+		if !g.participants[pid] {
+			continue
+		}
+		delete(g.participants, pid)
+		if g.sess.ParticipationCount > 0 {
+			g.sess.ParticipationCount--
+		}
+		e.notifyGathering(g.sess.GID, pid, notificationEvent{
+			SourcePID: pid,
+			Type:      NotifyParticipantDisconnect,
+			Param1:    uint64(g.sess.GID),
+			Param2:    pid,
+		})
+		migrateIfHostLeft(e, g.sess.GID, g, pid)
+	}
 }
 
 // joinByGID handles 0x07/0x1E (gid leads the parameter list) and 0x27 (the
@@ -405,6 +501,22 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 	}
 	was := g.participants[c.PID]
 	g.participants[c.PID] = true
+	if !was {
+		// The pairing unblock: everyone already in the session is waiting on
+		// this event, not on a poll.
+		env.notifyGathering(gid, c.PID, notificationEvent{
+			SourcePID: c.PID,
+			Type:      NotifyParticipate,
+			Param1:    uint64(gid),
+			Param2:    c.PID,
+		})
+		env.notify(c.PID, notificationEvent{
+			SourcePID: g.sess.OwnerPID,
+			Type:      NotifyAddedToGathering,
+			Param1:    uint64(gid),
+			Param2:    c.PID,
+		})
+	}
 	if env.JoinEchoSession {
 		if !was {
 			g.sess.ParticipationCount++
@@ -423,6 +535,86 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 		w.Bool(true)
 		return w.Bytes()
 	}())
+}
+
+// migrateOwnership hands a gathering to another participant. The candidates the
+// caller names are tried in order; a candidate who is not in the session is
+// skipped rather than trusted. With nobody left the gathering goes, because an
+// ownerless session is one nothing can ever tear down.
+func migrateOwnership(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Reader, boolReply bool) []byte {
+	gid, err := r.U32()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	g, ok := env.Match.get(gid)
+	if !ok {
+		return errorResp(msg, rmc.ResultSessionVoid)
+	}
+	if g.sess.OwnerPID != c.PID {
+		// Only the owner gives the gathering away.
+		return errorResp(msg, rmc.ResultPermissionDenied)
+	}
+	candidates, _ := readPIDList(r)
+	next := firstOtherParticipant(g, c.PID, candidates)
+	if next == 0 {
+		env.codes.forget(gid)
+		env.Match.delete(gid)
+		if boolReply {
+			return boolTrue(msg)
+		}
+		return success(msg, nil)
+	}
+	g.sess.OwnerPID = next
+	g.sess.HostPID = next
+	env.notifyGathering(gid, 0, notificationEvent{
+		SourcePID: c.PID,
+		Type:      NotifyOwnershipChanged,
+		Param1:    uint64(gid),
+		Param2:    next,
+	})
+	log.Printf("[%s] matchmake: gid=%d owner %d -> %d", env.Name, gid, c.PID, next)
+	if boolReply {
+		return boolTrue(msg)
+	}
+	return success(msg, nil)
+}
+
+// migrateIfHostLeft moves ownership when the owner is the one leaving, so a
+// session outlives its creator instead of stranding everyone still in it.
+func migrateIfHostLeft(env *Env, gid uint32, g *gathering, leaving uint64) {
+	if g.sess.OwnerPID != leaving {
+		return
+	}
+	next := firstOtherParticipant(g, leaving, nil)
+	if next == 0 {
+		env.codes.forget(gid)
+		env.Match.delete(gid)
+		return
+	}
+	g.sess.OwnerPID = next
+	g.sess.HostPID = next
+	env.notifyGathering(gid, 0, notificationEvent{
+		SourcePID: leaving,
+		Type:      NotifyOwnershipChanged,
+		Param1:    uint64(gid),
+		Param2:    next,
+	})
+}
+
+// firstOtherParticipant picks the next owner: the first named candidate who is
+// really in the session, else any other participant.
+func firstOtherParticipant(g *gathering, except uint64, candidates []uint64) uint64 {
+	for _, pid := range candidates {
+		if pid != except && g.participants[pid] {
+			return pid
+		}
+	}
+	for _, pid := range participantPIDs(g) {
+		if pid != except {
+			return pid
+		}
+	}
+	return 0
 }
 
 // updateSessionPart applies 0x2C flag-gated partial updates. Flags follow the
@@ -586,6 +778,12 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 
 	case 0x02: // UnregisterGathering(gid) -> bool
 		if gid, err := r.U32(); err == nil {
+			env.notifyGathering(gid, c.PID, notificationEvent{
+				SourcePID: c.PID,
+				Type:      NotifyGatheringUnregistered,
+				Param1:    uint64(gid),
+			})
+			env.codes.forget(gid)
 			env.Match.delete(gid)
 		}
 		return boolTrue(msg)
@@ -693,9 +891,39 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 
 	case 0x21: // DeleteGathering(gid) -> bool
 		if gid, err := r.U32(); err == nil {
+			env.notifyGathering(gid, c.PID, notificationEvent{
+				SourcePID: c.PID,
+				Type:      NotifyGatheringUnregistered,
+				Param1:    uint64(gid),
+			})
+			env.codes.forget(gid)
 			env.Match.delete(gid)
 		}
 		return boolTrue(msg)
+
+	case 0x24: // MigrateGatheringOwnershipV1(gid, list<PID> candidates)
+		return migrateOwnership(env, c, msg, r, false)
+
+	case 0x2C: // MigrateGatheringOwnership(gid, list<PID> candidates, bool)
+		return migrateOwnership(env, c, msg, r, true)
+
+	case 0x2B: // UpdateGatheringOwnership(gid, bool participantsOnly) -> bool
+		return migrateOwnership(env, c, msg, r, true)
+
+	case 0x28, 0x2A: // UpdateSessionHostV1 / UpdateSessionHost(gid, …)
+		// The caller is claiming the host role for itself.
+		if gid, err := r.U32(); err == nil {
+			if g, ok := env.Match.get(gid); ok && g.participants[c.PID] {
+				g.sess.HostPID = c.PID
+				env.notifyGathering(gid, c.PID, notificationEvent{
+					SourcePID: c.PID,
+					Type:      NotifyHostChanged,
+					Param1:    uint64(gid),
+					Param2:    c.PID,
+				})
+			}
+		}
+		return success(msg, nil)
 
 	case 0x29: // GetSessionURLs(list<gid>) -> list<URL>
 		return success(msg, func() []byte {
@@ -720,7 +948,16 @@ func matchMakingExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 		if gid, err := r.U32(); err == nil {
 			if g, ok := env.Match.get(gid); ok {
 				delete(g.participants, c.PID)
-				g.sess.ParticipationCount--
+				if g.sess.ParticipationCount > 0 {
+					g.sess.ParticipationCount--
+				}
+				env.notifyGathering(gid, c.PID, notificationEvent{
+					SourcePID: c.PID,
+					Type:      NotifyEndParticipation,
+					Param1:    uint64(gid),
+					Param2:    c.PID,
+				})
+				migrateIfHostLeft(env, gid, g, c.PID)
 			}
 		}
 		return boolTrue(msg)
@@ -827,25 +1064,58 @@ func browseWithURLsResponse(msg *rmc.RMCMessage, sessions []*Session) []byte {
 	return success(msg, w.Bytes())
 }
 
+// scrubbed copies a session without the two fields that are secrets to anyone
+// not already in it. The session KEY stays where the caller is a participant —
+// island visits need it — and is stripped on the by-id reads.
+func scrubbed(s *Session) *Session {
+	c := *s
+	c.SessionKey = nil
+	c.UserPassword = ""
+	return &c
+}
+
 // participantResultList: FindMatchmakeSessionByParticipant ->
-// list<struct { PID u64, session }> for every live session of the named
-// players. ACNH measured: the session must be the full structure including
-// the session key.
-func participantResultList(env *Env, pids []uint64) []byte {
+// list<struct { PID u64, session }>. An empty PID list means "any session with
+// room", which is how a console asks to be placed anywhere. The PID reported is
+// the session's HOST — that is who the caller will be joining, and what the
+// client uses to identify the game. The user password is stripped; the session
+// key is not, because the joiner needs it.
+func participantResultList(env *Env, c *prudplite.Connection, pids []uint64) []byte {
 	type pair struct {
 		pid uint64
 		s   *Session
 	}
 	var pairs []pair
 	seen := map[uint32]bool{}
-	for _, pid := range pids {
-		for _, s := range env.Match.sessionsOf(pid) {
-			if !seen[s.GID] {
-				seen[s.GID] = true
-				pairs = append(pairs, pair{pid, s})
+
+	add := func(host uint64, s *Session) {
+		if seen[s.GID] {
+			return
+		}
+		seen[s.GID] = true
+		clone := *s
+		clone.UserPassword = ""
+		pairs = append(pairs, pair{host, &clone})
+	}
+
+	if len(pids) == 0 {
+		for _, g := range env.Match.all() {
+			if len(g.participants) == 0 || g.participants[c.PID] {
+				continue // never offer the caller the session it is already in
+			}
+			if !env.nat.compatibleWith(g, c.PID) {
+				continue
+			}
+			add(g.sess.OwnerPID, g.sess)
+		}
+	} else {
+		for _, pid := range pids {
+			for _, s := range env.Match.sessionsOf(pid) {
+				add(s.OwnerPID, s)
 			}
 		}
 	}
+
 	w := rmc.NewWriter()
 	w.List(len(pairs))
 	for _, p := range pairs {

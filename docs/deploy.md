@@ -53,6 +53,17 @@ systemctl --user daemon-reload        # picks up quadlet changes
 systemctl --user restart openpak-switch-nexd.service
 ```
 
+**Recall persistence.** `-recall-file <path>` persists the IP-to-PID table that
+lets a console re-CONNECT to a secure port without replaying a full login. Left
+unset the table is memory-only and a restart refuses every console already
+mid-session. To enable it, add a writable volume to the quadlet and pass the
+flag:
+
+```
+Volume=%h/openpak/deploy/switch-nex/state:/state:Z
+Exec=… -recall-file /state/recall.json
+```
+
 ## 4. Verify
 
 - `systemctl --user is-active openpak-switch-nexd.service` and

@@ -1,8 +1,20 @@
-// Ranking (0x70) — in-memory scores and common data. UploadScore keeps the
-// better score per (category, PID) the way the Mario Tennis Aces store ruled
-// on the working reference; GetRanking answers an empty board plus real
-// common data. The Splatoon 2 splatfest methods answer empty lists, matching
-// the measured zero-byte reference answers.
+// Ranking (0x70) — the common-data profile store and the competition surface.
+//
+//	0x04 UploadCommonData        -> empty; the profile blob is kept per player
+//	0x10 GetCompetitionRanking   -> empty board
+//	0x11 SubmitScore             -> ONE zero byte
+//	0x12 GetCompetitionInfo      -> empty competition list
+//	0x13 SubmitTime              -> ONE zero byte
+//	0x16 GetCommonDataByPIDList  -> one entry per requested PID, IN ORDER
+//
+// 0x16 is the one that matters most: it renders every other player's name and
+// Mii, and left unanswered it is the wall the worldwide modes hit. It never
+// returns an error — a player we hold nothing for is an empty entry, which is a
+// valid answer, and the ORDER is the contract because the client pairs the nth
+// reply with the nth PID it asked about.
+//
+// The two submissions answer a single zero byte rather than an empty body. An
+// empty answer is a different length and the client counts.
 package protocols
 
 import (
@@ -12,45 +24,27 @@ import (
 	"github.com/openpak/switch-nex/rmc"
 )
 
-type scoreKey struct {
-	category uint32
-	pid      uint64
-}
+// Ranking method numbers.
+const (
+	methodRankingUploadCommonData    uint32 = 0x04
+	methodRankingCompetitionRanking  uint32 = 0x10
+	methodRankingSubmitScore         uint32 = 0x11
+	methodRankingGetCompetitionInfo  uint32 = 0x12
+	methodRankingSubmitTime          uint32 = 0x13
+	methodRankingCommonDataByPIDList uint32 = 0x16
+)
 
-type scoreEntry struct {
-	score uint32
-	param uint64
-}
+// commonDataMaxEntries bounds a by-PID request. The count arrives off the
+// network; without a bound an absurd one loops for a very long time over a body
+// a few bytes long.
+const commonDataMaxEntries = 512
 
 type rankingStore struct {
 	mu     sync.Mutex
-	scores map[scoreKey]scoreEntry
 	common map[uint64][]byte
-	better func(old, new uint32) bool // category ordering: lower-better vs higher-better
 }
 
-func (rs *rankingStore) upload(pid, category, score, param uint64, updateMode uint8) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-	if rs.scores == nil {
-		rs.scores = map[scoreKey]scoreEntry{}
-	}
-	k := scoreKey{category: uint32(category), pid: pid}
-	old, ok := rs.scores[k]
-	// UpdateMode 2 = UpdateModeDeleteOld: forced overwrite (MTA measured rule).
-	if !ok || updateMode == 2 || rs.betterIfBetter(old.score, uint32(score)) {
-		rs.scores[k] = scoreEntry{score: uint32(score), param: param}
-	}
-}
-
-func (rs *rankingStore) betterIfBetter(old, next uint32) bool {
-	if rs.better != nil {
-		return rs.better(old, next)
-	}
-	return next > old // default: higher is better
-}
-
-func (rs *rankingStore) putCommon(pid uint64, blob []byte) {
+func (rs *rankingStore) put(pid uint64, blob []byte) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	if rs.common == nil {
@@ -59,88 +53,29 @@ func (rs *rankingStore) putCommon(pid uint64, blob []byte) {
 	rs.common[pid] = blob
 }
 
-func (rs *rankingStore) getCommon(pid uint64) ([]byte, bool) {
+func (rs *rankingStore) get(pid uint64) []byte {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
-	blob, ok := rs.common[pid]
-	return blob, ok
+	return rs.common[pid]
 }
 
 func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
 	switch msg.MethodID {
-	case 0x01: // UploadScore(RankingScoreData{category u32, score u32, orderBy u32, updateMode u32, groups buf, param u64, ...})
-		// ScoreData is a structure: header, then category, score, orderBy,
-		// updateMode, groups, param.
-		if _, _, err := r.StructHeader(); err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
+	case methodRankingUploadCommonData: // (Buffer commonData, …) -> empty
+		if blob, err := r.Buffer(); err == nil {
+			env.ranking.put(c.PID, blob)
 		}
-		category, err := r.U32()
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		score, err := r.U32()
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		if _, err := r.U32(); err != nil { // orderBy
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		updateMode, err := r.U32()
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		if _, err := r.Buffer(); err != nil { // groups
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		param, err := r.U64()
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		env.ranking.upload(c.PID, uint64(category), uint64(score), param, uint8(updateMode))
 		return success(msg, nil)
 
-	case 0x02, 0x03, 0x07, 0x08: // DeleteScore(s), ChangeAttributes
-		return success(msg, nil)
+	case methodRankingCommonDataByPIDList:
+		return success(msg, commonDataByPIDs(env, msg.Body))
 
-	case 0x04: // UploadCommonData(PID?, buffer, DateTime) — buffer is the last field we keep
-		return success(msg, uploadCommonData(env, c, r))
+	case methodRankingSubmitScore, methodRankingSubmitTime:
+		// A deposit is acknowledged with one zero byte, not an empty body.
+		return success(msg, []byte{0})
 
-	case 0x06: // GetCommonData -> buffer (the reference answered NotFound when absent;
-		// MK8D reads its racer name/Mii blob from here)
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			if blob, ok := env.ranking.getCommon(c.PID); ok {
-				w.Buffer(blob)
-			} else {
-				w.Buffer(nil)
-			}
-			return w.Bytes()
-		}())
-
-	case 0x05: // DeleteCommonData
-		env.ranking.putCommon(c.PID, nil)
-		return success(msg, nil)
-
-	case 0x09, 0x0C, 0x0D: // GetRanking / ByPIDList / ByUniqueIDList -> RankingResult{list, total, sinceTime}
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.StructOf(1, func(w *rmc.Writer) {
-				w.EmptyList()
-				w.U32(0)
-				w.U64(0)
-			})
-			return w.Bytes()
-		}())
-
-	case 0x0A: // GetApproxOrder -> u32
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.U32(0)
-			return w.Bytes()
-		}())
-
-	case 0x12, 0x13, 0x19: // GetFestivalResult, fest ranking, GetEventMatchResult (S2 splatfest)
+	case methodRankingGetCompetitionInfo, methodRankingCompetitionRanking:
 		return emptyList(msg)
 
 	default:
@@ -148,17 +83,32 @@ func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 	}
 }
 
-// uploadCommonData stores the trailing buffer from an UploadScoreCommonData
-// style request: parse best-effort, keep the last buffer seen.
-func uploadCommonData(env *Env, c *prudplite.Connection, r *rmc.Reader) []byte {
-	var last []byte
-	for r.Remaining() > 4 {
-		buf, err := r.Buffer()
-		if err != nil {
-			break
-		}
-		last = buf
+// commonDataByPIDs answers one entry per requested PID, in the order asked.
+// Never an error: an unreadable request falls back to the empty list rather
+// than refusing, because refusing is what walls the mode off entirely.
+func commonDataByPIDs(env *Env, body []byte) []byte {
+	empty := func() []byte {
+		w := rmc.NewWriter()
+		w.EmptyList()
+		return w.Bytes()
 	}
-	env.ranking.putCommon(c.PID, last)
-	return nil
+	r := rmc.NewReader(body)
+	n, err := r.ListHeader()
+	if err != nil || n == 0 || n > commonDataMaxEntries {
+		return empty()
+	}
+	pids := make([]uint64, 0, n)
+	for range n {
+		pid, err := r.U64()
+		if err != nil {
+			return empty()
+		}
+		pids = append(pids, pid)
+	}
+	w := rmc.NewWriter()
+	w.List(len(pids))
+	for _, pid := range pids {
+		w.Buffer(env.ranking.get(pid)) // absent renders as a zero-length blob
+	}
+	return w.Bytes()
 }

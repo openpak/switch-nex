@@ -1,17 +1,21 @@
 // DataStore (0x73) at the working-reference behaviour level: correct response
-// shapes, real data IDs, no object storage yet.
+// shapes, real data IDs where a title needs one, no object storage yet.
 //
-// Measured reference facts driving each answer:
-//   - GetMeta (0x8) answered DataStore::NotFound (0x80690004) and the games
-//     handled it (MHGU, ARMS, Strikers, SMM2 all observed against NotFound).
-//   - PostMetaBinary (0x15) MUST return a u64 data id — an empty answer
-//     killed the Mario Tennis Aces client silently (found live 2026-08-16).
-//   - SearchObject returns (ResultRange, list<results>); everything else the
-//     reference answered with empty lists / empty success.
-//   - SMM2's Course World methods (0x30 GetUsers demanded 4x at boot) answer
-//     with the right shapes and no content; the SMO balloon methods
-//     (0x2F-0x35) answer Core::NotImplemented per the pilot's stance of not
-//     guessing at unmeasured wire layouts.
+// The stub shape is PER TITLE, not one generic answer:
+//
+//   - DSEmptyList  — GetMeta answers DataStore::NotFound, every other method a
+//     bare empty list. What most titles were measured against.
+//   - DSEmptySuccess — every method, GetMeta included, answers an empty body.
+//   - DSStub — the richer stub: real u64 data ids from PostMetaBinary (an empty
+//     answer there kills the client silently), search ranges, empty lists.
+//   - DSBalloonErrors — plus the balloon methods answering Core::NotImplemented
+//     rather than guessing at a wire layout nothing has pinned.
+//   - DSSMM2 — plus the Course World title methods.
+//   - DSClubhouse — the account-setup answers, narrower again: no data ids,
+//     because that title never posts.
+//
+// GetMeta answering NotFound is what makes a game create a fresh profile
+// instead of waiting for one that does not exist.
 package protocols
 
 import (
@@ -20,8 +24,17 @@ import (
 )
 
 func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-	if env.DataStore == DSClubhouse {
+	switch env.DataStore {
+	case DSClubhouse:
 		return clubhouseDataStore(env, msg)
+	case DSEmptySuccess:
+		// Every method, GetMeta included, takes an empty body.
+		return success(msg, nil)
+	case DSEmptyList:
+		if msg.MethodID == 0x08 { // GetMeta
+			return errorResp(msg, rmc.ResultDataStoreNotFound)
+		}
+		return emptyList(msg)
 	}
 	switch msg.MethodID {
 	case 0x04, 0x05, 0x1A, 0x25, 0x26, 0x27, 0x0F, 0x28, 0x1D, 0x1E, 0x16, 0x22, 0x23, 0x0D:

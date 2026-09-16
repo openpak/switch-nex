@@ -137,9 +137,12 @@ func EncodeRequest(protocol uint16, method, callID uint32, params []byte) []byte
 	return frame(inner)
 }
 
-// appendProto writes the protocol byte (escaped when the id exceeds a u8).
+// appendProto writes the protocol byte, escaping to a u16 for any id that does
+// not fit in the seven bits below the request flag. 0x80 and up must escape:
+// the high bit is the request marker, so a bare 0x80-0xFF byte would be read
+// back as a different protocol with the wrong direction.
 func appendProto(b []byte, protocol uint16, flag byte) []byte {
-	if protocol < 0x100 && protocol != uint16(EscapeProto) {
+	if protocol < 0x80 {
 		return append(b, byte(protocol)|flag)
 	}
 	b = append(b, EscapeProto|flag)

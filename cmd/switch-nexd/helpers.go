@@ -8,15 +8,31 @@ import (
 )
 
 // switchnexResult builds the flat ValidateAndRequestTicketResult body for a
-// title's LoginEx response (result.go — the method-0x02 shape; the
-// version+length header belongs to method 0x06 and is added by the caller).
-func switchnexResult(name, url string, ticket []byte, now uint64, pid uint64, sourceKey []byte) []byte {
+// title's LoginEx (0x02) response. Method 0x06 is NOT this body with a header
+// on it — it is a different field list; see switchnexTicketResult.
+func switchnexResult(name, scheme, url string, ticket []byte, now uint64, pid uint64, sourceKey []byte) []byte {
 	return switchnex.Result{
-		RetVal:         rmc.ResultSuccess,
+		RetVal:     rmc.ResultSuccess,
+		SourcePID:  pid,
+		Ticket:     ticket,
+		StationURL: url,
+		// The special station is a bare scheme-only URL, which renders with
+		// its "://" separator. The word alone is a different string.
+		SpecialStation: switchnex.EmptyString(scheme),
+		CurrentUTCTime: now,
+		ReturnMsg:      "OpenPak " + name,
+		SourceKeyHex:   switchnex.SourceKeyHex(sourceKey),
+	}.Bytes()
+}
+
+// switchnexTicketResult builds the method-0x06 body: no retval, and the secure
+// endpoint is a bare station URL string followed by the server time rather than
+// a whole RVConnectionData structure.
+func switchnexTicketResult(name, url string, ticket []byte, now uint64, pid uint64, sourceKey []byte) []byte {
+	return switchnex.TicketResult{
 		SourcePID:      pid,
 		Ticket:         ticket,
 		StationURL:     url,
-		SpecialStation: "prudp",
 		CurrentUTCTime: now,
 		ReturnMsg:      "OpenPak " + name,
 		SourceKeyHex:   switchnex.SourceKeyHex(sourceKey),

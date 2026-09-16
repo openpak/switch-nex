@@ -22,6 +22,7 @@ import (
 	"crypto/sha512"
 	"crypto/tls"
 	"encoding/binary"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -29,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	switchnex "github.com/openpak/switch-nex"
@@ -50,78 +52,104 @@ type title struct {
 }
 
 var titles = []title{
-	{"mario-party-superstars", 22110, "", func(e *protocols.Env) {
+	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.SanitizeDetailFind = true // FindByGatheringIDDetail strips SessionKey/UserPassword
 		e.IntegerSettings = envIntegerSettings("MPS_INTEGER_SETTINGS")
+		e.Ranking = true
+		e.DataStore = protocols.DSEmptyList
 	}},
-	{"mario-golf-super-rush", 22130, "", func(e *protocols.Env) {
+	{"mario-golf-super-rush", 22130, "1cb8027c", func(e *protocols.Env) {
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
 	}},
-	{"arms", 22140, "", func(e *protocols.Env) {
+	{"arms", 22140, "b6b34c51", func(e *protocols.Env) {
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
 		e.DataStore = protocols.DSStub
 	}},
 	{"mario-kart-8-deluxe", 22150, "09c1c475", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 	}},
-	{"super-mario-bros-35", 22160, "", func(e *protocols.Env) {
+	{"super-mario-bros-35", 22160, "0a69c592", func(e *protocols.Env) {
+		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking2 = true
 		e.MatchmakeReferee = true
 		e.MessageDelivery = true
-		e.SecurePID = 257049437023956657 // the retail secure-principal constant
-		e.SourceKeyBytes = 16            // 16-byte source key attested against the reference
+		e.SourceKeyBytes = 16 // 16-byte source key attested for this title
 		e.IntegerSettings = protocols.SMB35IntegerSettings
 	}},
-	{"mario-tennis-aces", 22170, "", func(e *protocols.Env) {
+	{"mario-tennis-aces", 22170, "29f267b9", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.ForceOpenParticipation = true // sessions arrive closed; two searchers deadlock
 		e.Ranking = true
-		e.DataStore = protocols.DSStub
+		e.DataStore = protocols.DSEmptyList
 	}},
-	{"animal-crossing-new-horizons", 22180, "", func(e *protocols.Env) {
+	{"animal-crossing-new-horizons", 22180, "v43a10em", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSStub
+		// The one title that uses find-by-participant for real: island visits
+		// resolve through it, and it needs the session key in the answer.
+		e.FindByParticipant = true
 	}},
-	{"luigis-mansion-3", 22190, "", func(e *protocols.Env) {
+	{"luigis-mansion-3", 22190, "aab95246", func(e *protocols.Env) {
+		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
 		e.Presence = true // 0x79 station/presence stub
 	}},
-	{"mario-strikers-battle-league", 22300, "", func(e *protocols.Env) {
-		e.Match = protocols.NewMatchmakingStore()
-		e.DataStore = protocols.DSStub
-	}},
-	{"minecraft", 22310, "", func(e *protocols.Env) {
-		e.Match = protocols.NewMatchmakingStore()
-	}},
-	{"splatoon-2", 22320, "", func(e *protocols.Env) {
+	{"mario-strikers-battle-league", 22300, "MAGNI5jG", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
-		e.DataStore = protocols.DSStub
+		e.DataStore = protocols.DSEmptyList
+		// Its Pia interrogates five protocols at boot and each one needs the
+		// right answer SHAPE (protocols/strikers.go).
+		e.StrikersInit = true
 	}},
-	{"super-mario-maker-2", 22330, "", func(e *protocols.Env) {
+	{"minecraft", 22310, "f4983d87", func(e *protocols.Env) {
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+	}},
+	{"splatoon-2", 22320, "4eb18d39", func(e *protocols.Env) {
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		// This title takes an empty body for every DataStore method, GetMeta
+		// included — not the NotFound the others want.
+		e.DataStore = protocols.DSEmptySuccess
+	}},
+	{"super-mario-maker-2", 22330, "fdf6617f", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSSMM2
 	}},
-	{"super-mario-odyssey", 22340, "", func(e *protocols.Env) {
-		// No matchmaking: Odyssey has no lobby/P2P — Utility + DataStore only.
+	{"super-mario-odyssey", 22340, "afef0ecf", func(e *protocols.Env) {
+		// No matchmaking: Odyssey has no lobby or P2P — Utility, Ranking and
+		// DataStore only.
+		e.StationScheme = "prudps"
+		e.Ranking = true
 		e.DataStore = protocols.DSBalloonErrors
 	}},
-	{"super-smash-bros-ultimate", 22350, "", func(e *protocols.Env) {
+	{"super-smash-bros-ultimate", 22350, "9587602b", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
-		e.DataStore = protocols.DSStub
+		e.Ranking = true
+		e.DataStore = protocols.DSEmptyList
 	}},
 	{"clubhouse-games-51", 22870, "8c3661ff", func(e *protocols.Env) {
 		// Clubhouse Games: 51 Worldwide Classics (010047700D540000, game
 		// server 2035BB00). Account setup runs DataStore before matchmaking;
-		// sessions arrive closed, so two searchers each host and never match
-		// — the same open-participation fix as Mario Tennis Aces, plus the
-		// create-time normalisation and full-session join answers the
-		// working reference was measured serving (docs/legacy-parity.md).
+		// sessions arrive closed, so two searchers each host and never match —
+		// the same open-participation fix as Mario Tennis Aces, plus the
+		// create-time normalisation and full-session join answers.
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSClubhouse
@@ -142,38 +170,154 @@ var (
 	certFile       = flag.String("cert", "/app/nex.pem", "TLS certificate (CN covers *.s.n.srv.nintendo.net)")
 	keyFile        = flag.String("key", "/app/nex.key", "TLS key")
 	only           = flag.String("only", "", "comma-separated title names to serve (default: all)")
+	recallFile     = flag.String("recall-file", "", "file the IP-to-PID recall table is persisted to (empty: memory only, lost on restart)")
 )
 
-// recall remembers login PID by client IP for the ticketless secure stage.
+// recall remembers login PID by client IP for the ticketless secure stage, and
+// the login name a title may later ask about instead of a PID.
+//
+// It SURVIVES A RESTART. The table used to live only in memory, so restarting
+// the server refused every console already mid-session that re-CONNECTed to a
+// secure port without replaying a full login — and a console does that often,
+// on every lobby change and reconnect. Writes are debounced off the request
+// path and the file is re-read at startup.
 type recall struct {
-	mu  sync.Mutex
-	m   map[string]recallEntry
-	ttl time.Duration
+	mu    sync.Mutex
+	m     map[string]recallEntry
+	names map[string]uint64 // login name -> PID
+	ttl   time.Duration
+	file  string
+	dirty atomic.Bool
 }
 
 type recallEntry struct {
-	pid uint64
-	at  time.Time
+	PID uint64 `json:"pid"`
+	At  int64  `json:"at"` // unix seconds
 }
 
-func newRecall(ttl time.Duration) *recall {
-	return &recall{m: map[string]recallEntry{}, ttl: ttl}
+// recallMax bounds the table: a recall table must not grow without end.
+const recallMax = 50000
+
+// recallFlushEvery is how often a dirty table reaches the disk.
+const recallFlushEvery = 5 * time.Second
+
+func newRecall(ttl time.Duration, file string) *recall {
+	r := &recall{m: map[string]recallEntry{}, names: map[string]uint64{}, ttl: ttl, file: file}
+	r.load()
+	if file != "" {
+		go r.flushLoop()
+	}
+	return r
 }
 
 func (r *recall) remember(host string, pid uint64) {
 	r.mu.Lock()
-	r.m[host] = recallEntry{pid: pid, at: time.Now()}
+	r.m[host] = recallEntry{PID: pid, At: time.Now().Unix()}
 	r.mu.Unlock()
+	r.dirty.Store(true)
 }
 
 func (r *recall) take(host string) (uint64, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	e, ok := r.m[host]
-	if !ok || time.Since(e.at) > r.ttl {
+	if !ok || e.PID == 0 {
 		return 0, false
 	}
-	return e.pid, true
+	if time.Since(time.Unix(e.At, 0)) > r.ttl {
+		// Expire on read as well as on flush: an IP-to-player association
+		// that outlived its session would otherwise be inherited by whoever
+		// holds that address next, which behind CGNAT is a stranger.
+		delete(r.m, host)
+		return 0, false
+	}
+	return e.PID, true
+}
+
+// rememberName records the login-name-to-PID mapping. Some titles never speak
+// our internal PID: they ask for profiles by the name the console logged in
+// under, and only the login ever saw both halves, so the mapping cannot be
+// recovered later by arithmetic.
+//
+// ponytail: the table is kept but nothing reads it yet — the profile store it
+// feeds does not exist. Serving a profile means emitting the title's 26-field
+// user structure, and a partial one shifts every field after it, so the current
+// "no profile stored" answer is the correct one until there is real data behind
+// it. Wire this up when the store lands, not before.
+func (r *recall) rememberName(name string, pid uint64) {
+	if name == "" || pid == 0 {
+		return
+	}
+	r.mu.Lock()
+	r.names[name] = pid
+	r.mu.Unlock()
+}
+
+// pidForName resolves a login name to the PID it logged in as.
+func (r *recall) pidForName(name string) (uint64, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pid, ok := r.names[name]
+	return pid, ok
+}
+
+func (r *recall) load() {
+	if r.file == "" {
+		return
+	}
+	b, err := os.ReadFile(r.file)
+	if err != nil {
+		return
+	}
+	var m map[string]recallEntry
+	if json.Unmarshal(b, &m) != nil {
+		return
+	}
+	n := 0
+	for host, e := range m {
+		if e.PID == 0 || time.Since(time.Unix(e.At, 0)) > r.ttl {
+			continue
+		}
+		r.m[host] = e
+		n++
+	}
+	log.Printf("recall: restored %d entry(ies) from %s", n, r.file)
+}
+
+func (r *recall) flushLoop() {
+	t := time.NewTicker(recallFlushEvery)
+	defer t.Stop()
+	for range t.C {
+		if !r.dirty.Swap(false) {
+			continue
+		}
+		r.flush()
+	}
+}
+
+func (r *recall) flush() {
+	r.mu.Lock()
+	out := make(map[string]recallEntry, len(r.m))
+	for host, e := range r.m {
+		if time.Since(time.Unix(e.At, 0)) > r.ttl {
+			delete(r.m, host)
+			continue
+		}
+		if len(out) < recallMax {
+			out[host] = e
+		}
+	}
+	r.mu.Unlock()
+
+	b, err := json.Marshal(out)
+	if err != nil {
+		return
+	}
+	tmp := r.file + ".tmp"
+	// 0600: this file is a list of which address played as whom.
+	if os.WriteFile(tmp, b, 0o600) == nil {
+		_ = os.Rename(tmp, r.file) // atomic replace
+	}
 }
 
 // pidFor returns a stable NEX PID for a login username: the console must keep
@@ -205,7 +349,10 @@ func main() {
 		}
 	}
 
-	recall := newRecall(24 * time.Hour)
+	// A day covers a whole play session: a console re-CONNECTs to the secure
+	// port repeatedly without replaying the full auth, so a short window
+	// refuses legitimate players mid-session.
+	recall := newRecall(24*time.Hour, *recallFile)
 
 	for _, t := range titles {
 		if len(want) > 0 && !want[t.name] {
@@ -242,7 +389,13 @@ func main() {
 			OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 				return protocols.Dispatch(env, c, msg)
 			},
+			OnDisconnect: func(c *prudplite.Connection) {
+				env.Disconnected(c.PID)
+			},
 		}
+		// The secure endpoint is also the path the server originates on:
+		// notification events and NAT probe relays go back out over it.
+		env.BindPush(secure)
 
 		authLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
 		if err != nil {
@@ -268,7 +421,8 @@ func main() {
 // Method 0x02 returns the flat result body; method 0x06 wraps the same fields
 // in a version-1 structure header.
 func handleAuthRMC(recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-	if msg.Protocol == 0x0A && msg.MethodID == 0x02 {
+	if msg.Protocol == 0x0A && (msg.MethodID == 0x01 || msg.MethodID == 0x02) {
+		// Login (1) and LoginEx (2) take the same answer.
 		return handleLoginEx(recall, env, targetKey, c, msg, false)
 	}
 	if msg.Protocol == 0x0A && msg.MethodID == 0x06 {
@@ -278,9 +432,13 @@ func handleAuthRMC(recall *recall, env *protocols.Env, targetKey []byte, c *prud
 	return rmc.EncodeError(msg.Protocol, msg.CallID, rmc.ResultNotImplemented)
 }
 
-// handleLoginEx mints the two-layer Switch v1 ticket and returns the
-// ValidateAndRequestTicketResult body. withStructHeader selects the method
-// 0x06 shape (u8 version + u32 content length ahead of the flat fields).
+// handleLoginEx mints the two-layer Switch v1 ticket and returns the login
+// result. The two methods do NOT share a body: 0x02 is the flat LoginEx layout
+// (retval, PID, ticket, RVConnectionData, message, source key) and 0x06 is the
+// ValidateAndRequestTicketResult structure, which has no retval and carries the
+// secure endpoint as a plain URL string plus the server time. Answering 0x06
+// with the LoginEx layout wrapped in a header is rejected as an invalid
+// argument.
 func handleLoginEx(recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage, withStructHeader bool) []byte {
 	in := rmc.NewReader(msg.Body)
 	if withStructHeader {
@@ -307,14 +465,15 @@ func handleLoginEx(recall *recall, env *protocols.Env, targetKey []byte, c *prud
 
 	url := env.SecureStationURL()
 	now := switchnex.NowDateTime()
-	body := switchnexResult(env.Name, url, ticket, now, pid, sourceKey)
+	var body []byte
 	if withStructHeader {
-		w := rmc.NewWriter()
-		w.StructOf(1, func(n *rmc.Writer) { n.Raw(body) })
-		body = w.Bytes()
+		body = switchnexTicketResult(env.Name, url, ticket, now, pid, sourceKey)
+	} else {
+		body = switchnexResult(env.Name, env.StationScheme, url, ticket, now, pid, sourceKey)
 	}
 
 	recall.remember(c.Host, pid)
+	recall.rememberName(username, pid)
 	log.Printf("[%s] login pid=%d url=%q ticket=%dB", env.Name, pid, url, len(ticket))
 	return rmc.EncodeSuccess(0x0A, msg.CallID, msg.MethodID, body)
 }

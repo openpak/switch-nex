@@ -18,9 +18,105 @@ type URL struct {
 	order   []string
 }
 
-// New returns a prudp-scheme URL with the parameters set.
+// Empty returns a bare scheme-only URL. It renders as "prudp:/" — the shape the
+// LoginEx special-station field carries when no special station is in use. The
+// trailing ":/" is part of it; the bare word "prudp" is a different string.
+func Empty(scheme string) *URL {
+	if scheme == "" {
+		scheme = "prudp"
+	}
+	return &URL{Scheme: scheme, Params: map[string]string{}, IntVals: map[string]uint64{}}
+}
+
+// EmptyString renders the bare scheme-only station URL.
+func EmptyString(scheme string) string { return Empty(scheme).String() }
+
+// Parse reads "scheme:/k=v;k=v" back into a URL. An unparseable string yields an
+// empty URL rather than an error: a station the console sent in a shape we do
+// not recognise is not a reason to drop the connection.
+func Parse(s string) *URL {
+	u := &URL{Params: map[string]string{}, IntVals: map[string]uint64{}}
+	i := strings.Index(s, ":/")
+	if i < 0 {
+		return u
+	}
+	u.Scheme = s[:i]
+	for _, field := range strings.Split(s[i+2:], ";") {
+		if k, v, ok := strings.Cut(field, "="); ok {
+			u.Set(k, v)
+		}
+	}
+	return u
+}
+
+// Get returns a parameter as a string, whichever way it was set.
+func (u *URL) Get(k string) string {
+	if v, ok := u.Params[k]; ok {
+		return v
+	}
+	if v, ok := u.IntVals[k]; ok {
+		return strconv.FormatUint(v, 10)
+	}
+	return ""
+}
+
+// Has reports whether a parameter is present.
+func (u *URL) Has(k string) bool {
+	_, s := u.Params[k]
+	_, i := u.IntVals[k]
+	return s || i
+}
+
+// Remove drops a parameter from both the map and the key order. Leaving it in
+// the order would re-emit it as "k=", and the console distinguishes a missing
+// parameter from an empty one when it picks a LAN candidate.
+func (u *URL) Remove(k string) {
+	if !u.Has(k) {
+		return
+	}
+	delete(u.Params, k)
+	delete(u.IntVals, k)
+	for i, kk := range u.order {
+		if kk == k {
+			u.order = append(u.order[:i], u.order[i+1:]...)
+			break
+		}
+	}
+}
+
+// Copy returns an independent copy, key order included.
+func (u *URL) Copy() *URL {
+	c := &URL{Scheme: u.Scheme, Params: map[string]string{}, IntVals: map[string]uint64{}, order: append([]string(nil), u.order...)}
+	for k, v := range u.Params {
+		c.Params[k] = v
+	}
+	for k, v := range u.IntVals {
+		c.IntVals[k] = v
+	}
+	return c
+}
+
+// Station URL type flags. The public station a title advertises carries either
+// the Wii U-era BehindNAT|Public (0x03) or, on Pia 5.19 and later, the extra
+// Switch bit as well (0x0B) — per title, following the title's Pia version.
+const (
+	FlagBehindNAT uint64 = 0x01
+	FlagPublic    uint64 = 0x02
+	FlagSwitch    uint64 = 0x08
+)
+
+// New returns a scheme-defaulted URL with the secure-endpoint parameters set.
 func New(address string, port uint16) *URL {
-	u := &URL{Scheme: "prudp", Params: map[string]string{}, IntVals: map[string]uint64{}}
+	return NewScheme("prudp", address, port)
+}
+
+// NewScheme is New with the station scheme named: titles differ ("prudp" or the
+// secure "prudps"), and the scheme is part of the string the console parses.
+func NewScheme(scheme, address string, port uint16) *URL {
+	if scheme == "" {
+		scheme = "prudp"
+	}
+	u := &URL{Scheme: scheme, Params: map[string]string{}, IntVals: map[string]uint64{}}
 	u.Set("address", address)
 	u.SetInt("port", uint64(port))
 	// Values verified accepted by MK8D 3.0.5 (see SPEC.md StationURL).

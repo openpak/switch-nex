@@ -3,6 +3,7 @@ package protocols
 import (
 	"testing"
 
+	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/rmc"
 )
@@ -72,9 +73,12 @@ func TestCreateThenFind(t *testing.T) {
 	}
 
 	// FindMatchmakeSessionByParticipant returns (PID, session) pairs — the
-	// full session, session key included (ACNH measured requirement). Same
-	// env: the sanitizer only touches the detail-find path.
-	resp = Dispatch(env, c, request(ProtoMatchmakeExt, 0x33, pidList(1234)))
+	// full session, session key included, because a joiner needs the key. Same
+	// env: the sanitizer only touches the detail-find path. The parameter is a
+	// STRUCTURE, and the method only serves real results where a title asked
+	// for them.
+	env.FindByParticipant = true
+	resp = Dispatch(env, c, request(ProtoMatchmakeExt, 0x33, participantParam(1234)))
 	ok, body, errCode = decodeResponse(resp)
 	if errCode != 0 || !ok {
 		t.Fatalf("participant find failed: %#v", resp)
@@ -196,38 +200,97 @@ func TestRefereeRoundLifecycle(t *testing.T) {
 		t.Fatalf("param echo mismatch (err=%#x)", errCode)
 	}
 
-	// EndRoundWithoutReport closes it; a second close answers RoundNotFound.
+	// EndRoundWithoutReport is method 5, not 4 — 4 is the PARTIAL report and
+	// takes a different parameter. A second close answers RoundNotFound.
 	w = rmc.NewWriter()
 	w.U64(roundID)
-	resp = Dispatch(env, c, request(ProtoMatchmakeReferee, 0x04, w.Bytes()))
+	resp = Dispatch(env, c, request(ProtoMatchmakeReferee, 0x05, w.Bytes()))
 	_, _, errCode = decodeResponse(resp)
 	if errCode != 0 {
 		t.Fatalf("close failed: %#x", errCode)
 	}
-	resp = Dispatch(env, c, request(ProtoMatchmakeReferee, 0x04, w.Bytes()))
+	resp = Dispatch(env, c, request(ProtoMatchmakeReferee, 0x05, w.Bytes()))
 	_, _, errCode = decodeResponse(resp)
 	if errCode != rmc.ResultRefereeRoundGone {
 		t.Fatalf("want RoundNotFound, got %#x", errCode)
 	}
 }
 
-// TestSecureConnectionRegisterEx checks the (QResult, connectionID, URL) shape.
-func TestSecureConnectionRegisterEx(t *testing.T) {
+// TestSecureConnectionRegister checks the (QResult, connectionID, URL) shape
+// both Register and RegisterEx answer, and that the URL handed back is the
+// CLIENT's public station — the endpoint the world sees for it — rather than
+// our own secure address, which Pia cannot recognise as itself.
+func TestSecureConnectionRegister(t *testing.T) {
+	for _, method := range []uint32{0x01, 0x04} {
+		env := testEnv()
+		c := conn(5)
+		c.ID = 9
+		// The console reports only its LAN station, which is the common case.
+		reported := rmc.NewWriter()
+		reported.List(1)
+		reported.String("prudp:/address=192.168.1.20;port=50000;sid=1;natf=0")
+
+		resp := Dispatch(env, c, request(ProtoSecureConnection, method, reported.Bytes()))
+		ok, body, errCode := decodeResponse(resp)
+		if errCode != 0 || !ok {
+			t.Fatalf("method %#x failed: %#x", method, errCode)
+		}
+		r := rmc.NewReader(body)
+		qr, _ := r.U32()
+		connID, _ := r.U32()
+		raw, _ := r.String()
+		if qr != rmc.ResultSuccess {
+			t.Fatalf("method %#x qresult=%#x", method, qr)
+		}
+		if connID != c.ID {
+			t.Fatalf("method %#x connID=%d want %d", method, connID, c.ID)
+		}
+		u := switchnex.Parse(raw)
+		if got := u.Get("address"); got != c.Host {
+			t.Fatalf("method %#x public address=%q want the observed %q", method, got, c.Host)
+		}
+		if got := u.Get("RVCID"); got != "9" {
+			t.Fatalf("method %#x RVCID=%q want 9", method, got)
+		}
+		if got := u.Get("PID"); got != "5" {
+			t.Fatalf("method %#x PID=%q want the caller's 5", method, got)
+		}
+		// The synthesised public station keeps the parameters the console set
+		// on its LAN one; a bare station is one Pia will not accept.
+		if got := u.Get("natf"); got != "0" {
+			t.Fatalf("method %#x lost the console's natf: %q", method, got)
+		}
+		// Default (Pia 5.19) shape: type 0x0B and Pa present.
+		if got := u.Get("type"); got != "11" {
+			t.Fatalf("method %#x type=%q want 11", method, got)
+		}
+		if !u.Has("Pa") {
+			t.Fatalf("method %#x has no Pa", method)
+		}
+	}
+}
+
+// TestSecureConnectionLegacyPiaShape checks the pre-5.19 titles get type 3 and
+// no Pa at all — the parameter's absence is part of the shape.
+func TestSecureConnectionLegacyPiaShape(t *testing.T) {
 	env := testEnv()
-	resp := Dispatch(env, conn(5), request(ProtoSecureConnection, 0x04, nil))
-	ok, body, errCode := decodeResponse(resp)
-	if errCode != 0 || !ok {
-		t.Fatal("RegisterEx failed")
-	}
+	env.Pia = LegacyPia()
+	reported := rmc.NewWriter()
+	reported.List(1)
+	reported.String("prudp:/address=192.168.1.20;port=50000;Pa=192.168.1.20")
+
+	resp := Dispatch(env, conn(5), request(ProtoSecureConnection, 0x01, reported.Bytes()))
+	_, body, _ := decodeResponse(resp)
 	r := rmc.NewReader(body)
-	qr, _ := r.U32()
-	connID, _ := r.U32()
-	url, _ := r.String()
-	if qr != rmc.ResultSuccess || connID != 1 {
-		t.Fatalf("qresult=%#x conn=%d", qr, connID)
+	r.U32()
+	r.U32()
+	raw, _ := r.String()
+	u := switchnex.Parse(raw)
+	if got := u.Get("type"); got != "3" {
+		t.Fatalf("type=%q want 3", got)
 	}
-	if want := "prudp:/address=10.0.0.1;port=22151;CID=1;PID=2;sid=1;stream=10;type=2"; url != want {
-		t.Fatalf("url=%q want %q", url, want)
+	if u.Has("Pa") {
+		t.Fatal("legacy Pia station carries Pa; it must be absent, not empty")
 	}
 }
 
@@ -283,6 +346,14 @@ func TestSMM2GetUsersShape(t *testing.T) {
 func u32(v uint32) []byte {
 	w := rmc.NewWriter()
 	w.U32(v)
+	return w.Bytes()
+}
+
+// participantParam frames a FindMatchmakeSessionByParticipant parameter: the
+// structure header the real request carries, then the PID list.
+func participantParam(pids ...uint64) []byte {
+	w := rmc.NewWriter()
+	w.StructOf(1, func(n *rmc.Writer) { n.Raw(pidList(pids...)) })
 	return w.Bytes()
 }
 

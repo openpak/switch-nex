@@ -1,3 +1,3 @@
 module github.com/openpak/switch-nex
 
-go 1.23
+go 1.26
