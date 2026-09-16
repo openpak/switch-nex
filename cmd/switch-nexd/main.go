@@ -167,11 +167,14 @@ var titles = []title{
 const securePassword = "openpak-switch-nex-secure"
 
 var (
-	stationAddress = flag.String("station-address", "145.241.199.19", "address carried in every station URL (raw IP; the console dials it without DNS)")
-	certFile       = flag.String("cert", "/app/nex.pem", "TLS certificate (CN covers *.s.n.srv.nintendo.net)")
-	keyFile        = flag.String("key", "/app/nex.key", "TLS key")
-	only           = flag.String("only", "", "comma-separated title names to serve (default: all)")
-	recallFile     = flag.String("recall-file", "", "file the IP-to-PID recall table is persisted to (empty: memory only, lost on restart)")
+	stationAddress  = flag.String("station-address", "145.241.199.19", "address carried in every station URL (raw IP; the console dials it without DNS)")
+	certFile        = flag.String("cert", "/app/nex.pem", "TLS certificate (CN covers *.s.n.srv.nintendo.net)")
+	keyFile         = flag.String("key", "/app/nex.key", "TLS key")
+	only            = flag.String("only", "", "comma-separated title names to serve (default: all)")
+	recallFile      = flag.String("recall-file", "", "file the IP-to-PID recall table is persisted to (empty: memory only, lost on restart)")
+	identityURL     = flag.String("identity-url", "", "nx-baas internal base URL; empty disables account resolution and every login is accepted on its unproven name")
+	identityKey     = flag.String("identity-key", "", "shared key for the nx-baas internal API (X-Internal-Key)")
+	requireIdentity = flag.Bool("require-identity", false, "refuse logins whose token cannot be proven, instead of falling back to the name")
 )
 
 // recall remembers login PID by client IP for the ticketless secure stage, and
@@ -355,11 +358,21 @@ func main() {
 	// refuses legitimate players mid-session.
 	recall := newRecall(24*time.Hour, *recallFile)
 
+	ids := newIdentity(*identityURL, *identityKey)
+	switch {
+	case !ids.enabled():
+		log.Printf("identity: DISABLED — every login is accepted on its unproven name, and nx-baas never sees the player")
+	case *requireIdentity:
+		log.Printf("identity: enforcing — a login whose token does not prove is refused")
+	default:
+		log.Printf("identity: resolving against %s, falling back to the login name when a token does not prove", *identityURL)
+	}
+
 	for _, t := range titles {
 		if len(want) > 0 && !want[t.name] {
 			continue
 		}
-		svc := newService(t, *stationAddress, recall)
+		svc := newService(t, *stationAddress, recall, ids)
 
 		authLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
 		if err != nil {
@@ -391,7 +404,7 @@ type service struct {
 
 // newService wires one title: the auth endpoint that mints tickets and the
 // secure endpoint that spends them, sharing the derived secure-account key.
-func newService(t title, stationAddress string, recall *recall) *service {
+func newService(t title, stationAddress string, recall *recall, ids *identity) *service {
 	env := protocols.NewEnv(t.name, stationAddress, t.base)
 	if t.env != nil {
 		t.env(env)
@@ -403,7 +416,7 @@ func newService(t title, stationAddress string, recall *recall) *service {
 		StreamID:  1,
 		AccessKey: t.accessKey,
 		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-			return handleAuthRMC(recall, env, targetKey, c, msg)
+			return handleAuthRMC(ids, recall, env, targetKey, c, msg)
 		},
 	}
 	s.secure = &prudplite.Endpoint{
@@ -412,6 +425,19 @@ func newService(t title, stationAddress string, recall *recall) *service {
 		AccessKey:   t.accessKey,
 		KerberosKey: targetKey,
 		RecallPID: func(host string) (uint64, bool) {
+			// A ticketless CONNECT inherits the PID that logged in from this
+			// very address. That is leniency, not authentication: the Lite
+			// signature proves knowledge of the title's PUBLIC access key,
+			// never identity.
+			//
+			// Harmless while every player is an unproven name. The moment
+			// identities are real it is an account-takeover path for anyone
+			// sharing a public address — a CGNAT range, or one household — so
+			// once logins are enforced the ticket is the only way in.
+			if *requireIdentity {
+				log.Printf("[%s] secure: ticketless CONNECT from %s refused (identity enforced)", env.Name, host)
+				return 0, false
+			}
 			pid, ok := recall.take(host)
 			if ok {
 				log.Printf("[%s] secure: recalled pid=%d for %s", env.Name, pid, host)
@@ -445,16 +471,60 @@ func (s *service) serve(authLn, secureLn net.Listener) {
 // the reference measured method 6 as the live login path on 4.4+ titles).
 // Method 0x02 returns the flat result body; method 0x06 wraps the same fields
 // in a version-1 structure header.
-func handleAuthRMC(recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+func handleAuthRMC(ids *identity, recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	if msg.Protocol == 0x0A && (msg.MethodID == 0x01 || msg.MethodID == 0x02) {
 		// Login (1) and LoginEx (2) take the same answer.
-		return handleLoginEx(recall, env, targetKey, c, msg, false)
+		return handleLoginEx(ids, recall, env, targetKey, c, msg, false)
 	}
 	if msg.Protocol == 0x0A && msg.MethodID == 0x06 {
-		return handleLoginEx(recall, env, targetKey, c, msg, true)
+		return handleLoginEx(ids, recall, env, targetKey, c, msg, true)
 	}
 	log.Printf("[%s] auth unimplemented proto=0x%X method=0x%X (%dB)", env.Name, msg.Protocol, msg.MethodID, len(msg.Body))
 	return rmc.EncodeError(msg.Protocol, msg.CallID, rmc.ResultNotImplemented)
+}
+
+// resolveLogin turns a login into a principal id.
+//
+// With identity configured the BAAS token in the login's extra data is proved
+// by nx-baas and its account's PID is what goes into the ticket — so the
+// secure stage, which already recovers the PID from that ticket, becomes
+// authenticated end to end with no further work.
+//
+// Without it, or when a token will not prove and enforcement is off, the PID is
+// derived from the login NAME. That name is an unverified claim: anyone who
+// reaches this port can send any name and be issued a ticket for it. The
+// fallback exists so the fleet can be migrated without locking every player out
+// on the first deploy, and it is logged every time precisely because it should
+// not be permanent.
+// The refusal code travels back with the failure rather than in shared state:
+// logins from different consoles run concurrently, and a package-level variable
+// would hand one console the reason another was refused.
+func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Reader) (pid uint64, refusal uint32, ok bool) {
+	if !ids.enabled() {
+		return pidFor(username), 0, true
+	}
+
+	token, found := authenticationToken(in)
+	if !found {
+		if *requireIdentity {
+			log.Printf("[%s] login refused: no authentication token in the login", env.Name)
+			return 0, rmc.ResultAuthTokenParse, false
+		}
+		log.Printf("[%s] login UNPROVEN (no token): falling back to the name %q", env.Name, username)
+		return pidFor(username), 0, true
+	}
+
+	p, err := ids.resolve(token)
+	if err != nil {
+		if *requireIdentity {
+			log.Printf("[%s] login refused: %v", env.Name, err)
+			return 0, loginResultCode(err), false
+		}
+		log.Printf("[%s] login UNPROVEN (%v): falling back to the name %q", env.Name, err, username)
+		return pidFor(username), 0, true
+	}
+	log.Printf("[%s] login pid=%d nickname=%q", env.Name, p.PID, p.Nickname)
+	return p.PID, 0, true
 }
 
 // handleLoginEx mints the two-layer Switch v1 ticket and returns the login
@@ -464,7 +534,7 @@ func handleAuthRMC(recall *recall, env *protocols.Env, targetKey []byte, c *prud
 // secure endpoint as a plain URL string plus the server time. Answering 0x06
 // with the LoginEx layout wrapped in a header is rejected as an invalid
 // argument.
-func handleLoginEx(recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage, withStructHeader bool) []byte {
+func handleLoginEx(ids *identity, recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage, withStructHeader bool) []byte {
 	in := rmc.NewReader(msg.Body)
 	if withStructHeader {
 		if _, _, err := in.StructHeader(); err != nil { // u8 version, u32 content length
@@ -475,7 +545,13 @@ func handleLoginEx(recall *recall, env *protocols.Env, targetKey []byte, c *prud
 		}
 	}
 	username, _ := in.String()
-	pid := pidFor(username)
+
+	pid, refusal, ok := resolveLogin(ids, env, username, in)
+	if !ok {
+		// The code matters: a retryable one for an account we simply do not
+		// know puts the console in a refresh loop.
+		return rmc.EncodeError(0x0A, msg.CallID, refusal)
+	}
 
 	sourceKey := make([]byte, env.SourceKeyBytes)
 	if _, err := randomRead(sourceKey); err != nil {

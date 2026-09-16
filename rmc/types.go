@@ -335,6 +335,8 @@ const (
 	ResultSessionFull        uint32 = 0x000300C8 // RendezVous::SessionFull
 	ResultPermissionDenied   uint32 = 0x000300D9 // RendezVous::PermissionDenied
 	ResultAuthTokenParse     uint32 = 0x00680002 // Authentication::TokenParseError
+	ResultAuthTokenExpired   uint32 = 0x00680006 // Authentication::TokenExpired — retryable
+	ResultAuthValidationFail uint32 = 0x00680007 // Authentication::ValidationFailed — not retryable
 	ResultAuthUnknown        uint32 = 0x0068000E // Authentication::Unknown
 	ResultDataStoreNotFound  uint32 = 0x00690004 // DataStore::NotFound -> 0x80690004 on the wire
 	ResultRanking2InvalidArg uint32 = 0x00710002 // Ranking2::InvalidArgument

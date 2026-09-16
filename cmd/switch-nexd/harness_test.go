@@ -45,8 +45,14 @@ func testTLS(t *testing.T) *tls.Config {
 	}
 }
 
-// start brings up one title on ephemeral ports and returns their addresses.
+// start brings up one title on ephemeral ports with identity resolution off,
+// which is the shape of the fleet today.
 func start(t *testing.T, name string) (authAddr, secureAddr string, svc *service) {
+	return startWith(t, name, newIdentity("", ""))
+}
+
+// startWith brings up one title against a given identity resolver.
+func startWith(t *testing.T, name string, ids *identity) (authAddr, secureAddr string, svc *service) {
 	t.Helper()
 	var spec title
 	found := false
@@ -72,7 +78,7 @@ func start(t *testing.T, name string) (authAddr, secureAddr string, svc *service
 	t.Cleanup(func() { authLn.Close(); secureLn.Close() })
 
 	// Memory-only recall: a test must not inherit another run's state.
-	svc = newService(spec, "127.0.0.1", newRecall(time.Hour, ""))
+	svc = newService(spec, "127.0.0.1", newRecall(time.Hour, ""), ids)
 	svc.serve(authLn, secureLn)
 	return authLn.Addr().String(), secureLn.Addr().String(), svc
 }

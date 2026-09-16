@@ -2,7 +2,11 @@
 
 Asked: does the `servers/nex` → `servers/switch-nex` cutover trade a per-account
 identity for a shared secret? **Confirmed, with one correction to the framing.**
-No fix implemented — this is findings and a recommendation.
+
+**Status 2026-09-16: implemented, off by default, NOT deployed.** The code below
+exists and is tested end to end against a stub nx-baas; production still runs
+with identity disabled, which is the state section 1 describes. Turning it on is
+a configuration change plus a deploy, and a decision about when to enforce.
 
 ## 1. What actually happens today
 
@@ -95,7 +99,50 @@ check-data proves the client holds the session key. The v1 two-layer ticket is
 byte-identical to what `servers/nex` mints. The gap is entirely upstream of the
 transport: nothing proves the PID that goes *into* the ticket.
 
-## 4. Recommendation
+## 4. What was built
+
+`cmd/switch-nexd/identity.go` plus the login path:
+
+- **`authenticationToken`** reads the BAAS id token out of the login's extra
+  data: a DataHolder naming `AuthenticationInfo`, two length prefixes, an empty
+  `Data` base header, then the structure carrying the JWT. A holder naming
+  something else is refused rather than read speculatively.
+- **`openpakClaim`** pulls the nx-baas-signed binding claim when there is one.
+  Absent is the NORMAL case for a retail console and never an error.
+- **`identity.resolve`** posts `{id_token, openpak}` to
+  `/internal/switch/identity` with the internal key. nx-baas needed no change.
+- **Refusal codes are not interchangeable**: 401 maps to
+  `Authentication::TokenExpired` (0x00680006), which makes the console fetch a
+  fresh token and retry; 404 maps to `ValidationFailed` (0x00680007), which
+  makes it stop. Answering the retryable code for an account we do not know is
+  a refresh loop.
+- **The proven PID goes into the kerberos ticket**, so the secure stage — which
+  already recovers the PID from that ticket — becomes authenticated end to end
+  with no further work. This also dissolves the 24-bit collision problem: the
+  PID is nx-baas's, not a hash.
+- **The ticketless recall closes under enforcement.** Inheriting a PID by IP is
+  leniency, not authentication, and with real accounts it hands a stranger
+  behind the same public address somebody else's session.
+
+Three flags: `-identity-url`, `-identity-key`, `-require-identity`. With no URL
+the behaviour is exactly what it is today, including the log line saying so.
+
+## 5. Rollout
+
+1. Deploy with `-identity-url`/`-identity-key` set and `-require-identity`
+   **off**. Every login still succeeds; the ones that cannot be proven log
+   `login UNPROVEN` with the reason.
+2. Watch that line. It is the migration's progress bar: while it appears,
+   enforcing would lock those players out.
+3. Flip `-require-identity` on when it stops. That is also what closes the
+   ticketless recall path.
+
+The honest caveat: none of this has seen a real BAAS token. The tests drive a
+stub that answers the way nx-baas documents, which proves the wiring and the
+shapes but not that a console's actual token parses. Step 1 is safe precisely
+because an unparseable token falls back instead of refusing.
+
+## 6. Recommendation
 
 Steps 1–3 are roughly a day and touch one file plus a new small client. The
 honest question is whether the fifteen live titles should keep serving in the

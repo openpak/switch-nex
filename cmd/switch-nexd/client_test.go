@@ -184,9 +184,15 @@ func (c *client) login(username string, structured bool) {
 		c.readLoginExResult(resp.Body)
 	}
 
-	// The source key is what makes the ticket usable: the console decrypts the
-	// outer layer with it to recover the session key. A ticket it cannot open
-	// is a login that looked like it worked.
+	c.openTicket()
+}
+
+// openTicket does what the console does with what it was handed: decrypt the
+// outer layer with the source key to recover the session key, keeping the inner
+// blob untouched for the secure stage. A ticket that will not open here is a
+// login that only looked like it worked.
+func (c *client) openTicket() {
+	c.t.Helper()
 	outer, err := switchnex.DecryptClientTicket(c.ticket, c.sourceKey)
 	if err != nil {
 		c.t.Fatalf("ticket does not open with the source key we were handed: %v", err)
