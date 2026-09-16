@@ -1,0 +1,6 @@
+# Build artifacts. The deployable binaries ship as GitHub release assets, not in
+# the repo: they are ~8 MB each, change on every build, and compress badly, so
+# tracking them made the history an order of magnitude larger than the source.
+# Build with the command in docs/deploy.md §1 and attach the result to a release.
+switch-nexd-arm64
+mk8d-arm64
