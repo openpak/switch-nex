@@ -19,7 +19,44 @@ GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o switch-nexd-arm64 .
 Local smoke test before shipping (no prod cert needed): self-signed dev
 cert, station address 127.0.0.1, one `-only <title>`.
 
-## 2. Ship + rebuild the image
+## 2. Publish the image (registry path, preferred)
+
+Every other OpenPak service runs from `ghcr.io/openpak/<name>`; switch-nexd was
+the last one still building a `localhost/` image on the host. Build and publish
+from a dev machine instead:
+
+```sh
+podman build --platform linux/arm64 -f Dockerfile.deploy \
+  -t ghcr.io/openpak/switch-nex:vX.Y.Z -t ghcr.io/openpak/switch-nex:latest .
+gh auth token | podman login ghcr.io -u <user> --password-stdin
+podman push ghcr.io/openpak/switch-nex:vX.Y.Z
+podman push ghcr.io/openpak/switch-nex:latest
+```
+
+The build has no `RUN` steps — it copies the already-cross-compiled binary into
+alpine — so an arm64 image builds on an x86 host without emulation.
+
+The package is **private**, like every other openpak package. The production
+host authenticates from `~/.config/containers/auth.json` (not the runtime
+`auth.json`, which is empty); if a pull ever fails with a 403, that file is
+where the credential lives.
+
+Point the quadlet at a tag rather than `localhost/switch-nexd:latest`:
+
+```
+Image=ghcr.io/openpak/switch-nex:vX.Y.Z
+```
+
+Pin a version tag, not `latest` — a restart then redeploys what you chose
+rather than whatever was pushed most recently, and rolling back is editing one
+line.
+
+Attach the same binary to a GitHub release (`gh release create vX.Y.Z
+switch-nexd-arm64 mk8d-arm64 SHA256SUMS.txt`). The binary is not in git; the
+release and the image are the two records of a build, and their hashes must
+agree with `podman exec switch-nexd sha256sum /app/switch-nexd` in production.
+
+## 2b. Ship + rebuild on the host (legacy path)
 
 ```sh
 scp switch-nexd-arm64 <prod-host>:openpak/deploy/switch-nex/
