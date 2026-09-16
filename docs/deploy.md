@@ -16,6 +16,17 @@ GOWORK=off go test ./... && GOWORK=off go vet ./...
 GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o switch-nexd-arm64 ./cmd/switch-nexd
 ```
 
+**Commit first.** Go stamps the binary with the commit it was built from and
+whether the tree was dirty (`go version -m <binary> | grep vcs.`). A build from
+uncommitted changes records `vcs.modified=true` and is traceable to nothing: it
+is not the previous commit and not the next one, so "what is running in
+production?" has no answer. Check the stamp before publishing, and after
+deploying:
+
+```sh
+go version -m switch-nexd-arm64 | grep -E 'vcs\.(revision|modified)'
+```
+
 Local smoke test before shipping (no prod cert needed): self-signed dev
 cert, station address 127.0.0.1, one `-only <title>`.
 
