@@ -324,6 +324,14 @@ func (r *recall) flush() {
 	}
 }
 
+// orEnv prefers an explicitly given value, falling back to the environment.
+func orEnv(given, envVar string) string {
+	if given != "" {
+		return given
+	}
+	return os.Getenv(envVar)
+}
+
 // pidFor returns a stable NEX PID for a login username: the console must keep
 // recognizing itself as the same principal across logins.
 func pidFor(username string) uint64 {
@@ -358,14 +366,23 @@ func main() {
 	// refuses legitimate players mid-session.
 	recall := newRecall(24*time.Hour, *recallFile)
 
-	ids := newIdentity(*identityURL, *identityKey)
+	// The key is a secret, so the environment is the better home for it: a
+	// command-line flag shows up in ps for every user on the box. Flags still
+	// win when given, which keeps a one-off run easy to drive.
+	ids := newIdentity(
+		orEnv(*identityURL, "NX_INTERNAL_URL"),
+		orEnv(*identityKey, "NX_INTERNAL_KEY"),
+	)
 	switch {
 	case !ids.enabled():
 		log.Printf("identity: DISABLED — every login is accepted on its unproven name, and nx-baas never sees the player")
 	case *requireIdentity:
 		log.Printf("identity: enforcing — a login whose token does not prove is refused")
 	default:
-		log.Printf("identity: resolving against %s, falling back to the login name when a token does not prove", *identityURL)
+		// The RESOLVED url, not the flag: the value usually arrives by
+		// environment, and a startup line that reports where it is resolving
+		// is worthless if it reports the wrong place.
+		log.Printf("identity: resolving against %s, falling back to the login name when a token does not prove", ids.url)
 	}
 
 	for _, t := range titles {

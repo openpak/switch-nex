@@ -130,6 +130,27 @@ systemctl --user daemon-reload && systemctl --user restart openpak-switch-nexd.s
   served must be the OpenPak `*.s.n.srv.nintendo.net` leaf, NOT the nx-baas
   catch-all's per-hostname cert):
   `echo | openssl s_client -connect 145.241.199.19:443 -servername g<id>-lp1.s.n.srv.nintendo.net`
+
+  **Take `g<id>` from the Traefik `dynamic.yml` on the host, never from
+  memory.** An invented hostname reaches the catch-all, which answers TLS with
+  a per-hostname cert and looks like a pass — it is the failure this check
+  exists to catch, wearing the face of a success. If the CN comes back as the
+  hostname you asked for rather than the wildcard, you routed to the wrong
+  backend.
+
+- **End to end, without a console:** `cmd/nexprobe` speaks the console's half —
+  TLS with the title's SNI, the PRUDPLite handshake with its access-key
+  signature, and a real TicketGranting login.
+
+  ```sh
+  go run ./cmd/nexprobe -addr 145.241.199.19:443 \
+    -sni g2b309e01-lp1.s.n.srv.nintendo.net -key 09c1c475 -token fake
+  ```
+
+  `-token fake` sends a well-formed but unsigned token, which the server must
+  carry to nx-baas and be told no about: `login UNPROVEN (id token not proven)`
+  in the log is proof the identity call really happens, as distinct from
+  `(no token)`, which never leaves the process.
 - Secure port direct dial (the console hits this straight from the station
   URL): `echo | openssl s_client -connect 145.241.199.19:<secure>`
 - Any new 2306-xxxx on the console is a regression until triaged (SPEC.md
