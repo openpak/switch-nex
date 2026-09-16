@@ -388,3 +388,54 @@ const (
 	ProtoMatchmakeExt     uint16 = 0x6D
 	ProtoDataStore        uint16 = 0x73
 )
+
+// TestLoginExShapeIsSwitchable covers both candidate answers to TicketGranting
+// method 2. Two OpenPak lineages disagree about which one a console accepts and
+// both cite console evidence about these same titles, so the server can serve
+// either and this pins both to a client that has to read them.
+//
+// The shapes are genuinely confusable: the flat retval 0x00010001 is the bytes
+// 01 00 01 00, which reads convincingly as a structure version byte followed by
+// a length — which is how the disagreement arose in the first place.
+func TestLoginExShapeIsSwitchable(t *testing.T) {
+	for _, structured := range []bool{false, true} {
+		name := "flat (this lineage, in production)"
+		if structured {
+			name = "structured (servers/nex)"
+		}
+		t.Run(name, func(t *testing.T) {
+			*loginExStruct = structured
+			t.Cleanup(func() { *loginExStruct = false })
+
+			authAddr, secureAddr, _ := start(t, "mario-kart-8-deluxe")
+			key := titleAccessKey(t, "mario-kart-8-deluxe")
+
+			c := dial(t, authAddr, key)
+			c.handshake(nil)
+			w := rmc.NewWriter()
+			w.String(randomName("player"))
+			resp := c.call(0x0A, 0x02, w.Bytes())
+			if resp.IsError {
+				t.Fatalf("login refused: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+			}
+
+			// Read it the way the matching client would, and insist the body
+			// is consumed exactly — a shape that parses but leaves bytes over
+			// is the wrong shape.
+			if structured {
+				c.readTicketResult(resp.Body)
+			} else {
+				c.readLoginExResult(resp.Body)
+			}
+			c.openTicket()
+
+			// Whichever shape, the ticket has to work on the secure stage.
+			s := dial(t, secureAddr, key)
+			s.pid, s.ticket, s.sessionKey = c.pid, c.ticket, c.sessionKey
+			s.handshake(s.secureConnectPayload(1))
+			if r := s.call(ProtoUtility, 0x01, nil); r.IsError {
+				t.Fatalf("secure stage: %#08x", r.ErrorCode|rmc.ErrorCodeBit)
+			}
+		})
+	}
+}

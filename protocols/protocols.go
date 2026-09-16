@@ -54,6 +54,23 @@ type Env struct {
 	// title's Pia version (see PiaStationShape).
 	Pia PiaStationShape
 
+	// LoginExStructured selects what TicketGranting method 2 answers.
+	//
+	// Two OpenPak lineages disagree about this and both cite console
+	// evidence about these same titles, so it is a switch rather than a
+	// decision (docs/login-shape-conflict.md):
+	//
+	//   false — the flat layout: u32 retval, PID, ticket, RVConnectionData
+	//           structure, message, source key. What this lineage serves and
+	//           what production runs.
+	//   true  — the same ValidateAndRequestTicketResult structure method 6
+	//           returns. What servers/nex serves.
+	//
+	// The two are easy to confuse because the flat retval 0x00010001 is the
+	// bytes 01 00 01 00, which reads convincingly as a version byte followed
+	// by a length. Only a console can say which is right.
+	LoginExStructured bool
+
 	// SourceKeyBytes is the per-login kerberos source key size. 32 on Switch
 	// generally (MK8D, MPS, ACNH, LM3, S2, SMM2 measured), 16 attested for
 	// SMB35 against the reference — the length is per-title, not a protocol

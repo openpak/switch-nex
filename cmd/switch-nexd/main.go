@@ -175,6 +175,7 @@ var (
 	identityURL     = flag.String("identity-url", "", "nx-baas internal base URL; empty disables account resolution and every login is accepted on its unproven name")
 	identityKey     = flag.String("identity-key", "", "shared key for the nx-baas internal API (X-Internal-Key)")
 	requireIdentity = flag.Bool("require-identity", false, "refuse logins whose token cannot be proven, instead of falling back to the name")
+	loginExStruct   = flag.Bool("loginex-structured", false, "answer TicketGranting method 2 with the ValidateAndRequestTicketResult structure instead of the flat layout (see docs/login-shape-conflict.md)")
 )
 
 // recall remembers login PID by client IP for the ticketless secure stage, and
@@ -426,6 +427,9 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 	if t.env != nil {
 		t.env(env)
 	}
+	if *loginExStruct {
+		env.LoginExStructured = true
+	}
 	targetKey := switchnex.DeriveKey([]byte(securePassword), env.SecurePID)
 
 	s := &service{env: env, targetKey: targetKey}
@@ -583,8 +587,11 @@ func handleLoginEx(ids *identity, recall *recall, env *protocols.Env, targetKey 
 
 	url := env.SecureStationURL()
 	now := switchnex.NowDateTime()
+	// Method 6 always answers the structure. Method 6's shape is settled; the
+	// method-2 shape is the one two lineages disagree about, so it is a
+	// per-title switch rather than a constant.
 	var body []byte
-	if withStructHeader {
+	if withStructHeader || env.LoginExStructured {
 		body = switchnexTicketResult(env.Name, url, ticket, now, pid, sourceKey)
 	} else {
 		body = switchnexResult(env.Name, url, ticket, now, pid, sourceKey)

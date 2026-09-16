@@ -1,0 +1,33 @@
+#!/bin/sh
+# Record who pushed.
+#
+# On 2026-09-16 something on this machine pushed nx-baas and pruned a remote
+# branch unprompted, 15 minutes after a local commit. It was provably a push
+# from THIS clone -- the reflog says "update by push", which a push from
+# elsewhere would not -- but nothing recorded which process did it, and several
+# AI coding agents run here concurrently in the same working copies.
+#
+# This does not block anything. It writes down the process ancestry so the next
+# unexplained push has an answer instead of an argument.
+LOG="$(git rev-parse --git-dir)/push-audit.log"
+{
+    printf '%s  pid=%s  remote=%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$PPID" "$1" "$2"
+    # Walk up the process tree: the direct parent is usually a shell, and the
+    # interesting name is two or three levels above it.
+    pid=$PPID
+    depth=0
+    while [ -n "$pid" ] && [ "$pid" -gt 1 ] && [ "$depth" -lt 8 ]; do
+        printf '    %s %s\n' "$pid" "$(ps -o comm= -p "$pid" 2>/dev/null)"
+        pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+        depth=$((depth + 1))
+    done
+    while read -r _local_ref _local_sha remote_ref remote_sha; do
+        case "$remote_sha" in
+            0000000000000000000000000000000000000000)
+                printf '    DELETING %s\n' "$remote_ref" ;;
+            *)
+                printf '    %s -> %s\n' "$remote_ref" "$_local_sha" ;;
+        esac
+    done
+} >> "$LOG" 2>/dev/null
+exit 0
