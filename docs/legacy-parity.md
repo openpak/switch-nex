@@ -82,9 +82,12 @@ Reference NEX versions, for the record: MPS 40605, Golf 40605, ARMS 40305,
 MTA 40305, SMB35 40600, every other title 40000. Session key length is 32
 everywhere, SMB35 included; the 16 bytes that title carries is its SOURCE key.
 
-Not served by this lineage: **MHGU (22120)** — raw PRUDP over UDP, kerberos v0
-tickets, 3DS-lineage code under an AArch64 shim. Different transport; stays
-on nex-go (MIGRATION.md).
+Not served by this lineage: **MHGU (22120)** — kerberos v0 tickets and a raw
+PRUDP-over-UDP *secure* stage, 3DS-lineage code under an AArch64 shim. Its
+*auth* stage is wss like everything here, which is why it sits behind the same
+Traefik SNI route; the secure half is what this lineage cannot serve. Stays on
+nex-go (MIGRATION.md), where it shares its NEX code and access key with
+Pretendo's Monster Hunter XX server.
 
 ## Known deviations (documented, deliberate)
 

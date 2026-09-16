@@ -169,4 +169,7 @@ systemctl --user daemon-reload && systemctl --user restart openpak-switch-nexd.s
 
 ## MHGU (22120)
 
-Not servable here — raw PRUDP/UDP + kerberos v0. Its nex-go container stays.
+Not servable here — its secure stage is raw PRUDP/UDP and its ticket is kerberos
+v0. Its auth stage *is* wss on the shared SNI route, so the Traefik entry for
+`g2896bd04-lp1.s.n.srv.nintendo.net` stays pointed at the nex-go container, which
+now listens TCP there rather than UDP.

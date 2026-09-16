@@ -33,7 +33,7 @@ are in `docs/legacy-parity.md`.
 |---|---|---|---|
 | 22100 | shared reference host | running (test) | n/a — stays nex-go for cross-checks |
 | 22110 | Mario Party Superstars | deployed | **parity implemented** (matchmaking, settings tables) |
-| 22120 | Monster Hunter Generations Ultimate | deployed (udp) | **out of scope** — UDP transport, stays nex-go |
+| 22120 | Monster Hunter Generations Ultimate | deployed (wss auth + udp secure) | **out of scope** — raw PRUDP/UDP secure stage and a kerberos v0 ticket, stays nex-go |
 | 22130 | Mario Golf: Super Rush | deployed (wss) | **parity implemented** |
 | 22140 | ARMS | deployed | **parity implemented** (DataStore stub) |
 | 22150 | **Mario Kart 8 Deluxe** | deployed (debugged 2026-09-14) | **pilot** — parity implemented + wire-verified login |

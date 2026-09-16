@@ -18,7 +18,7 @@ port needs a firewall ACCEPT before the host's final REJECT), +2 /healthz.
 | --- | --- | --- | --- | --- |
 | 22100 | `servers/nex` — shared host reference instance | 22100 | 22101 | 22102 |
 | 22110 | `servers/nex/titles/mario-party-superstars` — Mario Party Superstars (NEX 4.6.5) | 22110 | 22111 | 22112 |
-| 22120 | `servers/nex/titles/monster-hunter-generations-ultimate` — Monster Hunter Generations Ultimate (NEX 4.4.0) | 22120 | 22121 | 22122 |
+| 22120 | `servers/nex/titles/monster-hunter-generations-ultimate` — Monster Hunter Generations Ultimate (NEX 4.4.0); auth tcp/wss, secure udp | 22120 | 22121 | 22122 |
 | 22130 | `servers/nex/titles/mario-golf-super-rush` — Mario Golf: Super Rush (NEX 4.6.5); wss, one listener carrying both streams | 22130 | — (stream 2 on 22130) | 22132 |
 | 22140 | `servers/nex/titles/arms` — ARMS (NEX 4.3.5) | 22140 | 22141 | 22142 |
 | 22150 | `servers/nex/titles/mario-kart-8-deluxe` — Mario Kart 8 Deluxe (NEX 4.0.0, ws) | 22150 | 22151 | 22152 |
