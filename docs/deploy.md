@@ -19,11 +19,11 @@ GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o switch-nexd-arm64 .
 Local smoke test before shipping (no prod cert needed): self-signed dev
 cert, station address 127.0.0.1, one `-only <title>`.
 
-## 2. Publish the image (registry path, preferred)
+## 2. Publish the image (registry path — this is what production runs)
 
-Every other OpenPak service runs from `ghcr.io/openpak/<name>`; switch-nexd was
-the last one still building a `localhost/` image on the host. Build and publish
-from a dev machine instead:
+Production runs `ghcr.io/openpak/switch-nex:v0.1.0` as of 2026-09-16; it was
+the last service still building a `localhost/` image on the host. Build and
+publish from a dev machine:
 
 ```sh
 podman build --platform linux/arm64 -f Dockerfile.deploy \
@@ -41,22 +41,23 @@ host authenticates from `~/.config/containers/auth.json` (not the runtime
 `auth.json`, which is empty); if a pull ever fails with a 403, that file is
 where the credential lives.
 
-Point the quadlet at a tag rather than `localhost/switch-nexd:latest`:
+The quadlet names a pinned version tag, never `latest`:
 
 ```
 Image=ghcr.io/openpak/switch-nex:vX.Y.Z
 ```
 
-Pin a version tag, not `latest` — a restart then redeploys what you chose
-rather than whatever was pushed most recently, and rolling back is editing one
-line.
+`latest` would make a restart redeploy whatever was pushed most recently
+instead of what you chose. With a pin, rolling back is editing one line and
+restarting — and the previous quadlet is saved beside it as
+`.before-registry-<stamp>`.
 
 Attach the same binary to a GitHub release (`gh release create vX.Y.Z
 switch-nexd-arm64 mk8d-arm64 SHA256SUMS.txt`). The binary is not in git; the
 release and the image are the two records of a build, and their hashes must
 agree with `podman exec switch-nexd sha256sum /app/switch-nexd` in production.
 
-## 2b. Ship + rebuild on the host (legacy path)
+## 2b. Ship + rebuild on the host (legacy path, no registry needed)
 
 ```sh
 scp switch-nexd-arm64 <prod-host>:openpak/deploy/switch-nex/
