@@ -56,12 +56,30 @@ systemctl --user restart openpak-switch-nexd.service
 **Recall persistence.** `-recall-file <path>` persists the IP-to-PID table that
 lets a console re-CONNECT to a secure port without replaying a full login. Left
 unset the table is memory-only and a restart refuses every console already
-mid-session. To enable it, add a writable volume to the quadlet and pass the
-flag:
+mid-session. Live since 2026-09-16; the quadlet carries
 
 ```
 Volume=%h/openpak/deploy/switch-nex/state:/state:Z
 Exec=… -recall-file /state/recall.json
+```
+
+Check the mount is writable after any quadlet change
+(`podman exec switch-nexd touch /state/.probe`): the flusher ignores write
+errors, so an unwritable mount makes persistence silently do nothing.
+
+## Rollback
+
+Each deploy leaves a timestamped binary and image tag beside the live ones:
+
+```sh
+cd ~/openpak/deploy/switch-nex
+ls switch-nexd-arm64.before-*                      # binaries
+podman images localhost/switch-nexd                # tags
+cp switch-nexd-arm64.before-<stamp> switch-nexd-arm64
+podman build -f Dockerfile.deploy -t localhost/switch-nexd:latest .
+cp ~/.config/containers/systemd/openpak-switch-nexd.container.before-<stamp> \
+   ~/.config/containers/systemd/openpak-switch-nexd.container
+systemctl --user daemon-reload && systemctl --user restart openpak-switch-nexd.service
 ```
 
 ## 4. Verify
