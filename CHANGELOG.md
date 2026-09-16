@@ -17,6 +17,18 @@
 - Tests: create normalisation + browsability, join echo (new joiner hears the
   pre-join count, store counts the join, rejoin does not double-count), and
   the three DataStore answers.
+- Deployed to quilted-waffle 2026-09-16: image rebuilt from the shipped
+  arm64 binary, quadlet publishes 22871, Traefik SNI route
+  `g2035bb00-lp1.s.n.srv.nintendo.net` → `switch-nexd:22870` (delta backup
+  `dynamic.before-clubhouse-20260916.yml`), nftables ACCEPT + rules.v4
+  persisted for 22871. Verified: 15/15 listeners, edge SNI handshake serves
+  the `*.s.n.srv.nintendo.net` leaf, secure port 22871 reachable externally.
+- Firewall closure: the cutover had left every switch-nexd secure port
+  except MK8D's blocked at the host REJECT (auth via 443/SNI worked, secure
+  direct-dial did not). One multiport ACCEPT for
+  22111,22131,22141,22161,22171,22181,22191,22301,22311,22321,22331,22341,22351
+  now sits before the REJECT (rules.v4 persisted); all 15 secure ports
+  verified externally serving the OpenPak leaf.
 
 ## 2026-09-16 — deployed to quilted-waffle (all titles)
 

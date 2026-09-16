@@ -8,9 +8,11 @@ Steam live there). Every service reads its listeners from `<SVC>_HTTP_ADDR`, `<S
 `<SVC>_METRICS_ADDR`; the values below are the defaults and the local-run convention. Each
 service owns a block of ten: +0 HTTP, +1 gRPC, +2 metrics/pprof, +3..+9 spare.
 
-The Switch-era NEX blocks below are served by the nex-go containers today;
-each moves to switch-nex at its cutover (MIGRATION.md). Host pattern:
-+0 authentication, +1 secure, +2 /healthz.
+The Switch-era NEX blocks are served by `cmd/switch-nexd` (one container, deployed
+2026-09-16) except 22100/22120: the shared reference host and MHGU stay on nex-go.
+Host pattern: +0 authentication (via Traefik SNI on 443), +1 secure (published
+directly — the console dials it straight from the login station URL, so each +1
+port needs a firewall ACCEPT before the host's final REJECT), +2 /healthz.
 
 | Block | Title | auth | secure | healthz |
 | --- | --- | --- | --- | --- |

@@ -1,51 +1,72 @@
 # Deploy — switch-nexd to the production host (arm64)
 
-The deployable artifact is `switch-nexd-arm64` (static, CGO off) +
-`Dockerfile.deploy`. Deployment follows the MIGRATION.md cutover checklist:
-parallel run first, Traefik re-point per title, 2306-xxxx watch.
+The deployable artifact is `switch-nexd-arm64` (static, CGO off), wrapped by
+`Dockerfile.deploy` into `localhost/switch-nexd:latest` on the host. The
+deployed shape since the 2026-09-16 cutover: one `switch-nexd` container
+serving every title, quadlet `openpak-switch-nexd.service` (a **user** unit —
+`systemctl --user`, not the system manager), Traefik SNI for the auth stage,
+secure ports published directly.
+
+Host access: `ssh <prod-host>`.
 
 ## 1. Build (from a dev machine)
 
 ```sh
+GOWORK=off go test ./... && GOWORK=off go vet ./...
 GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o switch-nexd-arm64 ./cmd/switch-nexd
 ```
 
-## 2. Ship + run side by side (do NOT stop the nex-go containers yet)
+Local smoke test before shipping (no prod cert needed): self-signed dev
+cert, station address 127.0.0.1, one `-only <title>`.
 
-The nex-go containers hold the SNI routes and the real ports. Run
-switch-nexd beside them on shifted ports (+1000) until each title is
-verified:
+## 2. Ship + rebuild the image
 
 ```sh
-docker load < switch-nexd.tar        # or scp the binary + cert directly
-docker run -d --name switch-nexd \
-  -v /app/nex.pem:/app/nex.pem:ro -v /app/nex.key:/app/nex.key:ro \
-  openpak/switch-nexd \
-  -station-address 145.241.199.19 -cert /app/nex.pem -key /app/nex.key
+scp switch-nexd-arm64 <prod-host>:openpak/deploy/switch-nex/
 ```
 
-For the parallel run, add a port-shift flag pass — the listener bases come
-from the registry, so either publish the container on shifted host ports
-(`-p 23110:22110 …`) or run one title at a time with
-`-only mario-party-superstars` while its nex-go container is stopped for the
-test window.
+On the host — the build context is `~/openpak/deploy/switch-nex/` and the
+Dockerfile is named `Dockerfile.deploy` (pass `-f`):
 
-Local smoke test (no prod cert needed): self-signed dev cert, station
-address 127.0.0.1, one `-only` title.
+```sh
+cd ~/openpak/deploy/switch-nex
+podman build -f Dockerfile.deploy -t localhost/switch-nexd:latest .
+```
 
-## 3. Traefik re-point (per title, after its parallel run is green)
+## 3. Apply config + restart
 
-Route `g<id>-lp1.s.n.srv.nintendo.net` from the nex-go container to
-switch-nexd's in-container port (22150 etc. — the listeners are on the
-title's base ports inside the container, so only the SNI label changes).
-One title at a time; MK8D first (most wire-verified).
+- **New title**: register it in `cmd/switch-nexd/main.go` (registry), pick a
+  port block from ports.md, then on the host:
+  - quadlet `~/.config/containers/systemd/openpak-switch-nexd.container`:
+    add `PublishPort=0.0.0.0:<secure>:<secure>` (auth rides Traefik; only
+    the +1 secure port is published);
+  - Traefik `~/openpak/deploy/traefik/dynamic.yml`: one `nex-<title>` router
+    (`HostSNI(g<id>-lp1.s.n.srv.nintendo.net)`, `tls.passthrough`) + service
+    → `switch-nexd:<base>`. Back up the file first
+    (`dynamic.before-<change>-<date>.yml`);
+  - firewall: the INPUT chain ends in a REJECT — insert a multiport ACCEPT
+    for new secure ports **before it**, then persist
+    (`sudo sh -c "iptables-save > /etc/iptables/rules.v4"`).
 
-## 4. Watch
+```sh
+systemctl --user daemon-reload        # picks up quadlet changes
+systemctl --user restart openpak-switch-nexd.service
+```
 
-- `docker logs -f switch-nexd` — `login pid=…`, `secure: connected`,
-  `NotImplemented` lines are the live backlog
-- Any new 2306-xxxx on the console is a regression until triaged
-  (SPEC.md error table)
+## 4. Verify
+
+- `systemctl --user is-active openpak-switch-nexd.service` and
+  `podman logs switch-nexd` — one `serving auth :<base> secure :<base+1>`
+  line per title; `login pid=…`, `secure: connected`; `NotImplemented`
+  lines are the live backlog.
+- Edge SNI handshake (auth stage through Traefik, passthrough — the cert
+  served must be the OpenPak `*.s.n.srv.nintendo.net` leaf, NOT the nx-baas
+  catch-all's per-hostname cert):
+  `echo | openssl s_client -connect 145.241.199.19:443 -servername g<id>-lp1.s.n.srv.nintendo.net`
+- Secure port direct dial (the console hits this straight from the station
+  URL): `echo | openssl s_client -connect 145.241.199.19:<secure>`
+- Any new 2306-xxxx on the console is a regression until triaged (SPEC.md
+  error table).
 
 ## MHGU (22120)
 
