@@ -3,42 +3,59 @@ package prudplite
 import (
 	"crypto/hmac"
 	"crypto/md5"
-	"crypto/rc4"
 	"encoding/binary"
+	"encoding/hex"
 	"net"
 )
 
-// ConnectionSignature derives the 16-byte connection signature for a SYN/CONNECT
-// exchange: HMAC-MD5(key, client ip ‖ port), keyed with the server's PRUDP v1
-// connection signature key.
-func ConnectionSignature(key []byte, remote net.Addr) ([]byte, error) {
-	tcp, ok := remote.(*net.TCPAddr)
-	if !ok {
-		return nil, ErrTruncated
-	}
-	portBytes := make([]byte, 2)
-	binary.BigEndian.PutUint16(portBytes, uint16(tcp.Port))
-	mac := hmac.New(md5.New, key)
-	mac.Write(tcp.IP.To4())
-	mac.Write(portBytes)
-	return mac.Sum(nil), nil
-}
+// liteConnSigKey keys the connection-signature HMAC: a fixed protocol
+// constant of the PRUDP Lite profile (documented in the NintendoClients
+// protocol notes).
+var liteConnSigKey = mustHex("26c31f381e46d6eb38e1af6ab70d11")
 
-// StreamCipher is the per-direction RC4 stream applied to DATA payloads after
-// the handshake. Fresh instances per direction; RC4 state advances per packet.
-type StreamCipher struct{ c *rc4.Cipher }
-
-// NewStreamCipher builds an RC4 stream cipher from a key.
-func NewStreamCipher(key []byte) (*StreamCipher, error) {
-	c, err := rc4.NewCipher(key)
+func mustHex(s string) []byte {
+	b, err := hex.DecodeString(s)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return &StreamCipher{c: c}, nil
+	return b
 }
 
-// Apply XORs data in place (RC4 keystream) and returns it.
-func (s *StreamCipher) Apply(data []byte) []byte {
-	s.c.XORKeyStream(data, data)
-	return data
+// ConnectionSignature derives the server connection signature for a peer
+// address: HMAC-MD5(liteConnSigKey, ipv4 ‖ port BE). The client computes the
+// same value from the address it dialed.
+func ConnectionSignature(remote net.Addr) []byte {
+	if tcp, ok := remote.(*net.TCPAddr); ok {
+		if ip := tcp.IP.To4(); ip != nil {
+			data := make([]byte, 6)
+			copy(data, ip)
+			binary.BigEndian.PutUint16(data[4:], uint16(tcp.Port))
+			return hmacMD5(liteConnSigKey, data)
+		}
+	}
+	return nil
+}
+
+// LitePacketSignature returns the packet signature for a Lite packet: only a
+// CONNECT carrying NEED_ACK is signed — it proves the sender knows the
+// title's access key — as
+// HMAC-MD5(md5(accessKey), md5(accessKey) ‖ connectionSig).
+// Every other Lite packet is unsigned (nil).
+func LitePacketSignature(accessKey string, p *Packet, connectionSig []byte) []byte {
+	if p.Type != Connect || !p.HasFlag(FlagNeedsAck) {
+		return nil
+	}
+	key := md5Sum([]byte(accessKey))
+	return hmacMD5(key, append(append([]byte{}, key...), connectionSig...))
+}
+
+func hmacMD5(key, data []byte) []byte {
+	h := hmac.New(md5.New, key)
+	h.Write(data)
+	return h.Sum(nil)
+}
+
+func md5Sum(b []byte) []byte {
+	s := md5.Sum(b)
+	return s[:]
 }

@@ -1,0 +1,213 @@
+// Package protocols implements the secure-stage NEX protocols the Switch
+// titles call after login, with response behaviour matched to the working
+// reference servers (OpenPak) title for title — see docs/legacy-parity.md
+// for the comparison and the per-title provenance of every answer shape.
+//
+// Protocol IDs and method IDs follow the public NEX protocol definitions
+// (Pretendo nex-protocols-go tables, recorded per fact in provenance); the
+// response behaviour is what the games were measured working against.
+package protocols
+
+import (
+	"log"
+	"sync/atomic"
+
+	switchnex "github.com/openpak/switch-nex"
+	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/rmc"
+)
+
+// Protocol IDs (NEX service protocols).
+const (
+	ProtoNatTraversal     uint16 = 0x03
+	ProtoSecureConnection uint16 = 0x0B
+	ProtoNotification     uint16 = 0x0E
+	ProtoMatchMaking      uint16 = 0x15
+	ProtoMessaging        uint16 = 0x17
+	ProtoMessageDelivery  uint16 = 0x1B
+	ProtoMatchMakingExt   uint16 = 0x32
+	ProtoUtility          uint16 = 0x6E
+	ProtoMatchmakeExt     uint16 = 0x6D
+	ProtoRanking          uint16 = 0x70
+	ProtoDataStore        uint16 = 0x73
+	ProtoMatchmakeReferee uint16 = 0x78
+	ProtoRanking2         uint16 = 0x7A
+)
+
+// Env is one title's serving environment: identity of the server on the wire
+// plus the title's state and behaviour hooks. One Env per title.
+type Env struct {
+	Name string
+
+	// StationURL parameters for the secure endpoint handed out at login and
+	// served by SecureConnection::RegisterEx/RequestURLs.
+	StationAddress string
+	SecurePort     uint16
+	SecurePID      uint64 // station URL PID= (2 by convention; SMB35 carries the retail constant)
+
+	// SourceKeyBytes is the per-login kerberos source key size. 32 on Switch
+	// generally (MK8D, MPS, ACNH, LM3, S2, SMM2 measured), 16 attested for
+	// SMB35 against the reference — the length is per-title, not a protocol
+	// constant (see servers/nex provenance).
+	SourceKeyBytes int
+
+	// Matchmaking state (nil when the title registers no matchmaking).
+	Match *MatchmakingStore
+
+	// Utility behaviour hooks. Nil hooks fall back to the reference answers:
+	// empty settings maps, a process-local unique-ID counter, PID-derived tag.
+	// IntegerSettings overrides GetIntegerSettings per index. It returns the
+	// settings map plus an error code: 0 answers the map (empty maps are a
+	// real answer), nonzero answers that RMC error — SMB35's tuning table
+	// answers Core::InvalidArgument for unknown indices.
+	IntegerSettings func(index uint32) (map[uint16]uint32, uint32)
+
+	// ForceOpenParticipation implements the Mario Tennis Aces fix measured on
+	// the working reference (sessions arrive closed and deadlock two searchers
+	// — the fix opens every session at create time).
+	ForceOpenParticipation bool
+
+	// SanitizeDetailFind implements Mario Party Superstars behaviour:
+	// FindMatchmakeSessionByGatheringIDDetail is answerable by anyone holding
+	// the gathering ID, so SessionKey and UserPassword are stripped.
+	SanitizeDetailFind bool
+
+	// FinalizeCreateSession applies the create-time normalisation measured on
+	// the working reference for Clubhouse Games (measured working there):
+	// bound unbounded sessions, count the host as the first participant, mint
+	// a 32-byte session key, stamp the start time, and — with
+	// ForceOpenParticipation — mark the session open and active.
+	FinalizeCreateSession bool
+
+	// JoinEchoSession answers the join family with the full session instead
+	// of a bare bool. The client builds its P2P mesh from the echoed
+	// participation count, which must report the PRE-join value for a newly
+	// joined caller (Clubhouse Games measured working this way).
+	JoinEchoSession bool
+
+	// DataStore mode. dsOff: not registered. dsStub: reference-level answers
+	// (empty lists, NotFound on GetMeta, real data IDs from PostMetaBinary).
+	// dsBalloonErrors: Super Mario Odyssey's balloon methods (0x73.0x2F-0x35)
+	// answer Core::NotImplemented. dsSMM2: Super Mario Maker 2's title
+	// methods (0x30 GetUsers etc.) answer with reference shapes.
+	// dsClubhouse: Clubhouse Games' account-setup answers — GetPersistenceInfos
+	// (0x1E) empty + NotFound per slot, GetMeta NotFound, everything else a
+	// bare empty list.
+	DataStore DSMode
+
+	// Ranking present (0x70). Ranking2/Referee/Messaging/Presence are keyed
+	// off their own flags so the registry stays declarative.
+	Ranking          bool
+	Ranking2         bool // SMB35
+	MatchmakeReferee bool // SMB35
+	MessageDelivery  bool // SMB35
+	Presence         bool // LM3 0x79
+
+	// internal state
+	uniqueID atomic.Uint64
+	dataID   atomic.Uint64
+	referee  roundStore
+	ranking  rankingStore
+	r2common r2CommonStore
+}
+
+// DSMode selects the DataStore behaviour.
+type DSMode int
+
+// DataStore behaviour levels.
+const (
+	DSOff           DSMode = iota
+	DSStub                 // reference answers: empties + NotFound + real data IDs
+	DSBalloonErrors        // + title balloon methods answer NotImplemented (SMO)
+	DSSMM2                 // + SMM2 title methods (0x2F-0x31, 0x3C) answer in shapes
+	DSClubhouse            // account-setup answers: GetPersistenceInfos empties + per-slot NotFound
+)
+
+// NewEnv builds a title environment.
+func NewEnv(name, stationAddress string, portBase int) *Env {
+	return &Env{
+		Name:           name,
+		StationAddress: stationAddress,
+		SecurePort:     uint16(portBase + 1),
+		SecurePID:      2,
+		SourceKeyBytes: 32,
+	}
+}
+
+// SecureStationURL renders the secure station URL this title hands out.
+func (e *Env) SecureStationURL() string {
+	u := switchnex.New(e.StationAddress, e.SecurePort)
+	u.SetInt("PID", e.SecurePID)
+	return u.String()
+}
+
+// Dispatch routes one secure-stage RMC request to the title's protocol set.
+// Unknown protocols answer Core::NotImplemented and are logged — the game
+// tells us the backlog.
+func Dispatch(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	h, ok := handlersFor(env)[msg.Protocol]
+	if !ok {
+		log.Printf("[%s] secure unimplemented proto=0x%X method=0x%X (%dB)", env.Name, msg.Protocol, msg.MethodID, len(msg.Body))
+		return rmc.EncodeError(msg.Protocol, msg.CallID, rmc.ResultNotImplemented)
+	}
+	return h(env, c, msg)
+}
+
+// handler is one protocol's method dispatcher.
+type handler func(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte
+
+// handlersFor assembles the title's protocol set. Built per dispatch call —
+// the map is tiny and this keeps every title's set declarative in one place.
+func handlersFor(env *Env) map[uint16]handler {
+	h := map[uint16]handler{
+		ProtoSecureConnection: secureConnectionHandler,
+		ProtoUtility:          utilityHandler,
+		ProtoNotification:     notificationHandler,
+		ProtoMessaging:        messagingHandler,
+	}
+	if env.MessageDelivery {
+		h[ProtoMessageDelivery] = messageDeliveryHandler
+	}
+	if env.Match != nil {
+		h[ProtoMatchMaking] = matchMakingHandler
+		h[ProtoMatchMakingExt] = matchMakingExtHandler
+		h[ProtoMatchmakeExt] = matchmakeExtHandler
+		h[ProtoNatTraversal] = natTraversalHandler
+	}
+	if env.DataStore != DSOff {
+		h[ProtoDataStore] = dataStoreHandler
+	}
+	if env.Ranking {
+		h[ProtoRanking] = rankingHandler
+	}
+	if env.Ranking2 {
+		h[ProtoRanking2] = ranking2Handler
+	}
+	if env.MatchmakeReferee {
+		h[ProtoMatchmakeReferee] = refereeHandler
+	}
+	if env.MessageDelivery {
+		h[ProtoMessageDelivery] = messageDeliveryHandler
+	}
+	if env.Presence {
+		h[0x79] = presenceHandler
+	}
+	return h
+}
+
+// success frames an RMC success response for the request's protocol.
+func success(msg *rmc.RMCMessage, body []byte) []byte {
+	return rmc.EncodeSuccess(msg.Protocol, msg.CallID, msg.MethodID, body)
+}
+
+// errorResp frames an RMC error response for the request's protocol.
+func errorResp(msg *rmc.RMCMessage, code uint32) []byte {
+	return rmc.EncodeError(msg.Protocol, msg.CallID, code)
+}
+
+// notImplemented logs the miss and answers Core::NotImplemented — the game
+// tells us the backlog.
+func notImplemented(env *Env, msg *rmc.RMCMessage) []byte {
+	log.Printf("[%s] proto=0x%X method=0x%X (%dB): NotImplemented", env.Name, msg.Protocol, msg.MethodID, len(msg.Body))
+	return errorResp(msg, rmc.ResultNotImplemented)
+}

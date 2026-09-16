@@ -1,7 +1,7 @@
 # Ports — switch-nex (trimmed)
 
 > Trimmed copy for this repository; the canonical document lives at
-> `Openpak/ports.md` and governs. Last synchronised 2026-09-15.
+> `Openpak/ports.md` and governs. Last synchronised 2026-09-16.
 
 One block per concern, nothing below 20000, nothing at or above 27000 (Photon-Reference and
 Steam live there). Every service reads its listeners from `<SVC>_HTTP_ADDR`, `<SVC>_GRPC_ADDR`,
@@ -30,5 +30,6 @@ each moves to switch-nex at its cutover (MIGRATION.md). Host pattern:
 | 22330 | `servers/nex/titles/super-mario-maker-2` — Super Mario Maker 2 (porting; DataStore-heavy) | 22330 | 22331 | 22332 |
 | 22340 | `servers/nex/titles/super-mario-odyssey` — Super Mario Odyssey (porting) | 22340 | 22341 | 22342 |
 | 22350 | `servers/nex/titles/super-smash-bros-ultimate` — Super Smash Bros. Ultimate (porting) | 22350 | 22351 | 22352 |
+| 22870 | `servers/switch-nex` — Clubhouse Games: 51 Worldwide Classics (010047700D540000, game server 2035BB00; served by `cmd/switch-nexd`, new title — no nex-go predecessor) | 22870 | 22871 | 22872 |
 
 The canonical allocation table lives in Openpak/ports.md.

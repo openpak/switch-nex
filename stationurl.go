@@ -25,10 +25,10 @@ func New(address string, port uint16) *URL {
 	u.SetInt("port", uint64(port))
 	// Values verified accepted by MK8D 3.0.5 (see SPEC.md StationURL).
 	u.SetInt("CID", 1)
-	u.SetInt("PID", 2)    // secure endpoint principal id
-	u.SetInt("sid", 1)    // stream id
+	u.SetInt("PID", 2)     // secure endpoint principal id
+	u.SetInt("sid", 1)     // stream id
 	u.SetInt("stream", 10) // RVSecure stream type
-	u.SetInt("type", 2)   // public
+	u.SetInt("type", 2)    // public
 	return u
 }
 

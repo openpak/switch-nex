@@ -9,4 +9,6 @@ block carrying the full BAAS id token; expects the ValidateAndRequestTicket
 Result structure (v1 header, 8-byte PID); secure stage is a ticketless CONNECT
 matched by client IP.
 
-Migration state: waiting on runtime milestones 1–3 (MIGRATION.md).
+earlier parity (docs/legacy-parity.md): matchmaking trio + Ranking
+(scores, common data), served by `cmd/switch-nexd` (per-title registry) or
+standalone via `cmd/mk8d`.

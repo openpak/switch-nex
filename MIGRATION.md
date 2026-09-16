@@ -1,5 +1,13 @@
 # Migrating Switch NEX titles from `servers/nex` to `switch-nex`
 
+**Deployed 2026-09-16** on quilted-waffle: `openpak-switch-nexd.service`
+(container `switch-nexd`, image `localhost/switch-nexd:latest`, built from
+`deploy/switch-nex/` on the host) serves all 14 titles below; auth via
+Traefik SNI (`switch-nexd:<base>` on openpak.network), secure ports published
+directly. The nex-go title services are stopped and disabled; MHGU and the
+Wii U / 3DS fleet stay on nex-go. Traefik delta:
+`dynamic.before-switch-nex-cutover-v001.yml` holds the previous state.
+
 Decision 2026-09-14: the **nex-go lineage keeps Wii U / 3DS titles** (UDP PRUDP —
 Mario Kart 7, Mario Kart 8 Wii U, MH4/MH4U/MHGen, Pikmin 3, Tetris Axis, Team Kirby
 Clash Deluxe, Yo-kai Watch Blasters, Super Street Fighter IV, Ice Station Z, Metroid
@@ -12,38 +20,34 @@ none of which the nex-go websocket path provides correctly (write framing bug,
 
 ## Status
 
-The switch-nex **runtime core is not implemented yet** — no title can migrate until
-it is. Critical path, in order:
-
-1. PRUDPLite frame parser/serializer over TLS-TCP (self-delimiting frames, connect,
-   split/ack, ping, data; fragmentation)
-2. RMC dispatch (packed method IDs) + TicketGranting method 0x02 handler producing the
-   verified `ValidateAndRequestTicketResult` body (`result.go`, byte-verified 2026-09-14)
-3. Ticketless secure CONNECT with IP→PID recall + SecureConnection protocol
-4. Per-title protocol sets (see table)
-
-Until 1–3 land, every title below stays served by its nex-go container.
+The switch-nex runtime core is implemented (PRUDPLite over TLS, RMC dispatch,
+ticket minting, ticketless secure CONNECT with IP→PID recall) and the
+per-title protocol sets are implemented at the working-reference behaviour
+level for every Switch-era NEX title except MHGU (UDP transport — stays on
+nex-go). The per-title comparison, behaviour notes and remaining deviations
+are in `docs/legacy-parity.md`.
 
 ## Titles
 
 | Port base | Title | nex-go state | switch-nex state |
 |---|---|---|---|
 | 22100 | shared reference host | running (test) | n/a — stays nex-go for cross-checks |
-| 22110 | Mario Party Superstars | deployed | not started |
-| 22120 | Monster Hunter Generations Ultimate | deployed | not started |
-| 22130 | Mario Golf: Super Rush | deployed (wss) | not started |
-| 22140 | ARMS | deployed | not started |
-| 22150 | **Mario Kart 8 Deluxe** | deployed (debugged 2026-09-14) | **pilot** — migration target |
-| 22160 | Super Mario Bros. 35 | deployed | not started |
-| 22170 | Mario Tennis Aces | deployed (unverified) | not started |
-| 22180 | Animal Crossing: New Horizons | porting | not started |
-| 22190 | Luigi's Mansion 3 | porting | not started |
-| 22300 | Mario Strikers: Battle League | porting | not started |
-| 22310 | Minecraft | porting | not started |
-| 22320 | Splatoon 2 | porting | not started |
-| 22330 | Super Mario Maker 2 | porting (DataStore-heavy) | not started |
-| 22340 | Super Mario Odyssey | porting | not started |
-| 22350 | Super Smash Bros. Ultimate | porting | not started |
+| 22110 | Mario Party Superstars | deployed | **parity implemented** (matchmaking, settings tables) |
+| 22120 | Monster Hunter Generations Ultimate | deployed (udp) | **out of scope** — UDP transport, stays nex-go |
+| 22130 | Mario Golf: Super Rush | deployed (wss) | **parity implemented** |
+| 22140 | ARMS | deployed | **parity implemented** (DataStore stub) |
+| 22150 | **Mario Kart 8 Deluxe** | deployed (debugged 2026-09-14) | **pilot** — parity implemented + wire-verified login |
+| 22160 | Super Mario Bros. 35 | deployed | **parity implemented** (Ranking2, Referee, settings) |
+| 22170 | Mario Tennis Aces | deployed (unverified) | **parity implemented** (open-participation fix) |
+| 22180 | Animal Crossing: New Horizons | porting | **parity implemented** (0x33 full-session, 0x2C codeword) |
+| 22190 | Luigi's Mansion 3 | porting | **parity implemented** (0x79 presence stub) |
+| 22300 | Mario Strikers: Battle League | porting | **parity implemented** |
+| 22310 | Minecraft | porting | **parity implemented** |
+| 22320 | Splatoon 2 | porting | **parity implemented** (splatfest empties) |
+| 22330 | Super Mario Maker 2 | porting (DataStore-heavy) | **parity implemented** (GetUsers shape; Course World generic) |
+| 22340 | Super Mario Odyssey | porting | **parity implemented** (Utility + DataStore only) |
+| 22350 | Super Smash Bros. Ultimate | porting | **parity implemented** |
+| 22870 | Clubhouse Games: 51 Worldwide Classics | — (new title, no nex-go predecessor) | **parity implemented** (account-setup DataStore, forced-open + normalised sessions, join session echo) |
 
 ## Per-title cutover checklist
 

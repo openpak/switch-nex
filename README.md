@@ -28,15 +28,32 @@ The nex-go lineage keeps serving the Wii U / 3DS titles (`servers/nex`).
 - `stationurl.go` — StationURL parse/format (`prudp:/k=v;…`)
 - `kerberos.go` — Switch v1 ticket derive/encrypt/decrypt
 - `result.go` — ValidateAndRequestTicketResult response structure (header + fields)
-- `transport.go` — PRUDPLite-over-TLS stream skeleton (milestone 2)
-- `cmd/mk8d/` — Mario Kart 8 Deluxe login server (milestone 3)
+- `prudplite/` — raw PRUDPLite-over-TLS transport (frame codec, connect state machine, ticketless secure CONNECT with IP→PID recall)
+- `rmc/` — packed RMC messages + the Switch byte-stream types (structure headers, strings, buffers, variants)
+- `protocols/` — the secure-stage protocol sets with response behaviour matched to the working reference servers, title for title (`docs/legacy-parity.md` is the comparison record)
+- `cmd/switch-nexd/` — one binary serving every Switch-era NEX title (per-title registry with protocol sets and behaviour overrides)
+- `cmd/mk8d/` — standalone MK8D server (the wire-verification pilot)
+- `titles/` — per-title notes (ports, wire facts)
+- `docs/legacy-parity.md` — per-title comparison: what the games do against the working reference servers vs what we answer
+- `docs/deploy.md` — build + ship + Traefik cutover runbook
+- `MIGRATION.md` — lineage split decision and per-title state
+
+## Deployment (current)
+
+Deployed on quilted-waffle since 2026-09-16: `openpak-switch-nexd.service`
+(podman quadlet, `localhost/switch-nexd:latest`) serves all 14 Switch-era
+titles — auth through Traefik SNI, secure ports published directly. MHGU and
+the Wii U / 3DS fleet remain on the nex-go lineage (MHGU speaks raw
+PRUDP/UDP, a transport this lineage deliberately does not provide).
 
 ## Milestones
 
-1. **MK8D login** — TLS listener on the auth port, PRUDPLite connect, LoginEx
+1. **MK8D login** — ✅ TLS listener on the auth port, PRUDPLite connect, LoginEx
    (ValidateAndRequestTicketWithCustomData) with the OpenPak BAAS token, correct
    ValidateAndRequestTicketResult response. Verified by MK8D proceeding past login.
-2. **Secure stage** — ticketless CONNECT with IP→PID recall, SecureConnection protocol,
-   settings/utility RMCs.
-3. **Matchmaking + Pia** — gatherings, the NAT-check responder (two distinct nncs IPs),
-   relay.
+2. **Secure stage** — ✅ ticketless CONNECT with IP→PID recall, SecureConnection,
+   Utility and the full per-title protocol sets (Reference behaviour parity).
+3. **Matchmaking + Pia** — ✅ in-memory gatherings with the measured per-title
+   rules; the NAT check itself rides the nncs1/nncs2 responders (two distinct
+   IPs). Server-initiated pushes (notifications) are the remaining transport
+   item — see `docs/legacy-parity.md` deviations.

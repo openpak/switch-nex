@@ -4,47 +4,63 @@ import (
 	"encoding/binary"
 )
 
-// Result is the ValidateAndRequestTicketResult response body for
-// TicketGranting method 0x02, Switch byte-stream profile (8-byte PIDs,
-// structure headers). Shape verified byte-for-byte against our own wire
-// capture (348-byte body, SPEC.md).
+// Result is the ValidateAndRequestTicketResult body of a successful
+// TicketGranting LoginEx (0x02) response, Switch byte-stream profile
+// (little-endian, 8-byte PIDs, NEX strings, RVConnectionData as a versioned
+// structure). Flat layout — the version+length header belongs to method 0x06
+// (ValidateAndRequestTicketWithParam), not to LoginEx.
+//
+// Wire shape (all little-endian):
+//
+//	u32 retval
+//	u64 SourcePID
+//	u32 len + Ticket (the encrypted two-layer kerberos ticket)
+//	structure v1: u8 version=1, u32 len, RVConnectionData {
+//	    String StationURL, u32 count + SpecialProtocols,
+//	    String SpecialStation, u64 ServerTime
+//	}
+//	String ReturnMsg
+//	String SourceKey (hex — the client decrypts the ticket with it)
 type Result struct {
-	StructureVersion uint8
+	RetVal           uint32 // rmc.ResultSuccess on the happy path
 	SourcePID        uint64
 	Ticket           []byte
-	StationURL       string // full "prudp:/…" string, length-prefixed on the wire
-	CurrentUTCTime   uint64
+	StationURL       string // full "prudp:/…" string
+	SpecialProtocols []uint8
+	SpecialStation   string // bare "prudp" when unused
+	CurrentUTCTime   uint64 // packed NEX DateTime
 	ReturnMsg        string
 	SourceKeyHex     string
 }
 
+// appendString writes a NEX String: u16 length including the trailing NUL,
+// then the UTF-8 bytes and the NUL.
 func appendString(b []byte, s string) []byte {
-	b = binary.BigEndian.AppendUint32(b, uint32(len(s))+1) // trailing NUL, nex convention
+	b = binary.LittleEndian.AppendUint16(b, uint16(len(s)+1))
 	return append(append(b, s...), 0)
 }
 
-// Bytes serialises the response body exactly as observed:
-//
-//	u8 version=1, u32 content length,
-//	u64 SourcePID, u32 len+ticket, u32 len+StationURL,
-//	u64 CurrentUTCTime, u32 len+ReturnMsg, u32 len+SourceKey
+// Bytes serialises the response body exactly as the working reference emits
+// it for LoginEx.
 func (r Result) Bytes() []byte {
-	content := make([]byte, 0, 256)
-	content = binary.BigEndian.AppendUint64(content, r.SourcePID)
-	content = binary.BigEndian.AppendUint32(content, uint32(len(r.Ticket)))
-	content = append(content, r.Ticket...)
-	content = binary.BigEndian.AppendUint32(content, uint32(len(r.StationURL)))
-	content = append(content, r.StationURL...)
-	content = binary.BigEndian.AppendUint64(content, r.CurrentUTCTime)
-	content = appendString(content, r.ReturnMsg)
-	content = appendString(content, r.SourceKeyHex)
+	cd := appendString(nil, r.StationURL)
+	cd = binary.LittleEndian.AppendUint32(cd, uint32(len(r.SpecialProtocols)))
+	for _, p := range r.SpecialProtocols {
+		cd = append(cd, p)
+	}
+	cd = appendString(cd, r.SpecialStation)
+	cd = binary.LittleEndian.AppendUint64(cd, r.CurrentUTCTime)
 
-	out := binary.BigEndian.AppendUint32(nil, uint32(len(content)))
-	out = append(out, r.StructureVersion)
-	out = append(out, content...)
+	rvcd := append([]byte{1}, 0, 0, 0, 0) // structure version 1 + u32 content length placeholder
+	binary.LittleEndian.PutUint32(rvcd[1:], uint32(len(cd)))
+	rvcd = append(rvcd, cd...)
+
+	out := binary.LittleEndian.AppendUint32(nil, r.RetVal)
+	out = binary.LittleEndian.AppendUint64(out, r.SourcePID)
+	out = binary.LittleEndian.AppendUint32(out, uint32(len(r.Ticket)))
+	out = append(out, r.Ticket...)
+	out = append(out, rvcd...)
+	out = appendString(out, r.ReturnMsg)
+	out = appendString(out, r.SourceKeyHex)
 	return out
 }
-
-// QResult returns the RMC success result word sent ahead of the body
-// (observed: success with the "unknown" reason nibble).
-func QResult() uint32 { return 0x00010001 }
