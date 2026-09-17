@@ -81,6 +81,12 @@ var titles = []title{
 		// timestamped: a session with no key and nobody in it is not one a
 		// console can start P2P on.
 		e.FinalizeCreateSession = true
+		// The join family answers the full session, not a bool: the joiner
+		// parses the answer as the MatchmakeSession it is joining and builds
+		// its P2P mesh from the echoed pre-join count and session key. A bare
+		// bool leaves it nothing to parse — observed as the joiner hanging up
+		// two seconds after a room join (2026-09-17).
+		e.JoinEchoSession = true
 		e.Ranking = true
 	}},
 	{"super-mario-bros-35", 22160, "0a69c592", func(e *protocols.Env) {

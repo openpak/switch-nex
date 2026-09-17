@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -279,6 +280,176 @@ func TestFriendJoinResolvesTheHostsGathering(t *testing.T) {
 	}
 }
 
+// TestRoomJoinAnswersTheSessionAndTheHostsStations walks the private-room
+// join the way MK8D plays it: create, room code, resolve, join, and then the
+// joiner's two questions — "what am I in" and "where is the host". The join
+// answer must be the full MatchmakeSession (session key included, count as it
+// was before the join): a bare bool left the joiner nothing to parse and it
+// hung up two seconds in. GetSessionURLs must hand over the host's stations,
+// lan then public — an empty answer strands the joiner with no one to probe.
+func TestRoomJoinAnswersTheSessionAndTheHostsStations(t *testing.T) {
+	authAddr, secureAddr, _ := start(t, "mario-kart-8-deluxe")
+	key := titleAccessKey(t, "mario-kart-8-deluxe")
+
+	host := secureSession(t, authAddr, secureAddr, key, "host")
+	joiner := secureSession(t, authAddr, secureAddr, key, "joiner")
+	onlooker := secureSession(t, authAddr, secureAddr, key, "onlooker")
+
+	// The host reports its LAN station so the world has something to probe.
+	reported := rmc.NewWriter()
+	reported.List(1)
+	reported.String("prudp:/address=192.168.1.20;port=50000;sid=1;natf=0")
+	if resp := host.call(ProtoSecureConnection, 0x04, reported.Bytes()); resp.IsError {
+		t.Fatalf("register: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+
+	// Create the room and read the code back the way the console showed it:
+	// a structure around (String, DateTime).
+	if resp := host.call(ProtoMatchmakeExt, 0x06, sessionHolderBytes(4, 3, 77)); resp.IsError {
+		t.Fatalf("create: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+	resp := host.call(ProtoMatchmakeExt, 0x44, nil)
+	if resp.IsError {
+		t.Fatalf("room code: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+	_, content, err := rmc.NewReader(resp.Body).Struct()
+	if err != nil {
+		t.Fatalf("room code answer is not a structure: %v", err)
+	}
+	code, err := content.String()
+	if err != nil {
+		t.Fatalf("room code: %v", err)
+	}
+
+	req := rmc.NewWriter()
+	req.String(code)
+	resp = joiner.call(ProtoMatchmakeExt, 0x45, req.Bytes())
+	if resp.IsError {
+		t.Fatalf("resolve: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+	gid, err := rmc.NewReader(resp.Body).U32()
+	if err != nil || gid == 0 {
+		t.Fatalf("resolve gid=%d err=%v", gid, err)
+	}
+
+	// The join. The param is a structure around the gathering id.
+	param := rmc.NewWriter()
+	param.StructOf(0, func(w *rmc.Writer) { w.U32(gid) })
+	resp = joiner.call(ProtoMatchmakeExt, 0x27, param.Bytes())
+	if resp.IsError {
+		t.Fatalf("join: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+	count, sessionKey, err := readJoinedSession(resp.Body)
+	if err != nil {
+		t.Fatalf("join answer is not a session the joiner can parse: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("join echoed count=%d, want the pre-join 1", count)
+	}
+	if len(sessionKey) == 0 {
+		t.Fatal("join answer carried no session key — the joiner cannot encrypt a frame to the host")
+	}
+
+	// Where is the host? The stations the host registered, lan then public.
+	resp = joiner.call(ProtoMatchMaking, 0x29, u32le(gid))
+	if resp.IsError {
+		t.Fatalf("session urls: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+	r := rmc.NewReader(resp.Body)
+	n, err := r.ListHeader()
+	if err != nil || n != 2 {
+		t.Fatalf("session urls: n=%d err=%v — the joiner has nowhere to probe", n, err)
+	}
+	lan, err := r.String()
+	if err != nil {
+		t.Fatalf("lan station: %v", err)
+	}
+	if !strings.HasPrefix(lan, "prudp:/address=192.168.1.20;port=50000") {
+		t.Fatalf("first station = %q, want the host's lan one", lan)
+	}
+	public, err := r.String()
+	if err != nil {
+		t.Fatalf("public station: %v", err)
+	}
+	pu := switchnex.Parse(public)
+	if pu.Get("PID") != itoa(host.pid) || pu.Get("address") == "" {
+		t.Fatalf("public station = %q — missing the host's PID or address", public)
+	}
+
+	// Someone not in the session may not ask, and a gathering that is gone
+	// answers the void.
+	if resp := onlooker.call(ProtoMatchMaking, 0x29, u32le(gid)); !resp.IsError {
+		t.Fatal("an outsider read the host's stations")
+	}
+	if resp := joiner.call(ProtoMatchMaking, 0x29, u32le(9999)); !resp.IsError {
+		t.Fatal("a dead gathering answered with stations")
+	}
+}
+
+// readJoinedSession walks a MatchmakeSession answer the way a client does:
+// the Gathering structure and its ten fields, then the MatchmakeSession
+// structure's fields up to the participation count and the session key.
+func readJoinedSession(body []byte) (uint32, []byte, error) {
+	r := rmc.NewReader(body)
+	if _, _, err := r.StructHeader(); err != nil {
+		return 0, nil, err
+	}
+	for _, err := range []error{
+		drop(r.U32()),    // gid
+		drop(r.U64()),    // owner
+		drop(r.U64()),    // host
+		drop(r.U16()),    // min participants
+		drop(r.U16()),    // max participants
+		drop(r.U32()),    // participation policy
+		drop(r.U32()),    // policy argument
+		drop(r.U32()),    // flags
+		drop(r.U32()),    // state
+		drop(r.String()), // description
+	} {
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	if _, _, err := r.StructHeader(); err != nil {
+		return 0, nil, err
+	}
+	if _, err := r.U32(); err != nil { // game mode
+		return 0, nil, err
+	}
+	n, err := r.ListHeader()
+	if err != nil {
+		return 0, nil, err
+	}
+	for i := uint32(0); i < n; i++ {
+		if _, err := r.U32(); err != nil {
+			return 0, nil, err
+		}
+	}
+	for _, err := range []error{
+		drop(r.Bool()),   // open participation
+		drop(r.U32()),    // matchmake system type
+		drop(r.Buffer()), // application buffer
+	} {
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	count, err := r.U32()
+	if err != nil {
+		return 0, nil, err
+	}
+	if _, err := r.U8(); err != nil { // progress score
+		return 0, nil, err
+	}
+	key, err := r.Buffer()
+	if err != nil {
+		return 0, nil, err
+	}
+	return count, key, nil
+}
+
+func drop(_ any, err error) error { return err }
+
 // TestDataStoreNotFoundReachesTheClientIntact checks the error code survives
 // the whole stack, not just the handler: the transposed constant produced a
 // code the game does not recognise as "nothing saved yet".
@@ -395,6 +566,7 @@ func itoa(v uint64) string {
 // rather than reaching into the server's package for its own constants.
 const (
 	ProtoSecureConnection uint16 = 0x0B
+	ProtoMatchMaking      uint16 = 0x15
 	ProtoUtility          uint16 = 0x6E
 	ProtoMatchmakeExt     uint16 = 0x6D
 	ProtoDataStore        uint16 = 0x73

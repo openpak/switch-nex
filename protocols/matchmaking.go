@@ -938,12 +938,27 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		}
 		return success(msg, nil)
 
-	case 0x29: // GetSessionURLs(list<gid>) -> list<URL>
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.EmptyList()
-			return w.Bytes()
-		}())
+	case 0x29: // GetSessionURLs(gid) -> list<URL>
+		// How a joiner learns where the host is: the HOST's station URLs,
+		// lan first then public (the order MK8D registers). Only someone
+		// already in the session may ask, and a host with no live connection
+		// is an empty list — there is nothing to point at.
+		gid, err := r.U32()
+		if err != nil {
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
+		g, ok := env.Match.get(gid)
+		if !ok {
+			return errorResp(msg, rmc.ResultSessionVoid)
+		}
+		if !g.participants[c.PID] {
+			return errorResp(msg, rmc.ResultPermissionDenied)
+		}
+		peer, connected := env.push.connection(g.sess.HostPID)
+		if !connected {
+			return emptyList(msg)
+		}
+		return success(msg, stationURLList(peer))
 
 	default:
 		return notImplemented(env, msg)
