@@ -202,7 +202,15 @@ func (s *Session) bytes() []byte {
 	return w.Bytes()
 }
 
-func readStringVariantMap(r *rmc.Reader) (map[string]rmc.Variant, error) {
+// MatchmakeParam is itself a structure — a header, then the map. Observed in
+// MK8D 3.0.5 (2026-09-17): its MatchmakeSession ran 5 bytes longer than the
+// bare fields, which is exactly this header (`00 04000000` over an empty map).
+// Read without it, the header's bytes became a map count of 1024.
+func readStringVariantMap(outer *rmc.Reader) (map[string]rmc.Variant, error) {
+	_, r, err := outer.Struct()
+	if err != nil {
+		return nil, err
+	}
 	n, err := r.ListHeader()
 	if err != nil {
 		return nil, err
@@ -232,9 +240,11 @@ func writeStringVariantMap(w *rmc.Writer, m map[string]rmc.Variant) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	w.List(len(keys))
-	for _, k := range keys {
-		w.String(k)
-		w.WriteVariant(m[k])
-	}
+	w.StructOf(0, func(w *rmc.Writer) {
+		w.List(len(keys))
+		for _, k := range keys {
+			w.String(k)
+			w.WriteVariant(m[k])
+		}
+	})
 }

@@ -513,6 +513,11 @@ func (c *Connection) handleData(p *Packet) {
 	log.Printf("[%s] rmc pid=%d proto=0x%X method=0x%X call=%d %s req(%dB)=%x resp(%dB)=%x",
 		c.Endpoint.Name, c.PID, msg.Protocol, msg.MethodID, msg.CallID, outcome,
 		len(msg.Body), headBytes(msg.Body, 96), len(response), headBytes(response, 48))
+	if outcome != "ok" && len(msg.Body) > 96 {
+		// The head is enough for a call that worked. One that did not is worth
+		// every byte: the full request is what the fix is written from.
+		log.Printf("[%s] rmc pid=%d call=%d full request: %x", c.Endpoint.Name, c.PID, msg.CallID, msg.Body)
+	}
 	if response == nil {
 		return
 	}

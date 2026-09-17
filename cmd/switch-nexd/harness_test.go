@@ -338,14 +338,14 @@ func sessionHolderBytes(maxParticipants uint16, gameMode, attr0 uint32) []byte {
 		w.Bool(true) // open participation
 		w.U32(0)     // matchmake system type
 		w.Buffer(nil)
-		w.U32(0)      // participation count
-		w.U8(0)       // progress score
-		w.Buffer(nil) // session key
-		w.U32(0)      // option
-		w.List(0)     // matchmake param
-		w.U64(0)      // started time
-		w.String("")  // user password
-		w.U32(0)      // refer gid
+		w.U32(0)                                         // participation count
+		w.U8(0)                                          // progress score
+		w.Buffer(nil)                                    // session key
+		w.U32(0)                                         // option
+		w.StructOf(0, func(w *rmc.Writer) { w.List(0) }) // matchmake param
+		w.U64(0)                                         // started time
+		w.String("")                                     // user password
+		w.U32(0)                                         // refer gid
 		w.Bool(false)
 		w.Bool(false)
 		w.String("") // codeword

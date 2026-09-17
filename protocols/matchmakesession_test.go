@@ -117,8 +117,8 @@ func TestSessionFramesAsSiblings(t *testing.T) {
 // TestSessionFromAConsole parses the opening of a request MK8D 3.0.5 actually
 // sent (AutoMatchmakeWithParam_Postpone, 2026-09-17): Gathering under
 // `00 2b000000`, then MatchmakeSession under its own header. The capture was
-// truncated after the attributes, so the tail is synthesised — with five bytes
-// this parser does not know appended, as the console's 0x53-byte structure had.
+// truncated after the attributes, so the tail is synthesised to the console's
+// length arithmetic: MatchmakeParam carries its own 5-byte structure header.
 func TestSessionFromAConsole(t *testing.T) {
 	captured, _ := hex.DecodeString("002b000000" +
 		"00000000" + "0000000000000000" + "0000000000000000" + "0200" + "0c00" +
@@ -138,14 +138,14 @@ func TestSessionFromAConsole(t *testing.T) {
 		w.U8(0)
 		w.Buffer(nil)
 		w.U32(0)
-		w.List(0)
+		w.Raw([]byte{0, 4, 0, 0, 0, 0, 0, 0, 0}) // MatchmakeParam: header over an empty map
 		w.U64(0)
 		w.String("")
 		w.U32(0)
 		w.Bool(false)
 		w.Bool(false)
 		w.String("")
-		w.Raw([]byte{1, 2, 3, 4, 5}) // fields newer than this parser
+		w.Raw([]byte{1, 2, 3}) // fields newer than this parser are skipped by length
 	})
 	w.U32(0xCAFE) // whatever follows the session in the request
 

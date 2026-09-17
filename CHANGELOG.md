@@ -28,6 +28,12 @@
   parser is now bounded by each header's length (fields a newer client appends
   are skipped) and structure versions are echoed as the client sent them. Found
   by the diagnostics below on their first run.
+- **MatchmakeParam is a structure, not a bare map.** It carries its own 5-byte
+  header; read without it the header became a map count of 1024 and
+  `CreateMatchmakeSessionWithParam` (0x6D/0x26) answered InvalidArgument. This
+  is the "5 unexplained bytes" of the previous entry, explained.
+- A call that ends in an error or no answer now logs its **full** request, not
+  just the head: that is what the fix gets written from.
 - **Catch-all diagnostics, for every title.** Each connection now ends with one
   line saying how: who hung up (client closed / idle timeout / DISCONNECT /
   malformed frame / handler panic, with the stack), at which stage, on which

@@ -110,8 +110,8 @@ String SourceKey                   (64 = hex of the 32-byte source key)
   `u8 version, u32 length` header; the child's length covers only the child's fields.
   Observed in MK8D 3.0.5's AutoMatchmakeWithParam_Postpone (0x6D/0x28, 2026-09-17):
   param header `00 11010000`, Gathering `00 2b000000` (43 bytes), then MatchmakeSession
-  `00 53000000`. Both versions were 0. The MatchmakeSession was 5 bytes longer than the
-  fields this server knows — **unexplained**, skipped by length.
+  `00 53000000`. Both versions were 0. The MatchmakeSession was 5 bytes longer than its
+  bare fields: `MatchmakeParam` is itself a structure (`00 04000000` over an empty map).
 
 ## Pia / NAT check
 
