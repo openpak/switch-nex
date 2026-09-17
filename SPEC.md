@@ -119,6 +119,9 @@ String SourceKey                   (64 = hex of the 32-byte source key)
 - `2306-0502` — shown within a second of going online when the server hung up on the
   websocket upgrade it did not speak (2026-09-17). Transport-level: the connection died
   before any PRUDP frame.
+  The same code appears when the **secure** connection's TLS fails: the game dials the
+  station URL's raw IP with hostname verification on, so the leaf needs an
+  `IP:<station-address>` SAN beside the `*.s.n.srv.nintendo.net` names (2026-09-17).
 - `2306-0802` — seen when the game received a login response whose ticket it could not
   parse (Token Parse Error), against a reference server that closes the auth connection
   right after responding.

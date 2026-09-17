@@ -102,6 +102,14 @@ systemctl --user daemon-reload        # picks up quadlet changes
 systemctl --user restart openpak-switch-nexd.service
 ```
 
+**The certificate names the station address.** The game reaches the auth stage by
+hostname and the secure stage by the raw IP in the station URL, verifying the name both
+times. `certs/nex.pem` therefore carries `IP:145.241.199.19` beside the DNS names; if
+`-station-address` ever changes, reissue the leaf from `~/openpak/deploy/ca` with the new
+IP (same key, SANs copied from the old leaf — the 2026-09-17 reissue left
+`nex.pem.before-ipsan-20260917` beside it). Check with
+`openssl s_client -connect <ip>:<secure> -CAfile ca.pem -verify_ip <ip>`.
+
 **Recall persistence.** `-recall-file <path>` persists the IP-to-PID table that
 lets a console re-CONNECT to a secure port without replaying a full login. Left
 unset the table is memory-only and a restart refuses every console already
