@@ -122,3 +122,17 @@ func TestBoolWidth(t *testing.T) {
 		t.Fatalf("Bool got %x", w.Bytes())
 	}
 }
+
+func TestResponseError(t *testing.T) {
+	for _, proto := range []uint16{0x0A, 0x100} { // plain and escaped ids
+		if code, isErr := ResponseError(EncodeError(proto, 7, ResultNotImplemented)); !isErr || code != ResultNotImplemented&^ErrorCodeBit {
+			t.Fatalf("proto 0x%X: code=0x%X isErr=%v", proto, code, isErr)
+		}
+		if _, isErr := ResponseError(EncodeSuccess(proto, 7, 1, []byte{0, 0, 0, 0, 0})); isErr {
+			t.Fatalf("proto 0x%X: success read as error", proto)
+		}
+	}
+	if _, isErr := ResponseError(nil); isErr {
+		t.Fatal("nil read as error")
+	}
+}

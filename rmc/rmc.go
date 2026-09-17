@@ -127,6 +127,21 @@ func EncodeError(protocol uint16, callID, errorCode uint32) []byte {
 	return frame(inner)
 }
 
+// ResponseError reports the error code of an encoded response, if it is one.
+func ResponseError(resp []byte) (code uint32, isError bool) {
+	if len(resp) < 5 {
+		return 0, false
+	}
+	i := 5 // u32 size, protocol byte
+	if resp[4]&^0x80 == EscapeProto&^0x80 {
+		i += 2
+	}
+	if len(resp) < i+5 || resp[i] != 0 {
+		return 0, false
+	}
+	return binary.LittleEndian.Uint32(resp[i+1:]) &^ ErrorCodeBit, true
+}
+
 // EncodeRequest serialises a request (client-side debugging aid).
 func EncodeRequest(protocol uint16, method, callID uint32, params []byte) []byte {
 	inner := make([]byte, 0, 9+len(params))

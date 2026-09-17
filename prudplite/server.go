@@ -19,10 +19,12 @@ package prudplite
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,6 +35,8 @@ import (
 
 // Endpoint serves one PRUDP virtual stream on one TLS listener.
 type Endpoint struct {
+	// Name labels this endpoint's log lines ("mario-kart-8-deluxe/secure").
+	Name     string
 	StreamID uint8
 	IsSecure bool
 	// AccessKey is the title's PRUDP access key. When set, CONNECT frames
@@ -115,7 +119,9 @@ func (e *Endpoint) acceptLoop() {
 			// The connection id the client is told to call itself (RVCID).
 			// Per connection, never a constant: two consoles handed the same
 			// id cannot address each other in the P2P mesh.
-			ID: e.nextID.Add(1),
+			ID:       e.nextID.Add(1),
+			opened:   time.Now(),
+			carriage: "bare",
 		}
 		e.mu.Lock()
 		e.conns[c.Host] = c
@@ -163,6 +169,14 @@ type Connection struct {
 	fragBuf []byte
 	conn    net.Conn
 	writeMu sync.Mutex
+
+	// What the closing line reports: a session that ends badly is described
+	// by how far it got and the last thing it asked.
+	opened   time.Time
+	frames   int
+	calls    int
+	lastCall string
+	carriage string
 }
 
 // SetStations replaces the connection's station list.
@@ -233,17 +247,34 @@ func (c *Connection) sendData(payload []byte, fragmentID uint8) error {
 }
 
 func (c *Connection) serve() {
-	defer c.conn.Close()
-	defer c.Endpoint.forget(c)
+	// The catch-all: every connection says how it ended. A title that gives
+	// up never tells the server why, so the server records what it can see —
+	// who hung up, at which stage, after which call. Nothing here is
+	// title-specific; it is the first thing to read for any title.
+	reason := "unknown"
+	defer func() {
+		if r := recover(); r != nil {
+			reason = fmt.Sprintf("PANIC in handler: %v\n%s", r, debug.Stack())
+		}
+		state := "before CONNECT"
+		if c.State == StateConnected {
+			state = "connected"
+		}
+		log.Printf("[%s] closed %s pid=%d %s carriage=%s age=%s frames=%d calls=%d last=%s reason: %s",
+			c.Endpoint.Name, c.Remote, c.PID, state, c.carriage,
+			time.Since(c.opened).Round(time.Millisecond), c.frames, c.calls, c.lastCall, reason)
+		c.conn.Close()
+		c.Endpoint.forget(c)
+	}()
 	// The client chooses the carriage: bare frames or a websocket upgrade.
 	c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
 	transport, err := sniffTransport(c.conn)
 	if err != nil {
-		log.Printf("prudplite: %s dropped before its first frame: %v", c.Remote, err)
+		reason = fmt.Sprintf("dropped before its first frame: %v", err)
 		return
 	}
 	if _, ok := transport.(*wsConn); ok {
-		log.Printf("prudplite: %s upgraded to websocket", c.Remote)
+		c.carriage = "websocket"
 	}
 	c.writeMu.Lock()
 	c.conn = transport
@@ -252,24 +283,48 @@ func (c *Connection) serve() {
 	for {
 		c.conn.SetReadDeadline(time.Now().Add(120 * time.Second))
 		if _, err := io.ReadFull(c.conn, head); err != nil {
+			if reason == "unknown" {
+				reason = describeReadError(err)
+			}
 			return
 		}
 		if head[0] != 0x80 {
+			reason = fmt.Sprintf("not a PRUDPLite frame, header %x", head)
 			return
 		}
 		optionsLength := int(head[1])
 		payloadLength := int(binary.LittleEndian.Uint16(head[2:4]))
 		rest := make([]byte, optionsLength+payloadLength)
 		if _, err := io.ReadFull(c.conn, rest); err != nil {
+			reason = "mid-frame: " + describeReadError(err)
 			return
 		}
 		frame := append(append([]byte{}, head...), rest...)
 		p, _, err := Decode(frame)
 		if err != nil {
+			reason = fmt.Sprintf("undecodable frame %x: %v", head, err)
 			return
+		}
+		c.frames++
+		if p.Type == Disconnect && !p.HasFlag(FlagAck) {
+			reason = "client sent DISCONNECT"
 		}
 		c.handle(p)
 	}
+}
+
+// describeReadError says who ended the stream, in words a log reader can act on.
+func describeReadError(err error) string {
+	var ne net.Error
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return "client closed the connection"
+	case errors.As(err, &ne) && ne.Timeout():
+		return "idle timeout: nothing from the client"
+	case errors.Is(err, net.ErrClosed):
+		return "closed by the server"
+	}
+	return "read: " + err.Error()
 }
 
 func (c *Connection) handle(p *Packet) {
@@ -441,14 +496,36 @@ func (c *Connection) handleData(p *Packet) {
 		log.Printf("prudplite: undecodable RMC from %s (%d bytes): %v", c.Remote, len(assembled), err)
 		return
 	}
+	c.calls++
+	c.lastCall = fmt.Sprintf("proto=0x%X/method=0x%X", msg.Protocol, msg.MethodID)
 	var response []byte
 	if c.Endpoint.OnRMC != nil {
 		response = c.Endpoint.OnRMC(c, msg)
 	}
+	// Every call and its answer, heads only, with the two outcomes that stall
+	// a title spelled out: an error answer, and no answer at all.
+	outcome := "ok"
+	if code, isErr := rmc.ResponseError(response); isErr {
+		outcome = fmt.Sprintf("ERROR 0x%08X", code)
+	} else if response == nil {
+		outcome = "NO ANSWER SENT"
+	}
+	log.Printf("[%s] rmc pid=%d proto=0x%X method=0x%X call=%d %s req(%dB)=%x resp(%dB)=%x",
+		c.Endpoint.Name, c.PID, msg.Protocol, msg.MethodID, msg.CallID, outcome,
+		len(msg.Body), headBytes(msg.Body, 96), len(response), headBytes(response, 48))
 	if response == nil {
 		return
 	}
-	_ = c.sendData(response, 0)
+	if err := c.sendData(response, 0); err != nil {
+		log.Printf("[%s] rmc pid=%d call=%d answer not delivered: %v", c.Endpoint.Name, c.PID, msg.CallID, err)
+	}
+}
+
+func headBytes(b []byte, n int) []byte {
+	if len(b) > n {
+		return b[:n]
+	}
+	return b
 }
 
 func equalBytes(a, b []byte) bool {

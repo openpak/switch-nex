@@ -18,6 +18,14 @@
   a private address the title's latest login (30 s window) pairs them instead.
   Known ceiling, marked in the code: simultaneous logins to one title can
   cross. The real fix is getting client addresses to the server.
+- **Catch-all diagnostics, for every title.** Each connection now ends with one
+  line saying how: who hung up (client closed / idle timeout / DISCONNECT /
+  malformed frame / handler panic, with the stack), at which stage, on which
+  carriage, after how many frames and calls, and what the last call was. Each
+  RMC call on both stages logs its outcome — `ok`, `ERROR 0x…` or `NO ANSWER
+  SENT` — with the heads of request and answer, and an answer that could not be
+  delivered is logged instead of dropped. A handler panic no longer takes the
+  process down. Read the `closed` line first, then the `rmc` lines above it.
 - The leaf certificate carries `IP:145.241.199.19`: the game dials the secure
   stage by raw IP and verifies the name.
 
