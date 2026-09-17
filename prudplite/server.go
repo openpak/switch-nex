@@ -235,6 +235,19 @@ func (c *Connection) sendData(payload []byte, fragmentID uint8) error {
 func (c *Connection) serve() {
 	defer c.conn.Close()
 	defer c.Endpoint.forget(c)
+	// The client chooses the carriage: bare frames or a websocket upgrade.
+	c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	transport, err := sniffTransport(c.conn)
+	if err != nil {
+		log.Printf("prudplite: %s dropped before its first frame: %v", c.Remote, err)
+		return
+	}
+	if _, ok := transport.(*wsConn); ok {
+		log.Printf("prudplite: %s upgraded to websocket", c.Remote)
+	}
+	c.writeMu.Lock()
+	c.conn = transport
+	c.writeMu.Unlock()
 	head := make([]byte, 12)
 	for {
 		c.conn.SetReadDeadline(time.Now().Add(120 * time.Second))

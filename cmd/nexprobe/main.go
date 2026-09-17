@@ -46,6 +46,7 @@ var (
 	username = flag.String("username", "nexprobe", "login name (a claim, not proof)")
 	token    = flag.String("token", "", "BAAS id token; empty sends no token, \"fake\" sends an unsigned one")
 	method   = flag.Uint("method", 2, "TicketGranting method: 2 (LoginEx) or 6 (WithParam)")
+	ws       = flag.Bool("ws", false, "open with a websocket upgrade, as MK8D does, instead of bare frames")
 )
 
 func main() {
@@ -65,7 +66,15 @@ func main() {
 	defer conn.Close()
 	fmt.Printf("TLS      ok  %s (sni %q)\n", *addr, *sni)
 
-	p := &probe{conn: conn}
+	var carriage net.Conn = conn
+	if *ws {
+		if carriage, err = prudplite.UpgradeClient(conn, *sni); err != nil {
+			log.Fatalf("websocket upgrade: %v", err)
+		}
+		fmt.Println("UPGRADE  ok  websocket carriage")
+	}
+
+	p := &probe{conn: carriage}
 	p.handshake(*key)
 	p.login(*username, *token, uint32(*method))
 }

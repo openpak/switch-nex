@@ -1,5 +1,17 @@
 # Changelog — switch-nex
 
+## 2026-09-17 — Websocket carriage
+
+- MK8D on the Ryujinx fork opens its TLS stream with a websocket upgrade; the
+  server read the `GET` as a malformed frame and hung up, which the game shows
+  as **2306-0502**. `prudplite` now sniffs the first bytes of a connection:
+  an upgrade is answered and that connection is served one frame per binary
+  message, anything else stays bare. Found with a guest-side SSL plaintext
+  trace; the server log had been silent because nothing reached CONNECT.
+- The server now logs a connection dropped before its first frame, and each
+  upgrade — the silence was the expensive part of this one.
+- `nexprobe -ws` opens the way the game does.
+
 ## 2026-09-16 — Clubhouse Games: 51 Worldwide Classics
 
 - New title `clubhouse-games-51` (010047700D540000, game server 2035BB00) on

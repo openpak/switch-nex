@@ -13,8 +13,8 @@ framework produce exactly the class of bug this lineage exists to avoid (observe
 
 | | Wii U / 3DS (nex-go lineage) | Switch (this lineage) |
 |---|---|---|
-| Transport | PRUDP over UDP (v0/v1, prudps) | **raw PRUDPLite over TCP/TLS** — no websocket upgrade |
-| Response framing | matches read path | must be **unframed** — websocket-framed responses are silently dropped by the client |
+| Transport | PRUDP over UDP (v0/v1, prudps) | **PRUDPLite over TCP/TLS**, bare or inside a websocket — the client chooses (see SPEC.md) |
+| Response framing | matches read path | must **match the client**: framed to one that upgraded, bare to one that did not — a mismatch is dropped silently |
 | Kerberos | v0 ticket, 16-byte source keys | **v1 ticket**: 32-byte source key, random key in the clear, body RC4(MD5(key ‖ random)) |
 | Byte stream | 4-byte PIDs, no structure headers | **8-byte PIDs, structure headers** on every structure |
 | Secure connect | console presents the kerberos ticket | MK8D connects **ticketless**; the server recalls the login PID by client IP |

@@ -6,7 +6,11 @@ own packet captures. Public documentation (Kinnay's NEX pages) used as cross-ref
 
 ## Transport
 
-- MK8D speaks **raw PRUDPLite over TLS-TCP**. It never sends a websocket upgrade.
+- MK8D speaks **PRUDPLite over TLS-TCP**, and both carriages have been observed:
+  bare frames (server-side dumps, 2026-09-14) and a websocket upgrade — `GET / HTTP/1.1`,
+  `Upgrade: websocket` as the first plaintext, then one frame per binary message
+  (guest-side SSL trace, Ryujinx fork, 2026-09-17). Why the same title did both is
+  **unexplained**. The server follows the client per connection (`prudplite/websocket.go`).
 - nex-go's websocket listener accepts these bare packets for reading (`packetData[0] == 0x80`)
   but writes responses **websocket-framed** — the client cannot parse them and stalls
   silently. This lineage writes **unframed** (read and write paths symmetric).
@@ -112,6 +116,9 @@ String SourceKey                   (64 = hex of the 32-byte source key)
 
 - `2306-0112` — generic communication error; seen when the game's online watchdog (30 s
   from the connect call) expires during the post-login wait.
+- `2306-0502` — shown within a second of going online when the server hung up on the
+  websocket upgrade it did not speak (2026-09-17). Transport-level: the connection died
+  before any PRUDP frame.
 - `2306-0802` — seen when the game received a login response whose ticket it could not
   parse (Token Parse Error), against a reference server that closes the auth connection
   right after responding.
