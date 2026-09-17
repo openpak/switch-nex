@@ -34,6 +34,17 @@
   is the "5 unexplained bytes" of the previous entry, explained.
 - A call that ends in an error or no answer now logs its **full** request, not
   just the head: that is what the fix gets written from.
+- **The room-code answer is a structure.** 0x6D/0x44 (and Smash's 0x37)
+  answered the bare pair `(String, DateTime)`; the wire wants it under a
+  structure header. MK8D left its freshly created room 0.2 s after reading the
+  bare answer. Codes are now 5 characters, the length the working reference
+  issues (ours was an invented 6), and resolve accepts the code bare or inside
+  a header. Shape and length are facts read from earlier-nex's matchmaking
+  handlers; the code here is our own. A numeric-code guess was tried first and
+  reverted once the reference was read — read the reference first.
+- ZNC (`api-lp1.znc.srv.nintendo.net/v1/NX/getToken`, the voice-chat path) is
+  called by MK8D after create and gets 404 from nx-baas. The reference stack
+  does not serve it either, so it is presumed non-fatal; recorded, not fixed.
 - **The creator hears its own join.** After a successful create MK8D sat for
   exactly 10 s — no call, no P2P socket — then unregistered the gathering and
   showed a communication error. A create now pushes the creator its own

@@ -291,9 +291,17 @@ func TestRoomCodeRoundTrip(t *testing.T) {
 	if errCode != 0 {
 		t.Fatalf("create errored %#x", errCode)
 	}
-	code, err := rmc.NewReader(body).String()
+	// The answer is a structure around (String, DateTime), not the bare pair.
+	_, content, err := rmc.NewReader(body).Struct()
+	if err != nil {
+		t.Fatalf("answer is not a structure: %v", err)
+	}
+	code, err := content.String()
 	if err != nil || len(code) != codeLength {
 		t.Fatalf("code=%q err=%v", code, err)
+	}
+	if _, err := content.U64(); err != nil || content.Remaining() != 0 {
+		t.Fatalf("structure does not end after the DateTime: err=%v left=%d", err, content.Remaining())
 	}
 
 	req := rmc.NewWriter()
@@ -304,6 +312,14 @@ func TestRoomCodeRoundTrip(t *testing.T) {
 	}
 	if got, _ := rmc.NewReader(body).U32(); got != gid {
 		t.Fatalf("resolved to %d, want %d", got, gid)
+	}
+
+	// The same code inside a structure header resolves too.
+	wrapped := rmc.NewWriter()
+	wrapped.StructOf(0, func(w *rmc.Writer) { w.String(code) })
+	_, body, errCode = decodeResponse(Dispatch(env, conn(200), request(ProtoMatchmakeExt, 0x45, wrapped.Bytes())))
+	if got, _ := rmc.NewReader(body).U32(); errCode != 0 || got != gid {
+		t.Fatalf("wrapped code resolved to %d (err %#x), want %d", got, errCode, gid)
 	}
 
 	// A code for a gathering that has gone is not a gathering.

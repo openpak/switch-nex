@@ -21,9 +21,11 @@ import (
 // no S/5. A code exists to be spoken.
 const codeAlphabet = "ABCDEFGHJKLMNPQRTUVWXYZ2346789"
 
-// codeLength is short enough to read out, long enough that guessing one is not
-// a way into somebody's room: 30^6 is about 730 million.
-const codeLength = 6
+// codeLength is five: the length the working reference server issues to
+// Mario Kart and Smash, and the length its resolve path expects back
+// (earlier-nex matchmaking, read for the fact 2026-09-17). Six was our own
+// choice and no console had ever been shown one. 30^5 is about 24 million.
+const codeLength = 5
 
 // codeStore maps room codes to gatherings.
 type codeStore struct {
@@ -99,14 +101,26 @@ func createRoomCode(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 		return errorResp(msg, rmc.ResultSessionVoid)
 	}
 	log.Printf("[%s] room code %s -> gid=%d pid=%d", env.Name, code, gid, c.PID)
+	// The answer is a STRUCTURE — header, then (String code, DateTime) — like
+	// every other compound value on this wire. Sent bare, MK8D 3.0.5 left its
+	// freshly created room 0.2 s after reading it (2026-09-17).
 	w := rmc.NewWriter()
-	w.String(code)
-	w.U64(nowDateTime())
+	w.StructOf(0, func(w *rmc.Writer) {
+		w.String(code)
+		w.U64(nowDateTime())
+	})
 	return success(msg, w.Bytes())
 }
 
 // resolveRoomCode turns a code back into a gathering id.
 func resolveRoomCode(env *Env, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
+	// The code arrives as a bare string or inside a structure header, depending
+	// on the title. A bare string of codeLength reads as u16 length = codeLength+1;
+	// anything else is the header, skipped.
+	body := msg.Body
+	if len(body) >= 2 && int(body[0])|int(body[1])<<8 != codeLength+1 && len(body) > 5 {
+		r = rmc.NewReader(body[5:])
+	}
 	code, err := r.String()
 	if err != nil {
 		return errorResp(msg, rmc.ResultInvalidArgument)
