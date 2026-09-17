@@ -18,10 +18,15 @@
   server, which is exactly the failure mode the harness cannot catch). A new
   harness test walks create → room code → resolve → join → station handover
   with two clients and insists the joiner can parse every answer.
-- Next ceiling, unchanged: the stations served are the ones the server sees —
-  behind rootless podman's forwarder every public station names the gateway
-  address, not the client. The RMC join now succeeds; whether the UDP punch
-  lands is the next thing a console test answers.
+- First client pass against the fix (2026-09-17 20:03 UTC): the console's
+  flows are clean; the Ryujinx fork created a room, drew code `BHFBB`, then
+  froze waiting for a mesh it cannot form — with v0.2.12 the matchmaking
+  answers are right and the UDP punch is what fails. The stations the server
+  hands out are the addresses it sees: behind rootless podman's forwarder
+  every public station names the gateway (10.89.2.253), not the client, and
+  the client-reported LANs were container-range addresses. The cutover that
+  gets real client addresses to the server (host networking, Traefik retarget
+  and all) is written up as the gate in `next-session.md`.
 
 ## 2026-09-17 — Websocket carriage
 
