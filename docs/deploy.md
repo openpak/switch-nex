@@ -2,10 +2,13 @@
 
 The deployable artifact is `switch-nexd-arm64` (static, CGO off), wrapped by
 `Dockerfile.deploy` into `localhost/switch-nexd:latest` on the host. The
-deployed shape since the 2026-09-16 cutover: one `switch-nexd` container
-serving every title, quadlet `openpak-switch-nexd.service` (a **user** unit —
-`systemctl --user`, not the system manager), Traefik SNI for the auth stage,
-secure ports published directly.
+deployed shape since the 2026-09-17 **host-networking cutover**: one
+`switch-nexd` container serving every title, quadlet `openpak-switch-nexd.service`
+(a **user** unit — `systemctl --user`, not the system manager), Traefik SNI for
+the auth stage, secure ports bound by the process itself on the host netns
+(`Network=host`, no `PublishPort=`), so the server sees each client's real
+source address — the P2P stations it synthesises name the client, not a
+forwarder.
 
 Host access: `ssh <prod-host>`.
 
@@ -86,21 +89,45 @@ podman build -f Dockerfile.deploy -t localhost/switch-nexd:latest .
 
 - **New title**: register it in `cmd/switch-nexd/main.go` (registry), pick a
   port block from ports.md, then on the host:
-  - quadlet `~/.config/containers/systemd/openpak-switch-nexd.container`:
-    add `PublishPort=0.0.0.0:<secure>:<secure>` (auth rides Traefik; only
-    the +1 secure port is published);
   - Traefik `~/openpak/deploy/traefik/dynamic.yml`: one `nex-<title>` router
     (`HostSNI(g<id>-lp1.s.n.srv.nintendo.net)`, `tls.passthrough`) + service
-    → `switch-nexd:<base>`. Back up the file first
-    (`dynamic.before-<change>-<date>.yml`);
-  - firewall: the INPUT chain ends in a REJECT — insert a multiport ACCEPT
-    for new secure ports **before it**, then persist
-    (`sudo sh -c "iptables-save > /etc/iptables/rules.v4"`).
+    → `host.containers.internal:<base>`. Back up the file first
+    (`dynamic.before-<change>-<date>.yml`). Traefik watches the file
+    (`providers.watch: true`), so an edit applies without a restart;
+  - firewall: the INPUT chain ends in a REJECT — the title's secure port must
+    be in the multiport ACCEPT **before it** (add to the existing
+    `--dports 22111,…` rule), then persist
+    (`sudo sh -c "iptables-save > /etc/iptables/rules.v4"`). With host
+    networking there is no `PublishPort=` and no DNAT: this INPUT rule is the
+    only thing standing between a console and the port. (2026-09-17 lesson:
+    MK8D's 22151 was missing from that rule for weeks and nothing noticed,
+    because published-port DNAT bypassed INPUT. The cutover would have
+    blackholed exactly that port.)
 
 ```sh
 systemctl --user daemon-reload        # picks up quadlet changes
 systemctl --user restart openpak-switch-nexd.service
 ```
+
+**Host networking, why and how.** Behind published ports, rootless podman's
+forwarder rewrote every source to the gateway, so Register could only
+synthesise public stations naming the server's own bridge — the reason a room
+held a mesh it could not form. With `Network=host` the process binds
+`0.0.0.0:<secure>` itself (all ports >1024, fine unprivileged) and sees real
+client addresses; the by-IP recall is exact again. Three wires keep working:
+
+- **Traefik** (itself a rootless container on the `openpak` network) reaches
+  the auth stage via `host.containers.internal:<base>` — resolved to
+  `10.0.0.249` inside that container; `127.0.0.1` there would be Traefik
+  itself. Note the auth stage therefore logs Traefik's address as the source;
+  only the secure stage, which consoles dial directly, sees the client.
+- **nx-baas**: the internal identity API is port 20070 inside that container
+  (baked into the image, not an env-configured listener). The nx-baas quadlet
+  publishes it on host loopback — `PublishPort=127.0.0.1:20070:20070` — and
+  the quadlet passes `NX_INTERNAL_URL=http://127.0.0.1:20070`. A working
+  chain logs `identity: resolving against http://127.0.0.1:20070 …`.
+- **Firewall**: INPUT accepts the fifteen secure ports via the multiport rule
+  above; the 443→21443 REDIRECT that feeds Traefik is untouched.
 
 **The certificate names the station address.** The game reaches the auth stage by
 hostname and the secure stage by the raw IP in the station URL, verifying the name both

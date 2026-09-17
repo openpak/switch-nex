@@ -41,8 +41,9 @@ The nex-go lineage keeps serving the Wii U / 3DS titles (`servers/nex`).
 ## Deployment (current)
 
 Deployed on quilted-waffle since 2026-09-16: `openpak-switch-nexd.service`
-(podman quadlet, `localhost/switch-nexd:latest`) serves all 14 Switch-era
-titles — auth through Traefik SNI, secure ports published directly. MHGU and
+(podman quadlet) serves all 14 Switch-era titles — auth through Traefik SNI,
+and since 2026-09-17 with `Network=host`, so the secure ports are bound by
+the server itself and clients arrive with their real addresses. MHGU and
 the Wii U / 3DS fleet remain on the nex-go lineage. MHGU is a hybrid — wss auth
 like this lineage, but a raw PRUDP/UDP secure stage and a kerberos v0 ticket,
 neither of which this lineage provides — and it shares its NEX code, and its

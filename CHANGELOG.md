@@ -1,5 +1,32 @@
 # Changelog — switch-nex
 
+## 2026-09-17 — Host networking: the server sees real client addresses
+
+- **The punch gate was deployment, not matchmaking.** Behind rootless podman's
+  published-port forwarder every client arrived from the gateway
+  (`10.89.2.253`), so every public station named the server's own bridge and
+  no mesh could form. The cutover: the quadlet now runs `Network=host` with
+  no `PublishPort=` at all — switch-nexd binds its fifteen secure ports
+  directly in the host netns, and inbound traffic reaches INPUT with the
+  console's real source address (no DNAT in the path).
+- **Consequences handled.** Traefik's fourteen nex routers retargeted from
+  `switch-nexd:<base>` to `host.containers.internal:<base>` (Traefik stays a
+  rootless container; `127.0.0.1` inside it is itself). nx-baas's internal
+  identity API — port 20070, baked into the image and never published — now
+  rides `PublishPort=127.0.0.1:20070:20070`, and `NX_INTERNAL_URL` became
+  `http://127.0.0.1:20070`. The INPUT multiport ACCEPT was missing **22151**
+  (MK8D secure) all along; published-port DNAT had been masking it, and the
+  cutover would have blackholed exactly that port. Fixed and persisted.
+- **Verified without a console:** nexprobe login through the whole chain
+  (`login UNPROVEN (id token not proven)` — nx-baas really consulted, over the
+  new loopback path), all fifteen SNIs serving the OpenPak wildcard leaf,
+  direct secure dial on 22151 answering TLS, `/state` still writable, fifteen
+  serving lines, no errors. What only a console proves: a secure-stage log
+  line carrying a real client IP, and two clients exchanging probes. Backups:
+  `dynamic.before-hostnet-20260917.yml`, both quadlets `.before-hostnet-20260917`.
+- The image is unchanged — still `v0.2.12`, and that is the point: the freeze
+  was never in the binary.
+
 ## 2026-09-17 — The joiner gets the session and the host's stations
 
 - **A room join told the joiner nothing.** The join family (0x6D.0x07/0x1E/0x27)

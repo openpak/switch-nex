@@ -1,10 +1,10 @@
 # Migrating Switch NEX titles from `servers/nex` to `switch-nex`
 
 **Deployed 2026-09-16** on quilted-waffle: `openpak-switch-nexd.service`
-(container `switch-nexd`, image `localhost/switch-nexd:latest`, built from
-`deploy/switch-nex/` on the host) serves all 14 titles below; auth via
-Traefik SNI (`switch-nexd:<base>` on openpak.network), secure ports published
-directly. The nex-go title services are stopped and disabled; MHGU and the
+(container `switch-nexd`) serves all 14 titles below; auth via Traefik SNI.
+Since 2026-09-17 the container runs `Network=host` (backends
+`host.containers.internal:<base>`, secure ports bound directly, real client
+IPs). The nex-go title services are stopped and disabled; MHGU and the
 Wii U / 3DS fleet stay on nex-go. Traefik delta:
 `dynamic.before-switch-nex-cutover-v001.yml` holds the previous state.
 
