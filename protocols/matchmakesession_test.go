@@ -2,6 +2,7 @@ package protocols
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	"github.com/openpak/switch-nex/rmc"
@@ -90,22 +91,74 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 }
 
-// TestSessionSkipByHeader proves the header length is truthful: a reader that
-// skips the framed structure by its content length lands exactly at the end.
-func TestSessionSkipByHeader(t *testing.T) {
+// TestSessionFramesAsSiblings proves both header lengths are truthful and that
+// the two structures sit side by side: skipping Gathering by its length, then
+// MatchmakeSession by its length, lands exactly at the end.
+func TestSessionFramesAsSiblings(t *testing.T) {
 	s := sampleSession()
 	w := rmc.NewWriter()
 	s.write(w)
 
 	r := rmc.NewReader(w.Bytes())
-	_, contentLen, err := r.StructHeader()
-	if err != nil {
-		t.Fatalf("header: %v", err)
-	}
-	if err := r.Fwd(int(contentLen)); err != nil {
-		t.Fatalf("skip: %v", err)
+	for _, name := range []string{"Gathering", "MatchmakeSession"} {
+		_, contentLen, err := r.StructHeader()
+		if err != nil {
+			t.Fatalf("%s header: %v", name, err)
+		}
+		if err := r.Fwd(int(contentLen)); err != nil {
+			t.Fatalf("%s skip: %v", name, err)
+		}
 	}
 	if r.Remaining() != 0 {
-		t.Fatalf("content length %d does not frame the structure (leftover %d)", contentLen, r.Remaining())
+		t.Fatalf("the two structures do not frame the session (leftover %d)", r.Remaining())
+	}
+}
+
+// TestSessionFromAConsole parses the opening of a request MK8D 3.0.5 actually
+// sent (AutoMatchmakeWithParam_Postpone, 2026-09-17): Gathering under
+// `00 2b000000`, then MatchmakeSession under its own header. The capture was
+// truncated after the attributes, so the tail is synthesised — with five bytes
+// this parser does not know appended, as the console's 0x53-byte structure had.
+func TestSessionFromAConsole(t *testing.T) {
+	captured, _ := hex.DecodeString("002b000000" +
+		"00000000" + "0000000000000000" + "0000000000000000" + "0200" + "0c00" +
+		"5f000000" + "00000000" + "100a0000" + "00000000" + "010000")
+	w := rmc.NewWriter()
+	w.Raw(captured)
+	w.StructOf(0, func(w *rmc.Writer) {
+		w.U32(2)
+		w.List(6)
+		for _, a := range []uint32{0, 1000, 0x1011112c, 0, 0x17, 0} {
+			w.U32(a)
+		}
+		w.Bool(true)
+		w.U32(1)
+		w.Buffer(nil)
+		w.U32(0)
+		w.U8(0)
+		w.Buffer(nil)
+		w.U32(0)
+		w.List(0)
+		w.U64(0)
+		w.String("")
+		w.U32(0)
+		w.Bool(false)
+		w.Bool(false)
+		w.String("")
+		w.Raw([]byte{1, 2, 3, 4, 5}) // fields newer than this parser
+	})
+	w.U32(0xCAFE) // whatever follows the session in the request
+
+	r := rmc.NewReader(w.Bytes())
+	got, err := readSession(r)
+	if err != nil {
+		t.Fatalf("a console's session did not parse: %v", err)
+	}
+	if got.MaxParticipants != 12 || got.ParticipationPolicy != 95 || got.GameMode != 2 ||
+		len(got.Attributes) != 6 || got.Attributes[1] != 1000 || !got.OpenParticipation {
+		t.Fatalf("misparsed: %+v", got)
+	}
+	if next, _ := r.U32(); next != 0xCAFE {
+		t.Fatalf("reader left at the wrong place: next=%#x", next)
 	}
 }

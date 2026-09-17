@@ -141,6 +141,23 @@ func (r *Reader) StructHeader() (version uint8, contentLen uint32, err error) {
 	return version, contentLen, err
 }
 
+// Struct reads a structure header and returns a reader confined to its
+// content, leaving r positioned after it. Fields a newer client appends beyond
+// what the caller reads are skipped instead of desynchronising what follows —
+// which is what the length in the header is for.
+func (r *Reader) Struct() (version uint8, content *Reader, err error) {
+	version, n, err := r.StructHeader()
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := r.need(int(n)); err != nil {
+		return 0, nil, err
+	}
+	content = NewReader(r.b[r.o : r.o+int(n)])
+	r.o += int(n)
+	return version, content, nil
+}
+
 // ListHeader reads a list count. Callers loop that many elements.
 func (r *Reader) ListHeader() (uint32, error) { return r.U32() }
 

@@ -104,6 +104,15 @@ String SourceKey                   (64 = hex of the 32-byte source key)
   instead of proceeding.
 - MK8D then goes quiet again waiting for the server's first secure-stage data.
 
+## Structures
+
+- An inherited structure is serialised as **siblings, parent first**, each with its own
+  `u8 version, u32 length` header; the child's length covers only the child's fields.
+  Observed in MK8D 3.0.5's AutoMatchmakeWithParam_Postpone (0x6D/0x28, 2026-09-17):
+  param header `00 11010000`, Gathering `00 2b000000` (43 bytes), then MatchmakeSession
+  `00 53000000`. Both versions were 0. The MatchmakeSession was 5 bytes longer than the
+  fields this server knows — **unexplained**, skipped by length.
+
 ## Pia / NAT check
 
 - The NAT check requires **nncs1 and nncs2 on two distinct IPs**; on one IP the console

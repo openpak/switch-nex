@@ -317,19 +317,21 @@ func titleAccessKey(t *testing.T, name string) string {
 // sessionHolderBytes frames a CreateMatchmakeSession request.
 func sessionHolderBytes(maxParticipants uint16, gameMode, attr0 uint32) []byte {
 	inner := rmc.NewWriter()
-	inner.StructOf(1, func(w *rmc.Writer) {
-		w.StructOf(1, func(w *rmc.Writer) { // Gathering base
-			w.U32(0) // gid, assigned by the server
-			w.U64(0) // owner
-			w.U64(0) // host
-			w.U16(1) // min
-			w.U16(maxParticipants)
-			w.U32(0) // participation policy
-			w.U32(0) // policy argument
-			w.U32(0) // flags
-			w.U32(0) // state
-			w.String("harness")
-		})
+	// Parent and child travel as siblings, each under its own header — the
+	// shape a console sends (SPEC.md), not one nested in the other.
+	inner.StructOf(0, func(w *rmc.Writer) { // Gathering base
+		w.U32(0) // gid, assigned by the server
+		w.U64(0) // owner
+		w.U64(0) // host
+		w.U16(1) // min
+		w.U16(maxParticipants)
+		w.U32(0) // participation policy
+		w.U32(0) // policy argument
+		w.U32(0) // flags
+		w.U32(0) // state
+		w.String("harness")
+	})
+	inner.StructOf(0, func(w *rmc.Writer) {
 		w.U32(gameMode)
 		w.List(1)
 		w.U32(attr0)

@@ -18,6 +18,16 @@
   a private address the title's latest login (30 s window) pairs them instead.
   Known ceiling, marked in the code: simultaneous logins to one title can
   cross. The real fix is getting client addresses to the server.
+- **MatchmakeSession was parsed and written with the wrong nesting.** An
+  inherited structure travels as siblings — Gathering under its own header,
+  then MatchmakeSession's header over only its own fields. The server nested
+  Gathering inside MatchmakeSession, so every session a console sent misparsed
+  and `AutoMatchmakeWithParam_Postpone` answered `Core::InvalidArgument`; MK8D
+  showed "a communication error has occurred" on create and join. Reader and
+  writer were wrong symmetrically, which is why the harness never noticed. The
+  parser is now bounded by each header's length (fields a newer client appends
+  are skipped) and structure versions are echoed as the client sent them. Found
+  by the diagnostics below on their first run.
 - **Catch-all diagnostics, for every title.** Each connection now ends with one
   line saying how: who hung up (client closed / idle timeout / DISCONNECT /
   malformed frame / handler panic, with the stack), at which stage, on which

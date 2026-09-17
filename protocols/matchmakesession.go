@@ -16,6 +16,10 @@ import (
 // Session is one MatchmakeSession. Parsed and re-serialized symmetrically, so
 // echoing a stored session reproduces the client's own bytes plus our edits.
 type Session struct {
+	// Structure versions as the client sent them, echoed on the way back.
+	GatheringVersion uint8
+	Version          uint8
+
 	GID                 uint32
 	OwnerPID            uint64
 	HostPID             uint64
@@ -46,16 +50,18 @@ type Session struct {
 }
 
 // readSession parses one MatchmakeSession (header + all NEX4 fields).
-func readSession(r *rmc.Reader) (*Session, error) {
+func readSession(outer *rmc.Reader) (*Session, error) {
 	s := &Session{}
-	if _, _, err := r.StructHeader(); err != nil {
-		return nil, err
-	}
-	// Gathering base: its own header, then ten fixed fields.
-	if _, _, err := r.StructHeader(); err != nil {
-		return nil, err
-	}
+	// An inherited structure travels as SIBLINGS, parent first: Gathering with
+	// its own header, then MatchmakeSession's header covering only its own
+	// fields (observed: MK8D 3.0.5 AutoMatchmakeWithParam_Postpone, 2026-09-17 —
+	// Gathering header `00 2b000000`, then `00 53000000`). Reading them nested
+	// misparsed every session a console sent and answered InvalidArgument.
 	var err error
+	var r *rmc.Reader
+	if s.GatheringVersion, r, err = outer.Struct(); err != nil {
+		return nil, err
+	}
 	if s.GID, err = r.U32(); err != nil {
 		return nil, err
 	}
@@ -88,6 +94,9 @@ func readSession(r *rmc.Reader) (*Session, error) {
 	}
 
 	// MatchmakeSession fields, all present at NEX 4.0.0.
+	if s.Version, r, err = outer.Struct(); err != nil {
+		return nil, err
+	}
 	if s.GameMode, err = r.U32(); err != nil {
 		return nil, err
 	}
@@ -148,22 +157,22 @@ func readSession(r *rmc.Reader) (*Session, error) {
 	return s, nil
 }
 
-// write serialises the session (header + Gathering + fields).
+// write serialises the session: Gathering, then MatchmakeSession, each under
+// the structure version the client itself used.
 func (s *Session) write(w *rmc.Writer) {
-	w.StructOf(1, func(w *rmc.Writer) {
-		// Gathering base: its own framed structure.
-		w.StructOf(1, func(w *rmc.Writer) {
-			w.U32(s.GID)
-			w.U64(s.OwnerPID)
-			w.U64(s.HostPID)
-			w.U16(s.MinParticipants)
-			w.U16(s.MaxParticipants)
-			w.U32(s.ParticipationPolicy)
-			w.U32(s.PolicyArgument)
-			w.U32(s.Flags)
-			w.U32(s.State)
-			w.String(s.Description)
-		})
+	w.StructOf(s.GatheringVersion, func(w *rmc.Writer) {
+		w.U32(s.GID)
+		w.U64(s.OwnerPID)
+		w.U64(s.HostPID)
+		w.U16(s.MinParticipants)
+		w.U16(s.MaxParticipants)
+		w.U32(s.ParticipationPolicy)
+		w.U32(s.PolicyArgument)
+		w.U32(s.Flags)
+		w.U32(s.State)
+		w.String(s.Description)
+	})
+	w.StructOf(s.Version, func(w *rmc.Writer) {
 		w.U32(s.GameMode)
 		w.List(len(s.Attributes))
 		for _, a := range s.Attributes {
