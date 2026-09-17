@@ -113,6 +113,13 @@ String SourceKey                   (64 = hex of the 32-byte source key)
   `00 53000000`. Both versions were 0. The MatchmakeSession was 5 bytes longer than its
   bare fields: `MatchmakeParam` is itself a structure (`00 04000000` over an empty map).
 
+## Calls outside NEX
+
+- After a private-room create MK8D's NEX library calls the Switch Online voice-chat API,
+  `POST api-lp1.znc.srv.nintendo.net/v1/NX/getToken`, and today gets 404 from nx-baas.
+  Not fatal — the title goes on to request its room code. Catalogued, not served:
+  `nx-baas/docs/open-questions.md` U4 carries the request as observed and the route list.
+
 ## Pia / NAT check
 
 - The NAT check requires **nncs1 and nncs2 on two distinct IPs**; on one IP the console
