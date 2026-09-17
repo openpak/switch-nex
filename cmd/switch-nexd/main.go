@@ -239,6 +239,30 @@ func (r *recall) take(host string) (uint64, bool) {
 	return e.PID, true
 }
 
+// recallByTitleWindow is how long a login stays claimable by title alone. The
+// game opens its secure connection within a second of the login answer.
+const recallByTitleWindow = 30 * time.Second
+
+func titleKey(name string) string { return "title:" + name }
+
+// addressSaysNothing reports whether a source address is one a NAT put there
+// rather than the client's own.
+func addressSaysNothing(host string) bool {
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsPrivate() || ip.IsLoopback())
+}
+
+// takeRecent is take with a tighter age limit than the table's.
+func (r *recall) takeRecent(key string, window time.Duration) (uint64, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	e, ok := r.m[key]
+	if !ok || e.PID == 0 || time.Since(time.Unix(e.At, 0)) > window {
+		return 0, false
+	}
+	return e.PID, true
+}
+
 // rememberName records the login-name-to-PID mapping. Some titles never speak
 // our internal PID: they ask for profiles by the name the console logged in
 // under, and only the login ever saw both halves, so the mapping cannot be
@@ -460,6 +484,17 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 				return 0, false
 			}
 			pid, ok := recall.take(host)
+			if !ok && addressSaysNothing(host) {
+				// ponytail: behind a NAT that rewrites the source (rootless
+				// podman's port forwarder, and Traefik on the auth side) the two
+				// stages arrive from two different internal addresses and
+				// neither is the player's, so the address cannot pair them. The
+				// title's latest login inside a short window can. Ceiling: two
+				// players logging in to one title within recallByTitleWindow can
+				// be handed each other's PID. Upgrade path: get the client
+				// address to the server (PROXY protocol or host networking).
+				pid, ok = recall.takeRecent(titleKey(env.Name), recallByTitleWindow)
+			}
 			if ok {
 				log.Printf("[%s] secure: recalled pid=%d for %s", env.Name, pid, host)
 			}
@@ -598,6 +633,7 @@ func handleLoginEx(ids *identity, recall *recall, env *protocols.Env, targetKey 
 	}
 
 	recall.remember(c.Host, pid)
+	recall.remember(titleKey(env.Name), pid)
 	recall.rememberName(username, pid)
 	log.Printf("[%s] login pid=%d url=%q ticket=%dB", env.Name, pid, url, len(ticket))
 	return rmc.EncodeSuccess(0x0A, msg.CallID, msg.MethodID, body)

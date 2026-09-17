@@ -11,6 +11,15 @@
 - The server now logs a connection dropped before its first frame, and each
   upgrade — the silence was the expensive part of this one.
 - `nexprobe -ws` opens the way the game does.
+- Secure-stage recall works behind the production NAT. Rootless podman's port
+  forwarder and Traefik each rewrite the source, so the login arrived from one
+  internal address and the ticketless secure CONNECT from another, and the
+  by-IP recall refused it every 2 s until the game gave up. When the source is
+  a private address the title's latest login (30 s window) pairs them instead.
+  Known ceiling, marked in the code: simultaneous logins to one title can
+  cross. The real fix is getting client addresses to the server.
+- The leaf certificate carries `IP:145.241.199.19`: the game dials the secure
+  stage by raw IP and verifies the name.
 
 ## 2026-09-16 — Clubhouse Games: 51 Worldwide Classics
 
