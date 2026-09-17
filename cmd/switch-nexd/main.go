@@ -243,6 +243,13 @@ func (r *recall) take(host string) (uint64, bool) {
 // game opens its secure connection within a second of the login answer.
 const recallByTitleWindow = 30 * time.Second
 
+func head(b []byte, n int) []byte {
+	if len(b) > n {
+		return b[:n]
+	}
+	return b
+}
+
 func titleKey(name string) string { return "title:" + name }
 
 // addressSaysNothing reports whether a source address is one a NAT put there
@@ -504,7 +511,13 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 			log.Printf("[%s] secure: connected pid=%d cid=%d host=%s", env.Name, c.PID, c.CID, c.Host)
 		},
 		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-			return protocols.Dispatch(env, c, msg)
+			resp := protocols.Dispatch(env, c, msg)
+			// Every call and its answer, heads only. A title that gives up
+			// after a call we answered wrongly leaves no other trace here.
+			log.Printf("[%s] rmc pid=%d proto=0x%X method=0x%X call=%d req(%dB)=%x resp(%dB)=%x",
+				env.Name, c.PID, msg.Protocol, msg.MethodID, msg.CallID,
+				len(msg.Body), head(msg.Body, 96), len(resp), head(resp, 48))
+			return resp
 		},
 		OnDisconnect: func(c *prudplite.Connection) {
 			env.Disconnected(c.PID)
