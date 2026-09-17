@@ -1,5 +1,28 @@
 # Changelog — switch-nex
 
+## 2026-09-17 — The joiner gets the session and the host's stations
+
+- **A room join told the joiner nothing.** The join family (0x6D.0x07/0x1E/0x27)
+  answered a bare `bool` where the client parses a full MatchmakeSession: no
+  session key, no pre-join count, nothing to build a P2P mesh from. The
+  emulator hung up two seconds after joining a room — matchmaking answered
+  success on every call and the join still failed. MK8D now joins Clubhouse on
+  the echo rule: the join answers the full session.
+- **GetSessionURLs (0x15.0x29) was a stub.** The joiner's next question after
+  joining is "where is the host", and the stub answered an empty list —
+  nowhere to probe. It now serves the host's registered stations, lan then
+  public, to participants only (PermissionDenied otherwise, SessionVoid for a
+  gathering that is gone).
+- Found by comparing the failing join in the production log against the AGPL
+  `nex-protocols-common-go` reference shapes (the harness agreed with the
+  server, which is exactly the failure mode the harness cannot catch). A new
+  harness test walks create → room code → resolve → join → station handover
+  with two clients and insists the joiner can parse every answer.
+- Next ceiling, unchanged: the stations served are the ones the server sees —
+  behind rootless podman's forwarder every public station names the gateway
+  address, not the client. The RMC join now succeeds; whether the UDP punch
+  lands is the next thing a console test answers.
+
 ## 2026-09-17 — Websocket carriage
 
 - MK8D on the Ryujinx fork opens its TLS stream with a websocket upgrade; the
