@@ -34,6 +34,19 @@
   is the "5 unexplained bytes" of the previous entry, explained.
 - A call that ends in an error or no answer now logs its **full** request, not
   just the head: that is what the fix gets written from.
+- **The creator hears its own join.** After a successful create MK8D sat for
+  exactly 10 s — no call, no P2P socket — then unregistered the gathering and
+  showed a communication error. A create now pushes the creator its own
+  Participate (3001) event before the answer, as Pretendo's common matchmaking
+  does, and MK8D's created session goes back finalised (occupied by its host,
+  keyed, timestamped). Two changes in one step, both from the same reference
+  behaviour; which one MK8D was waiting for is not separated.
+- **Connections were tabled by client address alone.** Two players behind one
+  NAT — in production, *every* player, since the forwarder rewrites the source
+  — shared one slot: the newer connection evicted the older, pushes to the
+  evicted player went nowhere, and the first to close deleted the other's
+  entry. Keyed by address and port now. Found by the new test for the push
+  above, whose host and joiner both dial from 127.0.0.1.
 - **Catch-all diagnostics, for every title.** Each connection now ends with one
   line saying how: who hung up (client closed / idle timeout / DISCONNECT /
   malformed frame / handler panic, with the stack), at which stage, on which

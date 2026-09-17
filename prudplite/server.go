@@ -124,7 +124,12 @@ func (e *Endpoint) acceptLoop() {
 			carriage: "bare",
 		}
 		e.mu.Lock()
-		e.conns[c.Host] = c
+		// Keyed by address AND port. Keyed by address alone, two players behind
+		// one NAT — or every player, behind a forwarder that rewrites the source
+		// — shared a slot: the newer connection evicted the older from the
+		// table, pushes to the evicted player went nowhere, and whichever closed
+		// first deleted the other's entry.
+		e.conns[c.Remote.String()] = c
 		e.mu.Unlock()
 		go c.serve()
 	}
@@ -132,8 +137,8 @@ func (e *Endpoint) acceptLoop() {
 
 func (e *Endpoint) forget(c *Connection) {
 	e.mu.Lock()
-	_, had := e.conns[c.Host]
-	delete(e.conns, c.Host)
+	_, had := e.conns[c.Remote.String()]
+	delete(e.conns, c.Remote.String())
 	e.mu.Unlock()
 	if had && e.OnDisconnect != nil {
 		e.OnDisconnect(c)

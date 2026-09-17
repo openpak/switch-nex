@@ -27,6 +27,7 @@ import (
 
 // client is one console-side connection.
 type client struct {
+	pushes    []*rmc.RMCMessage // server-initiated requests seen while waiting for answers
 	t         *testing.T
 	conn      net.Conn
 	accessKey string
@@ -146,7 +147,8 @@ func (c *client) call(protocol uint16, method uint32, body []byte) *rmc.RMCMessa
 			c.t.Fatalf("undecodable RMC (%d bytes): %v", len(p.Payload), err)
 		}
 		if msg.IsRequest {
-			continue // a server-initiated push; not the answer to this call
+			c.pushes = append(c.pushes, msg) // server-initiated; not the answer to this call
+			continue
 		}
 		return msg
 	}

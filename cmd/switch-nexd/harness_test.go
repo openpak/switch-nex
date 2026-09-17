@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"math/big"
 	"net"
 	"testing"
@@ -242,6 +243,14 @@ func TestFriendJoinResolvesTheHostsGathering(t *testing.T) {
 	if resp := host.call(ProtoMatchmakeExt, 0x06, sess); resp.IsError {
 		t.Fatalf("create: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
 	}
+	// The creator hears its own join before the answer; MK8D waits 10 s for
+	// this and then gives up.
+	if len(host.pushes) != 1 || host.pushes[0].Protocol != ProtoNotification {
+		t.Fatalf("creator saw %d push(es), want its own Participate event", len(host.pushes))
+	}
+	if typ := binary.LittleEndian.Uint32(host.pushes[0].Body[5+8:]); typ != 3001 {
+		t.Fatalf("creator's push is type %d, want 3001", typ)
+	}
 
 	// The joiner asks where its friend is.
 	req := rmc.NewWriter()
@@ -389,6 +398,7 @@ const (
 	ProtoUtility          uint16 = 0x6E
 	ProtoMatchmakeExt     uint16 = 0x6D
 	ProtoDataStore        uint16 = 0x73
+	ProtoNotification     uint16 = 0x0E
 )
 
 // TestLoginExShapeIsSwitchable covers both candidate answers to TicketGranting

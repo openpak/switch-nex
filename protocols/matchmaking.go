@@ -388,6 +388,19 @@ func createSession(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		g.participants[c.PID] = true
 	}
 	log.Printf("[%s] matchmake: created gid=%d pid=%d max=%d open=%v", env.Name, gid, c.PID, sess.MaxParticipants, sess.OpenParticipation)
+	// The creator joins its own session, and a join is announced to the owner
+	// — here the same player. MK8D 3.0.5 was observed (2026-09-17) to sit for
+	// exactly 10 s after a successful create, send nothing, open no P2P
+	// socket, then unregister the gathering and report a communication error:
+	// it was waiting to hear this. Pretendo's common matchmaking announces the
+	// creator's own join the same way.
+	env.notify(c.PID, notificationEvent{
+		SourcePID: c.PID,
+		Type:      NotifyParticipate,
+		Param1:    uint64(gid),
+		Param2:    c.PID,
+		Param3:    1, // participants joining with this call
+	})
 	return success(msg, sess.bytes())
 }
 

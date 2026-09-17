@@ -77,6 +77,10 @@ var titles = []title{
 	}},
 	{"mario-kart-8-deluxe", 22150, "09c1c475", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
+		// A created session goes back occupied by its host, keyed and
+		// timestamped: a session with no key and nobody in it is not one a
+		// console can start P2P on.
+		e.FinalizeCreateSession = true
 		e.Ranking = true
 	}},
 	{"super-mario-bros-35", 22160, "0a69c592", func(e *protocols.Env) {
