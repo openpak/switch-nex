@@ -1,5 +1,18 @@
 # Changelog — switch-nex
 
+## 2026-09-18 — v0.2.15: Super Mario 3D World + Bowser's Fury and Kirby's Dream Buffet
+
+- **Two titles registered from our own dumps.** Game server IDs and access
+  keys were read out of the games' code, confirmed by the key and ID being
+  loaded side by side (the shape MK8D shows): 3D World `2B306A00` /
+  `67f366f2` (NEX 4.6.4, matching the Reference reference), Kirby
+  `25374500` / `6wVacwwe` (NEX 4.6.6). Ports 22370 and 22380.
+- **`ParticipateDelay`**: 3D World's Participate pushes are held back 100 ms,
+  the reference's measured policy, alongside full-session join answers.
+- **`switch-nexd -dump`** prints every title's resolved configuration.
+- Neither title is console-verified; their first boots' NotImplemented lines
+  are the backlog.
+
 ## 2026-09-18 — Minecraft online: the hostname, the route, and the first login
 
 - **The last unrouted title found its name by booting.** Minecraft's NEX
