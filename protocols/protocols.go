@@ -9,7 +9,9 @@
 package protocols
 
 import (
+	"fmt"
 	"log"
+	"sort"
 	"sync/atomic"
 
 	switchnex "github.com/openpak/switch-nex"
@@ -243,6 +245,36 @@ func handlersFor(env *Env) map[uint16]handler {
 		}
 	}
 	return h
+}
+
+var protoNames = map[uint16]string{
+	ProtoNatTraversal: "NATTraversal", ProtoSecureConnection: "SecureConnection",
+	ProtoNotification: "Notification", ProtoMatchMaking: "MatchMaking",
+	ProtoMessaging: "Messaging", ProtoMessageDelivery: "MessageDelivery",
+	ProtoMatchMakingExt: "MatchMakingExt", ProtoUtility: "Utility",
+	ProtoMatchmakeExt: "MatchmakeExtension", ProtoRanking: "Ranking",
+	ProtoDataStore: "DataStore", ProtoMatchmakeReferee: "MatchmakeReferee",
+	ProtoRanking2: "Ranking2", ProtoPresence: "Presence",
+}
+
+// Served lists the secure-stage protocols env answers, by id — what the
+// dispatcher routes, so a dump built on it cannot drift from what is served.
+func Served(env *Env) []string {
+	h := handlersFor(env)
+	ids := make([]int, 0, len(h))
+	for id := range h {
+		ids = append(ids, int(id))
+	}
+	sort.Ints(ids)
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = fmt.Sprintf("0x%02X %s", id, protoNames[uint16(id)])
+	}
+	return out
+}
+
+func (m DSMode) String() string {
+	return [...]string{"off", "empty-list", "empty-success", "stub", "balloon-errors", "smm2", "clubhouse"}[m]
 }
 
 // success frames an RMC success response for the request's protocol.

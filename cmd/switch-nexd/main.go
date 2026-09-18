@@ -170,6 +170,50 @@ var titles = []title{
 	}},
 }
 
+// dumpTitles prints each title's configuration as newService resolves it, so
+// what every game needs can be checked against one list.
+func dumpTitles() {
+	for _, t := range titles {
+		e := protocols.NewEnv(t.name, *stationAddress, t.base)
+		if t.env != nil {
+			t.env(e)
+		}
+		pia := "5.19 (type 0x0B, Pa)"
+		if !e.Pia.SetPa {
+			pia = "legacy (type 0x03, no Pa)"
+		}
+		var behaviour []string
+		for _, f := range []struct {
+			on   bool
+			name string
+		}{
+			{e.IntegerSettings != nil, "IntegerSettings table"},
+			{e.ForceOpenParticipation, "ForceOpenParticipation"},
+			{e.FindByParticipant, "FindByParticipant"},
+			{e.SanitizeDetailFind, "SanitizeDetailFind"},
+			{e.FinalizeCreateSession, "FinalizeCreateSession"},
+			{e.JoinEchoSession, "JoinEchoSession"},
+			{e.StrikersInit, "StrikersInit"},
+		} {
+			if f.on {
+				behaviour = append(behaviour, f.name)
+			}
+		}
+		if len(behaviour) == 0 {
+			behaviour = []string{"none"}
+		}
+		fmt.Printf("## %s\n", t.name)
+		fmt.Printf("- ports: auth %d, secure %d, healthz %d\n", t.base, t.base+1, t.base+2)
+		fmt.Printf("- access key: %s\n", t.accessKey)
+		fmt.Printf("- station URL: %s\n", e.SecureStationURL())
+		fmt.Printf("- source key: %d bytes\n", e.SourceKeyBytes)
+		fmt.Printf("- Pia: %s\n", pia)
+		fmt.Printf("- DataStore: %s\n", e.DataStore)
+		fmt.Printf("- behaviour: %s\n", strings.Join(behaviour, ", "))
+		fmt.Printf("- protocols: %s\n\n", strings.Join(protocols.Served(e), ", "))
+	}
+}
+
 // securePassword is every title's secure-account kerberos password. Both the
 // auth endpoint (ticket encryption) and the secure endpoint (ticket
 // decryption) derive their key from it, so any value works as long as it is
@@ -185,6 +229,7 @@ var (
 	identityURL     = flag.String("identity-url", "", "nx-baas internal base URL; empty disables account resolution and every login is accepted on its unproven name")
 	identityKey     = flag.String("identity-key", "", "shared key for the nx-baas internal API (X-Internal-Key)")
 	requireIdentity = flag.Bool("require-identity", false, "refuse logins whose token cannot be proven, instead of falling back to the name")
+	dump            = flag.Bool("dump", false, "print every served title's resolved configuration and exit")
 	loginExStruct   = flag.Bool("loginex-structured", false, "answer TicketGranting method 2 with the ValidateAndRequestTicketResult structure instead of the flat layout (see docs/login-shape-conflict.md)")
 )
 
@@ -376,6 +421,10 @@ func pidFor(username string) uint64 {
 
 func main() {
 	flag.Parse()
+	if *dump {
+		dumpTitles()
+		return
+	}
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
