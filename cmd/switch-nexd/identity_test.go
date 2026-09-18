@@ -284,6 +284,12 @@ func TestEnforcingClosesTheTicketlessRecallPath(t *testing.T) {
 	s2.conn.SetReadDeadline(time.Now().Add(time.Second))
 	buf := make([]byte, 64)
 	if n, err := s2.conn.Read(buf); err == nil && n > 0 {
-		t.Fatalf("enforcing, but a ticketless CONNECT was answered with %d bytes: %x", n, buf[:n])
+		// A DISCONNECT is the refusal — immediate, where the old behaviour
+		// was thirty seconds of retransmitting into silence. The one answer
+		// that would mean the client got in is a Connect-Ack.
+		if p, _, err := prudplite.Decode(buf[:n]); err == nil &&
+			p.Type == prudplite.Connect && p.HasFlag(prudplite.FlagAck) {
+			t.Fatalf("enforcing, but a ticketless CONNECT was admitted: %x", buf[:n])
+		}
 	}
 }

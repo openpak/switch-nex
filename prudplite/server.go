@@ -424,6 +424,7 @@ func (c *Connection) handleConnect(p *Packet) {
 		expected := LitePacketSignature(c.Endpoint.AccessKey, p, c.Signature)
 		if expected == nil || !equalBytes(expected, p.Signature) {
 			log.Printf("prudplite: CONNECT bad signature from %s got=%x want=%x", c.Remote, p.Signature, expected)
+			c.rejectConnect(p)
 			return
 		}
 	}
@@ -431,6 +432,7 @@ func (c *Connection) handleConnect(p *Packet) {
 	response, err := c.processConnectPayload(p.Payload)
 	if err != nil {
 		log.Printf("prudplite: CONNECT rejected from %s: %v", c.Remote, err)
+		c.rejectConnect(p)
 		return
 	}
 
@@ -446,6 +448,20 @@ func (c *Connection) handleConnect(p *Packet) {
 	if c.Endpoint.OnConnect != nil {
 		c.Endpoint.OnConnect(c)
 	}
+}
+
+// rejectConnect ends a failed CONNECT immediately: DISCONNECT, then close the
+// stream. The old behaviour was silence — the TCP socket stayed open while
+// PRUDP said nothing, so the client retransmitted the same CONNECT every ~2 s
+// for ~30 s before giving up, 2306-0502 on screen the whole time. No ACK
+// here: a bare Connect-Ack frame is indistinguishable on the wire from
+// success, and the harness proves clients read it as one.
+func (c *Connection) rejectConnect(p *Packet) {
+	d := &Packet{Type: Disconnect, Flags: FlagNeedsAck, SequenceID: c.SendSeq}
+	c.mirror(d)
+	_ = c.send(d)
+	c.Endpoint.forget(c)
+	c.conn.Close()
 }
 
 // processConnectPayload validates a CONNECT payload. On the secure endpoint

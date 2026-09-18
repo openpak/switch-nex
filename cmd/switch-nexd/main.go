@@ -496,15 +496,18 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 				return 0, false
 			}
 			pid, ok := recall.take(host)
-			if !ok && addressSaysNothing(host) {
-				// ponytail: behind a NAT that rewrites the source (rootless
-				// podman's port forwarder, and Traefik on the auth side) the two
-				// stages arrive from two different internal addresses and
-				// neither is the player's, so the address cannot pair them. The
-				// title's latest login inside a short window can. Ceiling: two
-				// players logging in to one title within recallByTitleWindow can
-				// be handed each other's PID. Upgrade path: get the client
-				// address to the server (PROXY protocol or host networking).
+			if !ok {
+				// ponytail: the auth stage rides Traefik, so a login is
+				// recorded under Traefik's address, never the console's; the
+				// secure dial arrives with the console's real address (host
+				// networking) or a rewritten one (any forwarder). Either way
+				// the address cannot pair the two stages, and the client —
+				// which dials secure ticketless — starves on silence. The
+				// title's latest login inside a short window is the pairing.
+				// Ceiling: two players logging in to one title within
+				// recallByTitleWindow can be handed each other's PID. Real
+				// fix: PROXY protocol from Traefik, so the login sees the
+				// console's address too and by-IP pairing turns exact.
 				pid, ok = recall.takeRecent(titleKey(env.Name), recallByTitleWindow)
 			}
 			if ok {
