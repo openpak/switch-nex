@@ -182,6 +182,33 @@ type Connection struct {
 	calls    int
 	lastCall string
 	carriage string
+
+	// Frame summaries received before CONNECT — the failing handshake, in the
+	// client's own words, one entry per frame (bounded, newest kept).
+	preConnect []string
+}
+
+// frameSummary names one received frame compactly: type, flags, sequence and
+// payload length — enough to recognise a handshake retry pattern in a log.
+func frameSummary(p *Packet) string {
+	return fmt.Sprintf("%s/flags%#x/seq%d/%dB", typeName(p.Type), p.Flags, p.SequenceID, len(p.Payload))
+}
+
+// typeName spells a PRUDPLite packet type for logs.
+func typeName(t PacketType) string {
+	switch t {
+	case Syn:
+		return "SYN"
+	case Connect:
+		return "CONNECT"
+	case Data:
+		return "DATA"
+	case Disconnect:
+		return "DISCONNECT"
+	case Ping:
+		return "PING"
+	}
+	return fmt.Sprintf("type0x%X", uint8(t))
 }
 
 // SetStations replaces the connection's station list.
@@ -265,9 +292,9 @@ func (c *Connection) serve() {
 		if c.State == StateConnected {
 			state = "connected"
 		}
-		log.Printf("[%s] closed %s pid=%d %s carriage=%s age=%s frames=%d calls=%d last=%s reason: %s",
+		log.Printf("[%s] closed %s pid=%d %s carriage=%s age=%s frames=%d calls=%d last=%s saw=%v reason: %s",
 			c.Endpoint.Name, c.Remote, c.PID, state, c.carriage,
-			time.Since(c.opened).Round(time.Millisecond), c.frames, c.calls, c.lastCall, reason)
+			time.Since(c.opened).Round(time.Millisecond), c.frames, c.calls, c.lastCall, c.preConnect, reason)
 		c.conn.Close()
 		c.Endpoint.forget(c)
 	}()
@@ -311,6 +338,15 @@ func (c *Connection) serve() {
 			return
 		}
 		c.frames++
+		if c.State != StateConnected {
+			// A connection that never reaches CONNECT is the one whose
+			// handshake is failing; record what it actually said so the
+			// close line answers "which stage" without a capture.
+			c.preConnect = append(c.preConnect, frameSummary(p))
+			if len(c.preConnect) > 32 {
+				c.preConnect = append(c.preConnect[:0:0], c.preConnect[1:]...)
+			}
+		}
 		if p.Type == Disconnect && !p.HasFlag(FlagAck) {
 			reason = "client sent DISCONNECT"
 		}
