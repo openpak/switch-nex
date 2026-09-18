@@ -1,5 +1,26 @@
 # Changelog — switch-nex
 
+## 2026-09-18 — Minecraft online: the hostname, the route, and the first login
+
+- **The last unrouted title found its name by booting.** Minecraft's NEX
+  game-server hostname was recorded nowhere — not our repos or captures, not
+  the earlier server's (their console agent covers the case with a `g2*` hosts
+  wildcard; their public repos carry no per-title table), not Kinnay's Game
+  Server List (Switch table ends at ACNH). The an earlier Ryujinx fork fork resolves
+  the whole `.nintendo.net` suffix to the box, so the moment the game booted,
+  its own DNS line named it: `g28c77600-lp1.s.n.srv.nintendo.net`. A temporary
+  `g2` regexp route was live for the first attempt; the specific
+  `nex-minecraft` router replaced it the same hour.
+- **First real Minecraft login against switch-nexd** (2026-09-18 04:45 UTC):
+  auth over the websocket carriage, method 0x2, `login pid=1900000001
+  nickname="<user-a>"` — the account name resolved through nx-baas — and the
+  station URL handed out for 22311. The secure-stage close line carries
+  `37.228.205.45`, a real client address: the host-networking cutover doing
+  exactly what it was for.
+- **Open:** the client spent ~29 s and 17 frames on the secure stage without
+  ever sending CONNECT, then quit with 2306-0502 — the ticket was never
+  spent. Next: the secure websocket handshake on 22311.
+
 ## 2026-09-17 — Host networking: the server sees real client addresses
 
 - **The punch gate was deployment, not matchmaking.** Behind rootless podman's

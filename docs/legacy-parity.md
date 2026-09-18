@@ -64,7 +64,7 @@ Per-title matchmaking rules measured on the reference and implemented here:
 | Animal Crossing: New Horizons (22180) | MM + 0x33/0x2C, MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented**; the one title with find-by-participant serving real results |
 | Luigi's Mansion 3 (22190) | MM, MMX, MME, NAT, UT, Ranking, presence 0x79; legacy Pia | **implemented**: 0x79 stub |
 | Mario Strikers: Battle League (22300) | MM, MMX, MME, NAT, UT, Ranking, DS, plus a bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A; Pia 5.19 | **implemented** incl. the bring-up table (`protocols/strikers.go`) |
-| Minecraft (22310) | MM, MMX, MME, NAT, UT, Ranking | **implemented** |
+| Minecraft (22310) | MM, MMX, MME, NAT, UT, Ranking | **implemented**; SNI `g28c77600-lp1.s.n.srv.nintendo.net` (from the emulator's own DNS redirect log, 2026-09-18 — recorded nowhere else public; the earlier server's console agent uses a `g2*` hosts wildcard instead) |
 | Splatoon 2 (22320) | MM (+0x3C), MMX, MME, NAT, UT (+2/5), Ranking, DS (**empty success for every method, GetMeta included**); legacy Pia | **implemented** |
 | Super Mario Maker 2 (22330) | MM, MMX, MME, NAT, UT, Ranking, DS + title methods | **implemented**: GetUsers answers (empty UserInfo list, per-PID NotFound) — see deviation 1 |
 | Super Mario Odyssey (22340) | SC, UT, Ranking, DS — no matchmaking at all; balloon methods 0x73.0x2F-0x35 NotImplemented; `prudps` | **implemented** incl. balloon NotImplemented stance |
