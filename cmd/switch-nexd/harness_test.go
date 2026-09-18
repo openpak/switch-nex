@@ -623,3 +623,31 @@ func TestLoginExShapeIsSwitchable(t *testing.T) {
 		})
 	}
 }
+
+// TestParticipateDelayHoldsBackTheCreatorsEvent: with a delay configured, the
+// Participate push is not on the wire before the create answer, and it does
+// arrive once the delay has passed.
+func TestParticipateDelayHoldsBackTheCreatorsEvent(t *testing.T) {
+	const name = "super-mario-3d-world-bowsers-fury"
+	authAddr, secureAddr, _ := start(t, name)
+	host := secureSession(t, authAddr, secureAddr, titleAccessKey(t, name), "host")
+
+	if resp := host.call(ProtoMatchmakeExt, 0x06, sessionHolderBytes(4, 3, 77)); resp.IsError {
+		t.Fatalf("create: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+	if len(host.pushes) != 0 {
+		t.Fatalf("Participate arrived with the create answer; want it delayed")
+	}
+	time.Sleep(200 * time.Millisecond)
+	req := rmc.NewWriter()
+	req.List(1)
+	req.U64(host.pid)
+	req.Bool(false)
+	host.call(ProtoMatchmakeExt, 0x3C, req.Bytes())
+	if len(host.pushes) != 1 {
+		t.Fatalf("saw %d push(es) after the delay, want the Participate event", len(host.pushes))
+	}
+	if typ := binary.LittleEndian.Uint32(host.pushes[0].Body[5+8:]); typ != 3001 {
+		t.Fatalf("push is type %d, want 3001", typ)
+	}
+}

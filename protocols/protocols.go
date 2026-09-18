@@ -13,6 +13,7 @@ import (
 	"log"
 	"sort"
 	"sync/atomic"
+	"time"
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
@@ -117,6 +118,11 @@ type Env struct {
 	// participation count, which must report the PRE-join value for a newly
 	// joined caller (Clubhouse Games measured working this way).
 	JoinEchoSession bool
+
+	// ParticipateDelay holds back every Participate (3001) push by this long.
+	// Super Mario 3D World + Bowser's Fury was measured working on the
+	// reference with a 100 ms delay (ExternalReference/super-mario-3d-world).
+	ParticipateDelay time.Duration
 
 	// DataStore mode. dsOff: not registered. dsStub: reference-level answers
 	// (empty lists, NotFound on GetMeta, real data IDs from PostMetaBinary).

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
@@ -89,6 +90,14 @@ func (n notificationEvent) bytes() []byte {
 // has already left is not an error: the event is about a gathering, and the
 // gathering outlives any one participant's socket.
 func (e *Env) notify(pid uint64, event notificationEvent) {
+	if event.Type == NotifyParticipate && e.ParticipateDelay > 0 {
+		time.AfterFunc(e.ParticipateDelay, func() { e.send(pid, event) })
+		return
+	}
+	e.send(pid, event)
+}
+
+func (e *Env) send(pid uint64, event notificationEvent) {
 	conn, ok := e.push.connection(pid)
 	if !ok {
 		return

@@ -155,6 +155,23 @@ var titles = []title{
 		e.Ranking = true
 		e.DataStore = protocols.DSEmptyList
 	}},
+	{"super-mario-3d-world-bowsers-fury", 22370, "67f366f2", func(e *protocols.Env) {
+		// Game server 2B306A00, key and NEX 4.6.4 read from our v1.2.2 dump
+		// (Openpak/prds/switch-catalogue-prd.md). The delay and the pre-join
+		// count are the reference's measured matchmaking policy.
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		e.JoinEchoSession = true
+		e.ParticipateDelay = 100 * time.Millisecond
+	}},
+	{"kirbys-dream-buffet", 22380, "6wVacwwe", func(e *protocols.Env) {
+		// Game server 25374500 and key read from our v0 dump; nothing measured
+		// yet. Ranking2 and DataStore are the components the binary links —
+		// the first boot's NotImplemented log is the real backlog.
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking2 = true
+		e.DataStore = protocols.DSEmptyList
+	}},
 	{"clubhouse-games-51", 22870, "8c3661ff", func(e *protocols.Env) {
 		// Clubhouse Games: 51 Worldwide Classics (010047700D540000, game
 		// server 2035BB00). Account setup runs DataStore before matchmaking;
@@ -194,6 +211,7 @@ func dumpTitles() {
 			{e.FinalizeCreateSession, "FinalizeCreateSession"},
 			{e.JoinEchoSession, "JoinEchoSession"},
 			{e.StrikersInit, "StrikersInit"},
+			{e.ParticipateDelay > 0, "ParticipateDelay " + e.ParticipateDelay.String()},
 		} {
 			if f.on {
 				behaviour = append(behaviour, f.name)

@@ -32,6 +32,8 @@ port needs a firewall ACCEPT before the host's final REJECT), +2 /healthz.
 | 22330 | `servers/nex/titles/super-mario-maker-2` — Super Mario Maker 2 (porting; DataStore-heavy) | 22330 | 22331 | 22332 |
 | 22340 | `servers/nex/titles/super-mario-odyssey` — Super Mario Odyssey (porting) | 22340 | 22341 | 22342 |
 | 22350 | `servers/nex/titles/super-smash-bros-ultimate` — Super Smash Bros. Ultimate (porting) | 22350 | 22351 | 22352 |
+| 22370 | `servers/switch-nex` — Super Mario 3D World + Bowser's Fury (game server 2B306A00; served by `cmd/switch-nexd`, not console-verified) | 22370 | 22371 | 22372 |
+| 22380 | `servers/switch-nex` — Kirby's Dream Buffet (game server 25374500; served by `cmd/switch-nexd`, not console-verified) | 22380 | 22381 | 22382 |
 | 22870 | `servers/switch-nex` — Clubhouse Games: 51 Worldwide Classics (010047700D540000, game server 2035BB00; served by `cmd/switch-nexd`, new title — no nex-go predecessor) | 22870 | 22871 | 22872 |
 
 The canonical allocation table lives in Openpak/ports.md.
