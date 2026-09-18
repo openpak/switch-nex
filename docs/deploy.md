@@ -96,7 +96,9 @@ podman build -f Dockerfile.deploy -t localhost/switch-nexd:latest .
     (`providers.watch: true`), so an edit applies without a restart;
   - firewall: the INPUT chain ends in a REJECT — the title's secure port must
     be in the multiport ACCEPT **before it** (add to the existing
-    `--dports 22111,…` rule), then persist
+    `--dports 22111,…` rule — or, since a multiport rule holds at most 15
+    ports and the first is full, the second one after it:
+    `--dports 22371,22381`), then persist
     (`sudo sh -c "iptables-save > /etc/iptables/rules.v4"`). With host
     networking there is no `PublishPort=` and no DNAT: this INPUT rule is the
     only thing standing between a console and the port. (2026-09-17 lesson:
