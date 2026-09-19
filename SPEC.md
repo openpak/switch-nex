@@ -138,6 +138,12 @@ String SourceKey                   (64 = hex of the 32-byte source key)
   The same code appears when the **secure** connection's TLS fails: the game dials the
   station URL's raw IP with hostname verification on, so the leaf needs an
   `IP:<station-address>` SAN beside the `*.s.n.srv.nintendo.net` names (2026-09-17).
+- `2306-0807` — NEX Authentication::ValidationFailed (0x00680007), raised by the
+  client. Seen 2026-09-19 on Kirby when its game-server host was not redirected:
+  the console took our BAAS token to Nintendo's NEX server.
+- `2618-0502` — Pia, joiner side. Seen 2026-09-19 on Kirby when the joiner was let
+  into a room before the host's NAT check and fetched its pre-NAT station
+  (`port=1;CID=0`); nothing reachable until the host's lobby closed.
 - `2306-0802` — seen when the game received a login response whose ticket it could not
   parse (Token Parse Error), against a reference server that closes the auth connection
   right after responding.
