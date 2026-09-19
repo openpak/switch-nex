@@ -173,6 +173,10 @@ var titles = []title{
 		// Sessions arrive closed and open ~2 s later: two consoles searching
 		// together each hosted their own room (2026-09-19, gid 2 and 3).
 		e.ForceOpenParticipation = true
+		// A joiner that got the host's room sat 10 s without asking for any
+		// station, then left (EndParticipation): the room had no session key
+		// for it to join with. Clubhouse's create-time normalisation mints one.
+		e.FinalizeCreateSession = true
 		e.Ranking2 = true
 		e.DataStore = protocols.DSEmptyList
 	}},

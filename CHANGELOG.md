@@ -1,5 +1,13 @@
 # Changelog — switch-nex
 
+## 2026-09-19 — v0.2.18: Kirby rooms carry a session key
+
+- **Kirby's Dream Buffet takes the create-time normalisation**
+  (`FinalizeCreateSession`): a 32-byte session key, the host counted as the
+  first participant, a start time. With v0.2.17 Ryujinx auto-joined the
+  console's room, then sat 10 s without asking for any station and left
+  (EndParticipation) — the room it joined had nothing for Pia to join with.
+
 ## 2026-09-19 — v0.2.17: Kirby's random match, password rooms kept private
 
 - **Kirby's Dream Buffet opens its sessions at create** (`ForceOpenParticipation`).
