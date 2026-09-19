@@ -131,6 +131,9 @@ type Env struct {
 	// reference with a 100 ms delay (ExternalReference/super-mario-3d-world).
 	ParticipateDelay time.Duration
 
+	// sent, when set, sees every notification as it is pushed (tests).
+	sent func(pid uint64, event notificationEvent)
+
 	// DataStore mode. dsOff: not registered. dsStub: reference-level answers
 	// (empty lists, NotFound on GetMeta, real data IDs from PostMetaBinary).
 	// dsBalloonErrors: Super Mario Odyssey's balloon methods (0x73.0x2F-0x35)

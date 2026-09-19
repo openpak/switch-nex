@@ -464,12 +464,26 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		if !g.participants[c.PID] {
 			g.participants[c.PID] = true
 			candidate.ParticipationCount++
-			env.notifyGathering(candidate.GID, c.PID, notificationEvent{
-				SourcePID: c.PID,
-				Type:      NotifyParticipate,
-				Param1:    uint64(candidate.GID),
-				Param2:    c.PID,
-			})
+			// The reference's shape: the joiner is announced to everyone, itself
+			// included, then gets one Participate per member already there. Pia
+			// waits on these to learn who it joined; without them Kirby's joiner
+			// sat 10 s and ended its participation (2026-09-19).
+			count := uint64(len(g.participants))
+			for _, pid := range participantPIDs(g) {
+				env.notify(pid, notificationEvent{
+					SourcePID: c.PID, Type: NotifyParticipate,
+					Param1: uint64(candidate.GID), Param2: c.PID, Param3: count,
+				})
+			}
+			for _, pid := range participantPIDs(g) {
+				if pid == c.PID {
+					continue
+				}
+				env.notify(c.PID, notificationEvent{
+					SourcePID: c.PID, Type: NotifyParticipate,
+					Param1: uint64(candidate.GID), Param2: pid, Param3: count,
+				})
+			}
 		}
 		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%d", env.Name, candidate.GID, c.PID)
 		return success(msg, candidate.bytes())

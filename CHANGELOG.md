@@ -1,5 +1,13 @@
 # Changelog — switch-nex
 
+## 2026-09-19 — v0.2.20: auto-matchmake tells the joiner who it joined
+
+- **Auto-join notifications follow the reference.** The joiner is announced
+  (Participate 3001, count in Param3) to every member, itself included, then
+  gets one Participate per member already in the room. Before, only the
+  existing members heard anything: Kirby's joiner sat at Pia's notification
+  wait for 10 s and ended its participation — "a network error has occurred".
+
 ## 2026-09-19 — v0.2.19: Kirby sends its ticket
 
 - **Kirby's secure station is `prudps`.** Decompiled: the client picks its

@@ -98,6 +98,9 @@ func (e *Env) notify(pid uint64, event notificationEvent) {
 }
 
 func (e *Env) send(pid uint64, event notificationEvent) {
+	if e.sent != nil {
+		e.sent(pid, event)
+	}
 	conn, ok := e.push.connection(pid)
 	if !ok {
 		return
