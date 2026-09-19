@@ -241,9 +241,20 @@ const (
 	StateConnected = 1
 )
 
+// writeTimeout bounds every frame write. A handler holds its title's lock while
+// it pushes to other players, so one peer that stops reading must fail its own
+// write rather than stall every connection of that title.
+const writeTimeout = 10 * time.Second
+
 func (c *Connection) send(p *Packet) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	return c.write(p)
+}
+
+// write is send without the lock, for callers that already hold writeMu.
+func (c *Connection) write(p *Packet) error {
+	_ = c.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_, err := c.conn.Write(p.Encode())
 	return err
 }
@@ -280,8 +291,7 @@ func (c *Connection) sendData(payload []byte, fragmentID uint8) error {
 		Payload:    payload,
 	}
 	c.mirror(p)
-	_, err := c.conn.Write(p.Encode())
-	return err
+	return c.write(p)
 }
 
 func (c *Connection) serve() {
