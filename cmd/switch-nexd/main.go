@@ -169,6 +169,11 @@ var titles = []title{
 		// Game server 25374500 and key read from our v0 dump; nothing measured
 		// yet. Ranking2 and DataStore are the components the binary links —
 		// the first boot's NotImplemented log is the real backlog.
+		// prudps, not prudp: Kirby's NEX picks its secure transport by scheme,
+		// and only SecureStream (prudps) sends the ticket in CONNECT. On prudp
+		// it connects with an empty payload and the server has to guess the
+		// PID (decompiled 2026-09-19: CanHandle 0x4f13dc vs 0x4bca70).
+		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		// Sessions arrive closed and open ~2 s later: two consoles searching
 		// together each hosted their own room (2026-09-19, gid 2 and 3).

@@ -1,5 +1,13 @@
 # Changelog — switch-nex
 
+## 2026-09-19 — v0.2.19: Kirby sends its ticket
+
+- **Kirby's secure station is `prudps`.** Decompiled: the client picks its
+  transport from the scheme, and only the `prudps` one (SecureStream) puts
+  `[ticket][check-data]` in CONNECT; on `prudp` it connects with an empty
+  payload and the PID had to be guessed from the latest login — a console
+  and Ryujinx logging in the same second were both handed <user-b>'s account.
+
 ## 2026-09-19 — v0.2.18: Kirby rooms carry a session key
 
 - **Kirby's Dream Buffet takes the create-time normalisation**
