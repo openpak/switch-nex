@@ -480,6 +480,8 @@ func (e *Env) Disconnected(pid uint64) {
 	if e.Match == nil || pid == 0 {
 		return
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	for _, g := range e.Match.all() {
 		if !g.participants[pid] {
 			continue

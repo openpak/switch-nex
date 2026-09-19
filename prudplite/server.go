@@ -264,8 +264,13 @@ func (c *Connection) ack(p *Packet) {
 	_ = c.send(ack)
 }
 
-// sendData sends one reliable DATA frame on the learned virtual ports.
+// sendData sends one reliable DATA frame on the learned virtual ports. The
+// sequence number is taken under the write lock: a push from another
+// connection's handler and this connection's own reply can race here, and two
+// frames must never share a sequence or go out of order.
 func (c *Connection) sendData(payload []byte, fragmentID uint8) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	c.SendSeq++
 	p := &Packet{
 		Type:       Data,
@@ -275,7 +280,8 @@ func (c *Connection) sendData(payload []byte, fragmentID uint8) error {
 		Payload:    payload,
 	}
 	c.mirror(p)
-	return c.send(p)
+	_, err := c.conn.Write(p.Encode())
+	return err
 }
 
 func (c *Connection) serve() {

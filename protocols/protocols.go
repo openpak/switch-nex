@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +43,12 @@ const (
 // plus the title's state and behaviour hooks. One Env per title.
 type Env struct {
 	Name string
+
+	// mu serialises the title's secure stage: every Dispatch and every
+	// Disconnected. Gatherings are shared between connections and their
+	// fields are not individually locked, so a disconnect tearing a player
+	// out of a session raced the handlers reading it.
+	mu sync.Mutex
 
 	// StationURL parameters for the secure endpoint handed out at login.
 	StationAddress string
@@ -199,6 +206,8 @@ func (e *Env) SecureStationURL() string {
 // Unknown protocols answer Core::NotImplemented and are logged — the game
 // tells us the backlog.
 func Dispatch(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	env.mu.Lock()
+	defer env.mu.Unlock()
 	h, ok := handlersFor(env)[msg.Protocol]
 	if !ok {
 		log.Printf("[%s] secure unimplemented proto=0x%X method=0x%X (%dB)", env.Name, msg.Protocol, msg.MethodID, len(msg.Body))
