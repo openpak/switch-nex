@@ -1,5 +1,23 @@
 # Changelog — switch-nex
 
+## Unreleased — per-title /healthz
+
+- **`GET /healthz` on every title's base+2**, the port ports.md always gave
+  it and `-dump` already printed, but nothing listened on. Stdlib `net/http`,
+  bound on all interfaces like the game ports. The body is the servers/nex
+  shape: `ok <title> auth=<base>/tls secure=<base+1>/tls`, 200 only once both
+  of the title's listeners are serving. A title whose auth or secure port
+  failed to bind still answers healthz — 503, `down <title> auth=… secure=…
+  not listening: <which>` — rather than refusing the connection, so a probe
+  tells "title broken" from "process gone".
+- A title whose secure port fails to bind now releases its auth port too
+  (it used to stay bound with nothing accepting on it).
+- **Two data races fixed** (`go test -race` was failing on main): a push
+  from another connection bumped a connection's send sequence outside its
+  write lock, and a disconnect removed a player from gatherings while other
+  handlers read them. Each title's secure-stage dispatch and disconnect
+  handling now share one mutex.
+
 ## 2026-09-18 — v0.2.15: Super Mario 3D World + Bowser's Fury and Kirby's Dream Buffet
 
 - **Two titles registered from our own dumps.** Game server IDs and access

@@ -171,9 +171,15 @@ systemctl --user daemon-reload && systemctl --user restart openpak-switch-nexd.s
 ## 4. Verify
 
 - `systemctl --user is-active openpak-switch-nexd.service` and
-  `podman logs switch-nexd` — one `serving auth :<base> secure :<base+1>`
-  line per title; `login pid=…`, `secure: connected`; `NotImplemented`
+  `podman logs switch-nexd` — one `serving auth :<base> secure :<base+1>
+  healthz :<base+2>` line per title; `login pid=…`, `secure: connected`; `NotImplemented`
   lines are the live backlog.
+- Per-title health, on the host (host networking, so loopback reaches it; the
+  healthz ports are not in the INPUT ACCEPT and stay unreachable from outside):
+  `for p in 22112 22132 22142 22152 22162 22172 22182 22192 22302 22312 22322 22332 22342 22352 22372 22382 22872; do curl -s -w ' %{http_code}\n' 127.0.0.1:$p/healthz; done`
+  — every line `ok <title> auth=<base>/tls secure=<base+1>/tls 200`. A 503
+  `down … not listening: auth|secure` names a title whose port failed to bind
+  (the log has the bind error).
 - Edge SNI handshake (auth stage through Traefik, passthrough — the cert
   served must be the OpenPak `*.s.n.srv.nintendo.net` leaf, NOT the nx-baas
   catch-all's per-hostname cert):

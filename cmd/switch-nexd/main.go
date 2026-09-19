@@ -1,6 +1,6 @@
 // Command switch-nexd serves every Switch-era NEX title on the switch-nex
 // lineage: one process, one TLS listener per endpoint (auth on the title's
-// port base, secure on base+1).
+// port base, secure on base+1) and an HTTP GET /healthz on base+2.
 //
 // Auth endpoint: TicketGranting 0x0A — LoginEx (0x02) and
 // ValidateAndRequestTicketWithParam (0x06, the NEX 4.4+ path) both answered
@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -492,6 +493,10 @@ func main() {
 			continue
 		}
 		svc := newService(t, *stationAddress, recall, ids)
+		// healthz is bound whatever happens to the game ports: a title whose
+		// listener failed answers 503 there, which says more than a refused
+		// connection does.
+		serveHealth(fmt.Sprintf(":%d", t.base+2), svc)
 
 		authLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
 		if err != nil {
@@ -501,9 +506,12 @@ func main() {
 		secureLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base+1), tlsCfg.Clone())
 		if err != nil {
 			log.Printf("[%s] secure listen :%d: %v", t.name, t.base+1, err)
+			// Half a title is no title: a login would hand out a secure
+			// station nobody answers. Release the auth port too.
+			authLn.Close()
 			continue
 		}
-		log.Printf("[%s] serving auth :%d secure :%d", t.name, t.base, t.base+1)
+		log.Printf("[%s] serving auth :%d secure :%d healthz :%d", t.name, t.base, t.base+1, t.base+2)
 		svc.serve(authLn, secureLn)
 	}
 
@@ -519,6 +527,12 @@ type service struct {
 	targetKey []byte
 	auth      *prudplite.Endpoint
 	secure    *prudplite.Endpoint
+
+	// base is the title's port block; healthz reports base and base+1.
+	base int
+	// authUp and secureUp are set once each endpoint is serving on a bound
+	// listener. healthz is 200 only while both are.
+	authUp, secureUp atomic.Bool
 }
 
 // newService wires one title: the auth endpoint that mints tickets and the
@@ -533,7 +547,7 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 	}
 	targetKey := switchnex.DeriveKey([]byte(securePassword), env.SecurePID)
 
-	s := &service{env: env, targetKey: targetKey}
+	s := &service{env: env, targetKey: targetKey, base: t.base}
 	s.auth = &prudplite.Endpoint{
 		Name:      t.name + "/auth",
 		StreamID:  1,
@@ -602,6 +616,44 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 func (s *service) serve(authLn, secureLn net.Listener) {
 	go s.auth.Listen(authLn)
 	go s.secure.Listen(secureLn)
+	s.authUp.Store(true)
+	s.secureUp.Store(true)
+}
+
+// healthz answers GET /healthz in the servers/nex shape:
+// "ok <title> auth=<port>/<transport> secure=<port>/<transport>", 200 when
+// both of the title's listeners are serving, otherwise 503 with the same line
+// headed "down" and the listeners that are not up named at the end.
+func (s *service) healthz(w http.ResponseWriter, _ *http.Request) {
+	line := fmt.Sprintf("%s auth=%d/tls secure=%d/tls", s.env.Name, s.base, s.base+1)
+	var down []string
+	if !s.authUp.Load() {
+		down = append(down, "auth")
+	}
+	if !s.secureUp.Load() {
+		down = append(down, "secure")
+	}
+	if len(down) > 0 {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprintf(w, "down %s not listening: %s\n", line, strings.Join(down, ","))
+		return
+	}
+	fmt.Fprintf(w, "ok %s\n", line)
+}
+
+// serveHealth binds s's healthz on addr (all interfaces, like the game ports)
+// and serves it for the life of the process. A failed bind is logged, not
+// fatal: the title's game ports matter more than its probe.
+func serveHealth(addr string, s *service) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Printf("[%s] healthz listen %s: %v", s.env.Name, addr, err)
+		return
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", s.healthz)
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	go func() { _ = srv.Serve(ln) }()
 }
 
 // handleAuthRMC answers the auth-connection RMCs: TicketGranting 0x0A methods
