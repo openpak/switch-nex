@@ -175,9 +175,11 @@ var titles = []title{
 		// PID (decompiled 2026-09-19: CanHandle 0x4f13dc vs 0x4bca70).
 		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
-		// Sessions arrive closed and open ~2 s later: two consoles searching
-		// together each hosted their own room (2026-09-19, gid 2 and 3).
-		e.ForceOpenParticipation = true
+		// No ForceOpenParticipation: the host opens its room itself once its NAT
+		// check and station update are done (~2 s). Forced open, a joiner got in
+		// first, fetched the host's pre-NAT station (port=1, CID=0) and probed
+		// nothing until the host's 10 s lobby had closed (2618-0502, 2026-09-19).
+		// Two players searching within those ~2 s each host their own room.
 		// A joiner that got the host's room sat 10 s without asking for any
 		// station, then left (EndParticipation): the room had no session key
 		// for it to join with. Clubhouse's create-time normalisation mints one.

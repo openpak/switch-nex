@@ -1,5 +1,14 @@
 # Changelog — switch-nex
 
+## 2026-09-19 — v0.2.21: Kirby's host opens its own room again
+
+- **`ForceOpenParticipation` off for Kirby** (added in v0.2.17). Kirby creates
+  its room closed and opens it only after its NAT check and station update.
+  Forced open, the joiner arrived first, got the host's pre-NAT station
+  (`port=1;CID=0`), probed nothing reachable until the host's 10 s lobby
+  closed, and failed with 2618-0502. Searches ~2 s apart now meet; searches
+  in the same ~2 s still each host.
+
 ## 2026-09-19 — v0.2.20: auto-matchmake tells the joiner who it joined
 
 - **Auto-join notifications follow the reference.** The joiner is announced
