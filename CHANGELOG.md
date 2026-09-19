@@ -1,6 +1,17 @@
 # Changelog — switch-nex
 
-## Unreleased — per-title /healthz
+## 2026-09-19 — v0.2.17: Kirby's random match, password rooms kept private
+
+- **Kirby's Dream Buffet opens its sessions at create** (`ForceOpenParticipation`).
+  Its sessions arrive closed and open ~2 s later, so a console and Ryujinx
+  searching a second apart each hosted a room (gid 2 and 3) instead of
+  sharing one — the Mario Tennis Aces deadlock.
+- **Auto-matchmake keeps password rooms private.** A searcher only lands in a
+  room whose password equals its own: a random search never joins a password
+  room, and a password search only finds its room. Before, any open room took
+  any searcher.
+
+## 2026-09-19 — v0.2.16: per-title /healthz
 
 - **`GET /healthz` on every title's base+2**, the port ports.md always gave
   it and `-dump` already printed, but nothing listened on. Stdlib `net/http`,

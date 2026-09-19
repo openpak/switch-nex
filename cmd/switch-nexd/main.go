@@ -170,6 +170,9 @@ var titles = []title{
 		// yet. Ranking2 and DataStore are the components the binary links —
 		// the first boot's NotImplemented log is the real backlog.
 		e.Match = protocols.NewMatchmakingStore()
+		// Sessions arrive closed and open ~2 s later: two consoles searching
+		// together each hosted their own room (2026-09-19, gid 2 and 3).
+		e.ForceOpenParticipation = true
 		e.Ranking2 = true
 		e.DataStore = protocols.DSEmptyList
 	}},

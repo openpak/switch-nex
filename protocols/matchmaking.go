@@ -452,6 +452,11 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		if candidate.MaxParticipants > 0 && candidate.ParticipationCount >= uint32(candidate.MaxParticipants) {
 			continue
 		}
+		// A password room is only for searchers carrying the same password, and a
+		// random search (no password) never lands in one.
+		if candidate.UserPassword != sess.UserPassword {
+			continue
+		}
 		if !env.nat.compatibleWith(g, c.PID) {
 			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (NAT)", env.Name, candidate.GID, c.PID)
 			continue
