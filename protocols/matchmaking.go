@@ -884,11 +884,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		}())
 
 	case 0x10: // GetParticipantsURLs(gid, list<pid>) -> list<RVConnectionData>
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.EmptyList()
-			return w.Bytes()
-		}())
+		return getParticipantsURLs(env, c, msg)
 
 	case 0x15: // FindBySingleID(gid) -> GatheringHolder
 		return errorResp(msg, rmc.ResultSessionVoid)
@@ -1038,11 +1034,7 @@ func matchMakingExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 		}())
 
 	case 0x04: // GetParticipantsURLs -> list<RVConnectionData>
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.EmptyList()
-			return w.Bytes()
-		}())
+		return getParticipantsURLsExt(env, msg)
 
 	case 0x05: // GetGatheringRelations(gid, pid, option) -> map<u32, list<u32>>
 		return success(msg, func() []byte {
@@ -1303,4 +1295,68 @@ func readSessionInParam(r *rmc.Reader) (*Session, error) {
 		return nil, err
 	}
 	return readSession(r)
+}
+
+// getParticipantsURLs implements MatchMaking 0x15 method 0x10:
+// GetParticipantsURLs(gid, list<pid>) -> list<RVConnectionData>
+// Each RVConnectionData is a list<String> of station URLs for that participant.
+func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	r := rmc.NewReader(msg.Body)
+	gid, err := r.U32()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	pids, err := readPIDList(r)
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	g, ok := env.Match.get(gid)
+	if !ok {
+		return errorResp(msg, rmc.ResultSessionVoid)
+	}
+	if !g.participants[c.PID] {
+		return errorResp(msg, rmc.ResultPermissionDenied)
+	}
+
+	w := rmc.NewWriter()
+	w.List(len(pids))
+	for _, pid := range pids {
+		peer, connected := env.push.connection(pid)
+		if !connected {
+			w.EmptyList()
+			continue
+		}
+		stations := peer.Stations()
+		w.List(len(stations))
+		for _, s := range stations {
+			w.String(s)
+		}
+	}
+	return success(msg, w.Bytes())
+}
+
+// getParticipantsURLsExt implements MatchMakingExt 0x32 method 0x04:
+// GetParticipantsURLs(list<pid>) -> list<RVConnectionData>
+func getParticipantsURLsExt(env *Env, msg *rmc.RMCMessage) []byte {
+	r := rmc.NewReader(msg.Body)
+	pids, err := readPIDList(r)
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+
+	w := rmc.NewWriter()
+	w.List(len(pids))
+	for _, pid := range pids {
+		peer, connected := env.push.connection(pid)
+		if !connected {
+			w.EmptyList()
+			continue
+		}
+		stations := peer.Stations()
+		w.List(len(stations))
+		for _, s := range stations {
+			w.String(s)
+		}
+	}
+	return success(msg, w.Bytes())
 }
