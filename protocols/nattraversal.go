@@ -38,7 +38,11 @@ func natTraversalHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	case 0x06: // GetRelaySignatureKey -> relay descriptor
 		return success(msg, relaySignatureKey())
 
-	case 0x01, 0x02, 0x04, 0x07:
+	case 0x04, 0x07: // ReportNATTraversalResult(Ext): the client's own verdict
+		reportNATResult(env, c, msg)
+		return success(msg, nil)
+
+	case 0x01, 0x02:
 		return success(msg, nil)
 
 	default:
@@ -192,4 +196,35 @@ func recordNATProperties(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 // stationPID reads the PID parameter out of a station URL string.
 func stationPID(station string) uint64 {
 	return parseStationPID(station)
+}
+
+// reportNATResult reads the verdict a client gives on its own hole punch. The
+// answer is an empty acknowledgement either way -- the punch happens between
+// the consoles and nothing here can change it -- but the verdict is the only
+// place the client says whether it reached its peer, which is otherwise
+// guesswork from the outside (2026-09-20, a race that plays and then ends).
+//
+// Layout: connection id of the peer, bool result, (detail i32 on 0x07), rtt.
+func reportNATResult(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
+	r := rmc.NewReader(msg.Body)
+	cid, err := r.U32()
+	if err != nil {
+		return
+	}
+	ok, err := r.Bool()
+	if err != nil {
+		return
+	}
+	detail := uint32(0)
+	if msg.MethodID == 0x07 {
+		if detail, err = r.U32(); err != nil {
+			return
+		}
+	}
+	rtt, _ := r.U32()
+	verdict := "FAILED"
+	if ok {
+		verdict = "ok"
+	}
+	log.Printf("[%s] nat: pid=%d punch to cid=%d %s (rtt=%dms detail=%d)", env.Name, c.PID, cid, verdict, rtt, detail)
 }
