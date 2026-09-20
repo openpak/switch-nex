@@ -36,7 +36,7 @@ are in `docs/legacy-parity.md`.
 | 22120 | Monster Hunter Generations Ultimate | deployed (wss auth + udp secure) | **out of scope** — raw PRUDP/UDP secure stage and a kerberos v0 ticket, stays nex-go |
 | 22130 | Mario Golf: Super Rush | deployed (wss) | **parity implemented** |
 | 22140 | ARMS | deployed | **parity implemented** (DataStore stub) |
-| 22150 | **Mario Kart 8 Deluxe** | deployed (debugged 2026-09-14) | **pilot** — parity implemented + wire-verified login |
+| 22150 | **Mario Kart 8 Deluxe** | deployed (debugged 2026-09-14) | **live** — console-verified 2026-09-20, four full races console ↔ Ryujinx |
 | 22160 | Super Mario Bros. 35 | deployed | **parity implemented** (Ranking2, Referee, settings) |
 | 22170 | Mario Tennis Aces | deployed (unverified) | **parity implemented** (open-participation fix) |
 | 22180 | Animal Crossing: New Horizons | porting | **parity implemented** (0x33 full-session, 0x2C codeword) |

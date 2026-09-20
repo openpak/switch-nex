@@ -7,7 +7,7 @@ the per-title comparison against the working reference servers. The shared
 transport, kerberos, RMC and result code live in the module root (SPEC.md for
 the wire facts).
 
-Pilot: `mario-kart-8-deluxe/` (port base 22150, wire-verified end to end).
+Live: `mario-kart-8-deluxe/` (port base 22150, wire-verified end to end).
 
 Ports follow `ports.md` NEX blocks: auth = base, secure = base+1 (the station
 URL carries base+1; the console dials it directly), healthz = base+2.

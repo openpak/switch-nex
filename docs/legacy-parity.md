@@ -1,6 +1,6 @@
 # earlier parity — matching the working reference servers title for title
 
-Method (same as the MK8D pilot): take each title's measured behaviour against
+Method (same as the MK8D live server): take each title's measured behaviour against
 the working reference servers (Reference), compare it against what this
 lineage serves, and close the gap so the answers match like for like. Every
 "reference" fact below comes from the per-title provenance/design records in
@@ -58,7 +58,7 @@ Per-title matchmaking rules measured on the reference and implemented here:
 | Mario Party Superstars (22110) | SC 0x0B, MM 0x15, MMX 0x6D, MME 0x32, NAT 0x03, UT 0x6E (+`MPS_INTEGER_SETTINGS`), DS 0x73 (empty-list stub), Ranking 0x70; `prudps`, legacy Pia | **implemented** incl. settings tables + detail-find sanitisation |
 | Mario Golf: Super Rush (22130) | MM, MMX, MME, NAT, UT, Ranking; `prudps`, legacy Pia | **implemented** |
 | ARMS (22140) | MM, MMX, MME, NAT, UT, Ranking, DS 0x73; `prudps`, legacy Pia | **implemented**; DataStore at stub level (see deviations) |
-| Mario Kart 8 Deluxe (22150) | MM, MMX, MME, NAT, UT, Ranking 0x70; Pia 5.19 | **implemented** (pilot; plus `cmd/mk8d`), incl. room codes and tournaments |
+| Mario Kart 8 Deluxe (22150) | MM, MMX, MME, NAT, UT, Ranking 0x70; Pia 5.19 | **implemented** (live; plus `cmd/mk8d`), incl. room codes and tournaments |
 | Super Mario Bros. 35 (22160) | MM, MMX, MME, UT (17-entry index-0 settings table), Ranking2 0x7A, Referee 0x78, MessageDelivery 0x1B; **no NAT, no Ranking 0x70**; 16-byte source key; legacy Pia | **implemented** behaviour-for-behaviour incl. round store, raw StartRoundParam echo, settings table |
 | Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented** |
 | Animal Crossing: New Horizons (22180) | MM + 0x33/0x2C, MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented**; the one title with find-by-participant serving real results |

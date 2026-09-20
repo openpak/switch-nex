@@ -32,7 +32,7 @@ The nex-go lineage keeps serving the Wii U / 3DS titles (`servers/nex`).
 - `rmc/` — packed RMC messages + the Switch byte-stream types (structure headers, strings, buffers, variants)
 - `protocols/` — the secure-stage protocol sets with response behaviour matched to the working reference servers, title for title (`docs/legacy-parity.md` is the comparison record)
 - `cmd/switch-nexd/` — one binary serving every Switch-era NEX title (per-title registry with protocol sets and behaviour overrides)
-- `cmd/mk8d/` — standalone MK8D server (the wire-verification pilot)
+- `cmd/mk8d/` — standalone MK8D server (live)
 - `titles/` — per-title notes (ports, wire facts)
 - `docs/legacy-parity.md` — per-title comparison: what the games do against the working reference servers vs what we answer
 - `docs/deploy.md` — build + ship + Traefik cutover runbook

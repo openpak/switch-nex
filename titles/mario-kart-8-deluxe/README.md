@@ -1,4 +1,7 @@
-# Mario Kart 8 Deluxe — switch-nex pilot
+# Mario Kart 8 Deluxe — switch-nex live
+
+Plays online: four full races console ↔ Ryujinx, 2026-09-20, on switch-nexd
+v0.2.21. `live` in the catalogue (row id 4).
 
 Port base 22150 (auth +0, secure +1, healthz +2). Station URL address:
 the server's public IP (raw IP — the console dials station URLs without DNS).
