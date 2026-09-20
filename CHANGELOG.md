@@ -1,5 +1,14 @@
 # Changelog — switch-nex
 
+## 2026-09-20 — v0.2.25: Mario Golf gets past its first call
+
+- **Ranking `GetRanking` (0x70.0x09) is answered.** Golf's first call after
+  CONNECT is a board read (mode 1, category 1280, a window of one around
+  itself). It got `NotImplemented`, took it as fatal and hung up one second
+  in — on the console, "could not connect to the server". The answer is a
+  RankingResult structure: empty list, zero total, a sinceTime. The two
+  by-list reads (0x0C, 0x0D) share the shape and are answered the same way.
+
 ## 2026-09-19 — v0.2.21: Kirby's host opens its own room again
 
 - **`ForceOpenParticipation` off for Kirby** (added in v0.2.17). Kirby creates

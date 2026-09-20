@@ -1,6 +1,9 @@
 // Ranking (0x70) — the common-data profile store and the competition surface.
 //
 //	0x04 UploadCommonData        -> empty; the profile blob is kept per player
+//	0x09 GetRanking              -> empty RankingResult
+//	0x0C GetRankingByPIDList     -> empty RankingResult
+//	0x0D GetRankingByUniqueIDList-> empty RankingResult
 //	0x10 GetCompetitionRanking   -> empty board
 //	0x11 SubmitScore             -> ONE zero byte
 //	0x12 GetCompetitionInfo      -> empty competition list
@@ -15,6 +18,11 @@
 //
 // The two submissions answer a single zero byte rather than an empty body. An
 // empty answer is a different length and the client counts.
+//
+// 0x09 is Mario Golf's first call after CONNECT (mode 1, category 1280, a
+// window of one around itself). Left unanswered it is a hard wall: the game
+// takes the NotImplemented and hangs up one second in, which reads on the
+// console as "could not connect to the server" (2026-09-20).
 package protocols
 
 import (
@@ -27,6 +35,9 @@ import (
 // Ranking method numbers.
 const (
 	methodRankingUploadCommonData    uint32 = 0x04
+	methodRankingGetRanking          uint32 = 0x09
+	methodRankingByPIDList           uint32 = 0x0C
+	methodRankingByUniqueIDList      uint32 = 0x0D
 	methodRankingCompetitionRanking  uint32 = 0x10
 	methodRankingSubmitScore         uint32 = 0x11
 	methodRankingGetCompetitionInfo  uint32 = 0x12
@@ -74,6 +85,22 @@ func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 	case methodRankingSubmitScore, methodRankingSubmitTime:
 		// A deposit is acknowledged with one zero byte, not an empty body.
 		return success(msg, []byte{0})
+
+	case methodRankingGetRanking, methodRankingByPIDList, methodRankingByUniqueIDList:
+		// The three board reads answer one shape, RankingResult. Nobody has
+		// deposited a score through this protocol, so the board is empty — and
+		// an empty board is a valid answer, unlike an error.
+		// ponytail: no scores are kept for 0x70 (Ranking2 0x7A does that);
+		// give RankingResult a real list once a title submits through 0x11.
+		return success(msg, func() []byte {
+			w := rmc.NewWriter()
+			w.StructOf(0, func(w *rmc.Writer) {
+				w.EmptyList()        // RankingRankData entries
+				w.U32(0)             // total count on the board
+				w.U64(nowDateTime()) // sinceTime — when the board last reset
+			})
+			return w.Bytes()
+		}())
 
 	case methodRankingGetCompetitionInfo, methodRankingCompetitionRanking:
 		return emptyList(msg)

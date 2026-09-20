@@ -477,3 +477,48 @@ func TestProtocolByteEscapesAbove7Bits(t *testing.T) {
 		}
 	}
 }
+
+// TestRankingBoardReadIsAnEmptyResult: Mario Golf's first call after CONNECT is
+// GetRanking (0x09), and a NotImplemented there makes it hang up — the console
+// reports it as a failure to connect. The answer is a RankingResult structure:
+// an empty list, a zero total, a sinceTime.
+func TestRankingBoardReadIsAnEmptyResult(t *testing.T) {
+	env := testEnv()
+	env.Ranking = true
+	// The request Mario Golf sends: mode 1, category 1280, a window of one.
+	req := rmc.NewWriter()
+	req.U8(1)
+	req.U32(1280)
+	req.StructOf(0, func(w *rmc.Writer) {
+		w.U8(0)
+		w.U8(0xFF)
+		w.U8(0)
+		w.U8(2)
+		w.U32(0)
+		w.U8(1)
+	})
+	req.U64(0) // uniqueID
+	req.U64(0) // principalID
+	for _, method := range []uint32{0x09, 0x0C, 0x0D} {
+		_, body, errCode := decodeResponse(Dispatch(env, conn(5), request(ProtoRanking, method, req.Bytes())))
+		if errCode != 0 {
+			t.Fatalf("method %#x errored %#x — the game hangs up on this", method, errCode)
+		}
+		r := rmc.NewReader(body)
+		if _, _, err := r.StructHeader(); err != nil {
+			t.Fatalf("method %#x: no structure header: %v", method, err)
+		}
+		if n, err := r.ListHeader(); err != nil || n != 0 {
+			t.Fatalf("method %#x: entries n=%d err=%v, want an empty list", method, n, err)
+		}
+		if total, err := r.U32(); err != nil || total != 0 {
+			t.Fatalf("method %#x: total=%d err=%v", method, total, err)
+		}
+		if _, err := r.U64(); err != nil { // sinceTime
+			t.Fatalf("method %#x: no sinceTime: %v", method, err)
+		}
+		if r.Remaining() != 0 {
+			t.Fatalf("method %#x: %d trailing bytes", method, r.Remaining())
+		}
+	}
+}
