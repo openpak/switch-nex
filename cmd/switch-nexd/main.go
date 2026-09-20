@@ -65,7 +65,14 @@ var titles = []title{
 	}},
 	{"mario-golf-super-rush", 22130, "1cb8027c", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
-		e.Pia = protocols.LegacyPia()
+		// The reference's Golf profile is the MODERN shape — its own
+		// GOLF_LEGACY_PIA defaults to 0, and the legacy type=0x03 is the
+		// opt-in. We had the two the wrong way round, so Golf's public
+		// station went back type=3 with no Pa while a Pia 5.19+ title
+		// expects type=0x0B and a Pa to punch toward. The era-guess the
+		// reference made is now measured: Ryujinx reports Golf linking
+		// Pia 5.33.0, well past the 5.19 cutover.
+		e.Pia = protocols.Pia519()
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		// The reference normalises EVERY session it creates, for every title.

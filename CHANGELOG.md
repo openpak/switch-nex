@@ -1,5 +1,16 @@
 # Changelog — switch-nex
 
+## 2026-09-20 — v0.2.27: Golf gets the Pia shape the reference gives it
+
+- **Mario Golf: Super Rush moves to the Pia 5.19+ station shape.** The
+  reference's Golf profile defaults to the MODERN shape — its own
+  `GOLF_LEGACY_PIA` is `0`, and the legacy type=0x03 is the opt-in. We had the
+  two the wrong way round: Golf's public station went back `type=3` with no
+  `Pa`, and Pa is what a Pia 5.19+ title punches toward. Its era-guess is now
+  measured — Ryujinx reports Golf linking **Pia 5.33.0**, well past the 5.19
+  cutover, and a working title on this server (Kirby) already gets
+  `type=11;Pa=`.
+
 ## 2026-09-20 — v0.2.26: Golf's lobby is normalised like every other
 
 - **`FinalizeCreateSession` on for Mario Golf: Super Rush.** The reference
