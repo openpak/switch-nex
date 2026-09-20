@@ -428,6 +428,14 @@ func finalizeCreatedSession(env *Env, s *Session) {
 	for len(s.Attributes) < 6 {
 		s.Attributes = append(s.Attributes, 0)
 	}
+	// The reference stamps these two on every session it creates. Left out, the
+	// param map goes back exactly as the client sent it, which for a session the
+	// client has not filled in is empty.
+	if s.MatchmakeParam == nil {
+		s.MatchmakeParam = map[string]rmc.Variant{}
+	}
+	s.MatchmakeParam["@SR"] = rmc.Variant{TypeID: 3, Bool: true}
+	s.MatchmakeParam["@GIR"] = rmc.Variant{TypeID: 1, I64: 3}
 	if s.MatchmakeParam == nil {
 		s.MatchmakeParam = map[string]rmc.Variant{}
 	}

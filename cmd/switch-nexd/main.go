@@ -68,6 +68,12 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
+		// The reference normalises EVERY session it creates, for every title.
+		// Without it Golf's lobby went back keyless, with a participation count
+		// of one while two players stood in it: both sides punched through to
+		// each other, neither ever started, and each gave up after ~60 s
+		// (2026-09-20).
+		e.FinalizeCreateSession = true
 	}},
 	{"arms", 22140, "b6b34c51", func(e *protocols.Env) {
 		e.StationScheme = "prudps"

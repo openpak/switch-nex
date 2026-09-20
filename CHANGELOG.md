@@ -1,5 +1,16 @@
 # Changelog — switch-nex
 
+## 2026-09-20 — v0.2.26: Golf's lobby is normalised like every other
+
+- **`FinalizeCreateSession` on for Mario Golf: Super Rush.** The reference
+  normalises every session it creates, for every title; we had it behind a
+  per-title flag set only for Clubhouse Games and MK8D. Golf's lobby went back
+  keyless, unstamped, and counting one participant while two stood in it. Both
+  sides hole-punched through to each other and neither ever started; each gave
+  up after ~60 s and re-matchmade.
+- **`@SR` and `@GIR` are stamped on a created session**, as the reference does.
+  Without them the param map goes back exactly as the client sent it.
+
 ## 2026-09-20 — v0.2.25: Mario Golf gets past its first call
 
 - **Ranking `GetRanking` (0x70.0x09) is answered.** Golf's first call after
