@@ -86,6 +86,15 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 		return
 	}
 
+	// Which station a peer is told to probe decides whether the punch can land
+	// at all, so both halves are logged: what the caller asked us to push, and
+	// every station it has registered. Two peers in one household advertise a
+	// LAN address, and the port they pair it with is the one their NAT was seen
+	// to use -- which is not their local port unless the router preserved it
+	// (2026-09-20, Mario Kart 8 Deluxe: race starts, dies ten seconds in).
+	log.Printf("[%s] nat: probe request pid=%d self=%s targets=%v stations=%v",
+		env.Name, c.PID, station, targets, c.Stations())
+
 	params := rmc.NewWriter()
 	params.String(station)
 	for _, t := range targets {
