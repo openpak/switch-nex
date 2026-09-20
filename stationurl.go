@@ -84,6 +84,14 @@ func (u *URL) Remove(k string) {
 	}
 }
 
+// GetInt returns a parameter as uint64, or 0 if not present or not an integer.
+func (u *URL) GetInt(k string) uint64 {
+	if v, ok := u.IntVals[k]; ok {
+		return v
+	}
+	return 0
+}
+
 // Copy returns an independent copy, key order included.
 func (u *URL) Copy() *URL {
 	c := &URL{Scheme: u.Scheme, Params: map[string]string{}, IntVals: map[string]uint64{}, order: append([]string(nil), u.order...)}

@@ -956,10 +956,11 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		return success(msg, nil)
 
 	case 0x29: // GetSessionURLs(gid) -> list<URL>
-		// How a joiner learns where the host is: the HOST's station URLs,
-		// lan first then public (the order MK8D registers). Only someone
-		// already in the session may ask, and a host with no live connection
-		// is an empty list — there is nothing to point at.
+		// How a joiner learns where the host is: the HOST's station URLs.
+		// Critical: wait for the host's ReplaceURL (which carries the post-NAT
+		// UDP port and RVCID). Without it, the joiner gets the host's TCP port
+		// and the P2P probe never lands. OpenPak waits up to 2.5s polling
+		// every 100ms for the host to report ReplaceURL.
 		gid, err := r.U32()
 		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument)
@@ -975,7 +976,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		if !connected {
 			return emptyList(msg)
 		}
-		return success(msg, stationURLList(peer))
+		return success(msg, stationURLListWithHostWait(peer))
 
 	default:
 		return notImplemented(env, msg)

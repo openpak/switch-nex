@@ -23,6 +23,7 @@ package protocols
 import (
 	"log"
 	"net"
+	"time"
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
@@ -228,6 +229,51 @@ var cgnat = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
 // stationURLList answers RequestURLs with the caller's own stations.
 func stationURLList(c *prudplite.Connection) []byte {
 	stations := c.Stations()
+	w := rmc.NewWriter()
+	w.List(len(stations))
+	for _, s := range stations {
+		w.String(s)
+	}
+	return w.Bytes()
+}
+
+// stationURLListWithHostWait returns the host's station URLs, waiting up to
+// 2.5s for the host to report its ReplaceURL (which carries the post-NAT UDP
+// port and RVCID). OpenPak does this because the host's initial station URLs
+// carry the WebSocket TCP port, not the real UDP port Pia needs for hole-punch.
+func stationURLListWithHostWait(peer *prudplite.Connection) []byte {
+	const (
+		hostReplaceURLWait = 2500 * time.Millisecond
+		hostReplaceURLPoll = 100 * time.Millisecond
+	)
+	deadline := time.Now().Add(hostReplaceURLWait)
+	for time.Now().Before(deadline) {
+		stations := peer.Stations()
+		if hasValidReplaceURL(stations) {
+			return buildStationList(stations)
+		}
+		time.Sleep(hostReplaceURLPoll)
+	}
+	// Timeout: return whatever the host has (raw stations)
+	return buildStationList(peer.Stations())
+}
+
+// hasValidReplaceURL checks if the station list contains a station with valid
+// post-NAT data: RVCID > 0, CID > 0, and port > 1 (not the initial port=1).
+func hasValidReplaceURL(stations []string) bool {
+	for _, s := range stations {
+		u := switchnex.Parse(s)
+		rvcid := u.GetInt("RVCID")
+		cid := u.GetInt("CID")
+		port := u.GetInt("port")
+		if rvcid > 0 && cid > 0 && port > 1 && port <= 65535 {
+			return true
+		}
+	}
+	return false
+}
+
+func buildStationList(stations []string) []byte {
 	w := rmc.NewWriter()
 	w.List(len(stations))
 	for _, s := range stations {
