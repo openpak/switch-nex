@@ -120,6 +120,13 @@ type Env struct {
 	// ForceOpenParticipation — mark the session open and active.
 	FinalizeCreateSession bool
 
+	// MatchModeAttribute matches auto-match rooms on the search criteria's
+	// primary option (GameMode plus the first attribute string) instead of
+	// taking any open room. Golf-only: its ranked queues share every server
+	// field except the criteria, and the later attributes are per-player
+	// settings that never agree between two players.
+	MatchModeAttribute bool
+
 	// JoinEchoSession answers the join family with the full session instead
 	// of a bare bool. The client builds its P2P mesh from the echoed
 	// participation count, which must report the PRE-join value for a newly

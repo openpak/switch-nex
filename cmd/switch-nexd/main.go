@@ -75,6 +75,10 @@ var titles = []title{
 		e.Pia = protocols.Pia519()
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
+		// Ranked Speed and Standard queues share every server field except
+		// the search criteria's primary option: without this both modes seat
+		// one lobby (2026-09-21, console).
+		e.MatchModeAttribute = true
 		// The reference normalises EVERY session it creates, for every title.
 		// Without it Golf's lobby went back keyless, with a participation count
 		// of one while two players stood in it: both sides punched through to

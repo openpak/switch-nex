@@ -1,5 +1,17 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.33: match Golf rooms on the primary option
+
+- **Golf-only `MatchModeAttribute`:** auto-match rooms compare the search
+  criteria's GameMode plus the FIRST attribute string only. The later
+  attributes are per-player settings (console-measured: constant per player
+  across every mode and round) that never agree between two players, so
+  matching them — v0.2.32 following the reference's exact-match rule —
+  stranded every pair in private rooms. The criteria decoding itself
+  (AutoMatchmakeParam tail) stays, verified against a captured console body.
+- Other titles are untouched: without the flag, matching is password + NAT
+  as before.
+
 ## 2026-09-21 — v0.2.32: auto-match follows the search criteria
 
 - **Rooms are matched against the search criteria, as the reference matches

@@ -482,7 +482,7 @@ func finalizeCreatedSession(env *Env, s *Session) {
 // search inside one mode — and separated everything; v0.2.30 reverted to
 // password+NAT while the criteria were decoded.
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria) []byte {
-	logSessionTemplate(env, c.PID, sess, msg.Body)
+	logSessionTemplate(env, c.PID, sess)
 	for _, candidate := range env.Match.open() {
 		g, ok := env.Match.get(candidate.GID)
 		if !ok {
@@ -496,8 +496,8 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		if candidate.UserPassword != sess.UserPassword {
 			continue
 		}
-		if !criteriaMatchAny(g.sess, criteria) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (criteria)", env.Name, candidate.GID, c.PID)
+		if env.MatchModeAttribute && !modeAttrMatch(g.sess, criteria) {
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (mode)", env.Name, candidate.GID, c.PID)
 			continue
 		}
 		if !env.nat.compatibleWith(g, c.PID) {
@@ -592,43 +592,33 @@ func readSearchCriteriaList(r *rmc.Reader) ([]*searchCriteria, error) {
 	return out, nil
 }
 
-// criteriaMatchAny reports whether a stored room satisfies at least one of
-// the searcher's criteria — the reference tries each criterion in turn and
-// takes the first room with results. No criteria (the pre-param path) matches
-// everything.
-func criteriaMatchAny(room *Session, criteria []*searchCriteria) bool {
+// modeAttrMatch reports whether a stored room takes the searcher: at least
+// one criterion names the room's primary option. Only the first attribute is
+// compared — it is the lobby's primary option (Golf: the ranked queue), while
+// the later attributes are per-player settings that never agree between two
+// different players (console-measured 2026-09-21: character slots 259 vs 320
+// are constant per player across every mode and round). Matching those, as
+// v0.2.32 did following the reference's exact-match rule, strands every pair
+// in private rooms. No criteria (the pre-param path) matches everything.
+func modeAttrMatch(room *Session, criteria []*searchCriteria) bool {
 	if len(criteria) == 0 {
 		return true
 	}
 	for _, c := range criteria {
-		if criteriaMatch(room, c) {
+		if c.GameMode != "" && !numberMatch(c.GameMode, uint64(room.GameMode)) {
+			continue
+		}
+		if len(c.Attribs) == 0 || c.Attribs[0] == "" {
+			return true
+		}
+		if len(room.Attributes) == 0 {
+			continue
+		}
+		if numberMatch(c.Attribs[0], uint64(room.Attributes[0])) {
 			return true
 		}
 	}
 	return false
-}
-
-// criteriaMatch is one criterion against one room, following the reference:
-// the GameMode agrees, and every non-empty attribute string equals the room's
-// attribute at the same index — or falls in its min,max range. Attribute
-// index 1 is reserved for the selection method (ranked ordering) and never
-// filters.
-func criteriaMatch(room *Session, c *searchCriteria) bool {
-	if c.GameMode != "" && !numberMatch(c.GameMode, uint64(room.GameMode)) {
-		return false
-	}
-	for i, a := range c.Attribs {
-		if i == 1 || a == "" {
-			continue
-		}
-		if i >= len(room.Attributes) {
-			return false
-		}
-		if !numberMatch(a, uint64(room.Attributes[i])) {
-			return false
-		}
-	}
-	return true
 }
 
 // numberMatch compares a criteria number string against a room value: either
@@ -657,7 +647,7 @@ func numberMatch(expr string, v uint64) bool {
 // description are all candidates for the field that names the lobby's mode.
 // Diagnostic, for the Golf Speed/Standard split (2026-09-21) — searches are
 // infrequent, so one line per search is cheap.
-func logSessionTemplate(env *Env, pid uint64, sess *Session, body []byte) {
+func logSessionTemplate(env *Env, pid uint64, sess *Session) {
 	const maxAppBuf = 64
 	app := sess.ApplicationBuffer
 	if len(app) > maxAppBuf {
@@ -671,15 +661,6 @@ func logSessionTemplate(env *Env, pid uint64, sess *Session, body []byte) {
 	log.Printf("[%s] matchmake: template pid=%d gameMode=%d attrs=%v appBuf=%x params={%s} desc=%q pw=%v",
 		env.Name, pid, sess.GameMode, sess.Attributes, app,
 		strings.Join(params, " "), sess.Description, sess.UserPassword != "")
-	// Raw search bytes (capped): the parsed fields above are identical across
-	// Golf's Speed and Standard queues, so the marker — if the server ever
-	// sees it — is in a field not decoded above. One line per search.
-	const maxRaw = 1024
-	raw := body
-	if len(raw) > maxRaw {
-		raw = raw[:maxRaw]
-	}
-	log.Printf("[%s] matchmake: raw pid=%d %x", env.Name, pid, raw)
 }
 
 // variantString renders one matchmake-param entry for the template log.

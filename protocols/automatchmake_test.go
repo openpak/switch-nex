@@ -60,50 +60,45 @@ func TestAutoMatchmakeParsesGolfCriteria(t *testing.T) {
 // reverted with the attribute check — same-mode searches vary their
 // attributes, so it separated everything. It returns with the real
 // mode-marker fix, once the template log names the field.
-// TestAutoMatchmakeMatchesSearchCriteria: rooms are matched against the
-// searcher's criteria the way the reference matches them — GameMode plus the
-// non-empty attribute strings, index 1 never filtering. No criteria (the
-// pre-param path) matches anything.
-func TestAutoMatchmakeMatchesSearchCriteria(t *testing.T) {
+// TestAutoMatchmakeMatchesModeAttribute: with MatchModeAttribute (Golf), a
+// room takes searchers naming its primary option and turns away the rest —
+// while the later per-player attributes never decide. Without criteria (the
+// pre-param path) everything meets, as before.
+func TestAutoMatchmakeMatchesModeAttribute(t *testing.T) {
 	e := NewEnv("mario-golf-super-rush", "10.0.0.1", 22130)
 	e.Match = NewMatchmakingStore()
 	e.ForceOpenParticipation = true
-	room := func() uint32 {
-		sess := &Session{MaxParticipants: 8, GameMode: 2, Attributes: []uint32{3, 0, 259, 262, 0, 1073769413}}
-		autoMatchmake(e, conn(1), request(ProtoMatchmakeExt, 0x28, nil), sess, []*searchCriteria{{
-			Attribs:  []string{"3", "", "259", "", "", "1073769413"},
-			GameMode: "2",
-		}})
-		return e.Match.sessionsOf(1)[0].GID
-	}
+	e.MatchModeAttribute = true
+	host := &Session{MaxParticipants: 8, GameMode: 2, Attributes: []uint32{3, 0, 259, 262, 0, 1073769413}}
+	autoMatchmake(e, conn(1), request(ProtoMatchmakeExt, 0x28, nil), host, []*searchCriteria{{
+		Attribs: []string{"3", "", "259", "", "", "1073769413"}, GameMode: "2",
+	}})
+	gid := e.Match.sessionsOf(1)[0].GID
 	search := func(pid uint64, crit *searchCriteria) uint32 {
 		sess := &Session{MaxParticipants: 8, GameMode: 2, Attributes: []uint32{1, 0, 320, 1, 0, 1073769413}}
 		autoMatchmake(e, conn(pid), request(ProtoMatchmakeExt, 0x28, nil), sess, []*searchCriteria{crit})
 		return e.Match.sessionsOf(pid)[0].GID
 	}
 
-	gid := room()
-	// Same criteria meet the room, whatever the searcher's own session is.
-	if got := search(2, &searchCriteria{Attribs: []string{"3", "", "259", "", "", "1073769413"}, GameMode: "2"}); got != gid {
-		t.Fatalf("same-criteria searcher got gid %d, want %d", got, gid)
+	// Same primary option meets, whatever the player's own later settings.
+	if got := search(2, &searchCriteria{Attribs: []string{"3", "", "999", "", "", "0"}, GameMode: "2"}); got != gid {
+		t.Fatalf("same-option searcher got gid %d, want %d", got, gid)
 	}
-	// A different mode string or attribute value opens a new room…
-	if got := search(3, &searchCriteria{Attribs: []string{"1", "", "320", "", "", "1073769413"}, GameMode: "2"}); got == gid {
-		t.Fatalf("other-mode searcher joined gid %d", got)
+	// Another primary option opens its own room…
+	other := search(3, &searchCriteria{Attribs: []string{"1", "", "320", "", "", "1073769413"}, GameMode: "2"})
+	if other == gid {
+		t.Fatalf("other-option searcher joined gid %d", gid)
 	}
-	// …unless the criterion is empty or a range covering the room…
-	if got := search(4, &searchCriteria{Attribs: []string{"", "", "200,300", "", "", ""}, GameMode: "2"}); got != gid {
-		t.Fatalf("range-criteria searcher got gid %d, want %d", got, gid)
+	// …which takes its own kind, including ranges.
+	if got := search(4, &searchCriteria{Attribs: []string{"0,1", "", "", "", "", ""}, GameMode: "2"}); got != other {
+		t.Fatalf("range searcher got gid %d, want %d", got, other)
 	}
-	// …and attribute index 1 never filters (selection method, not a filter).
-	if got := search(5, &searchCriteria{Attribs: []string{"3", "999", "259", "", "", "1073769413"}, GameMode: "2"}); got != gid {
-		t.Fatalf("index-1 criteria searcher got gid %d, want %d", got, gid)
-	}
-	// No criteria (pre-param path) matches everything.
+	// No criteria (pre-param path) matches everything: it joins one of the
+	// two open rooms (map order decides which).
 	sess := &Session{MaxParticipants: 8}
-	autoMatchmake(e, conn(6), request(ProtoMatchmakeExt, 0x03, nil), sess, nil)
-	if got := e.Match.sessionsOf(6)[0].GID; got != gid {
-		t.Fatalf("criterialess searcher got gid %d, want %d", got, gid)
+	autoMatchmake(e, conn(5), request(ProtoMatchmakeExt, 0x03, nil), sess, nil)
+	if got := e.Match.sessionsOf(5)[0].GID; got != gid && got != other {
+		t.Fatalf("criterialess searcher got gid %d, want %d or %d", got, gid, other)
 	}
 }
 
