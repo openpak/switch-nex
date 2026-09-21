@@ -1,5 +1,21 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.32: auto-match follows the search criteria
+
+- **Rooms are matched against the search criteria, as the reference matches
+  them.** `AutoMatchmakeWithParam` carries an `AutoMatchmakeParam` past the
+  source session: a block-list, option, join message, and the search-criteria
+  list. Each criterion names a GameMode and attribute strings; a room
+  qualifies when the GameMode agrees and every non-empty attribute string
+  equals the room's attribute at the same index (or falls in its min,max
+  range). Attribute index 1 is reserved for the selection method and never
+  filters. No criteria (the pre-param path) matches everything, and an
+  unreadable criteria block fails open to the same.
+- **This is the real Speed/Standard split.** The criteria carry the mode and
+  settings as strings (console-measured: `["3","","259",""…""]` vs
+  `["1","","320",""…""]`, GameMode `"2"`); the source sessions alone do not
+  tell the queues apart, which is what sank v0.2.29.
+
 ## 2026-09-21 — v0.2.31: log raw auto-match searches
 
 - **Diagnostic:** confirmed on console that Golf's Speed and Standard ranked

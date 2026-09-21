@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -111,11 +112,12 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		return success(msg, nil)
 
 	case 0x03: // AutoMatchmakePostpone(GatheringHolder session, string msg, list<URL>)
+		// The pre-param path carries no search criteria: match anything.
 		sess, err := readSessionFromHolder(r)
 		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument)
 		}
-		return autoMatchmake(env, c, msg, sess)
+		return autoMatchmake(env, c, msg, sess, nil)
 
 	case 0x04, 0x2A, 0x34: // BrowseMatchmakeSession[NoHolder][NoResultRange](criteria, resultRange?)
 		sessions := env.Match.open()
@@ -237,8 +239,10 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		return joinByGID(env, c, msg, r)
 
 	case 0x28: // AutoMatchmakeWithParamPostpone(param, list<URL>)
-		// Param: struct { SourceMatchmakeSession, list<PID>, ... } — session
-		// first, trailing ponytail block-list unread.
+		// Param: AutoMatchmakeParam — the source session, then the search
+		// criteria the room has to satisfy. The criteria (not the source
+		// session) name the lobby: GameMode plus the non-empty attribute
+		// strings, exactly as the reference matches them.
 		if _, _, err := r.StructHeader(); err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument)
 		}
@@ -246,7 +250,15 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument)
 		}
-		return autoMatchmake(env, c, msg, sess)
+		criteria, err := readSearchCriteriaList(r)
+		if err != nil {
+			// A param shape beyond the session is one this title drew
+			// differently — match without criteria (the v0.2.28 behaviour)
+			// rather than refuse the search outright.
+			log.Printf("[%s] matchmake: unreadable search criteria for pid=%d, matching without", env.Name, c.PID)
+			criteria = nil
+		}
+		return autoMatchmake(env, c, msg, sess, criteria)
 
 	case 0x29: // FindMatchmakeSessionByGatheringIDDetail(gid) -> session
 		gid, err := r.U32()
@@ -455,14 +467,21 @@ func finalizeCreatedSession(env *Env, s *Session) {
 // reach ends up hosting alone, which is a worse experience for one person
 // rather than a broken one for five.
 //
-// "Same game" is the other half, and it is NOT solved yet: v0.2.29 matched on
-// GameMode plus the full attribute list, which turned out to vary per search
-// even inside one mode — same-mode lobbies stopped meeting entirely
-// (2026-09-21, Golf: a Standard and a Speed lobby both unjoinable). The
-// attribute check is reverted to v0.2.28 behaviour (password + NAT only) until
-// the real mode marker is identified; the template log below is what will
-// identify it.
-func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session) []byte {
+// "Same game" is the other half, matched the way the reference matches it:
+// against the searcher's search criteria, not its source session. Each
+// criterion names a GameMode and attribute strings; a room qualifies when the
+// GameMode agrees and every non-empty attribute string equals the room's
+// attribute at the same index (or falls in its min,max range). Attribute
+// index 1 is reserved for the selection method and never filters. Empty
+// criteria (the pre-param 0x03 path) match any room.
+//
+// This is what separates Golf's ranked queues: the criteria carry the mode
+// and settings as strings (2026-09-21, console: ["3","","259",""…""] vs
+// ["1","","320",""…""]), while the source sessions alone do not tell them
+// apart. v0.2.29 matched on the session attributes instead — which vary per
+// search inside one mode — and separated everything; v0.2.30 reverted to
+// password+NAT while the criteria were decoded.
+func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria) []byte {
 	logSessionTemplate(env, c.PID, sess, msg.Body)
 	for _, candidate := range env.Match.open() {
 		g, ok := env.Match.get(candidate.GID)
@@ -477,8 +496,10 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		if candidate.UserPassword != sess.UserPassword {
 			continue
 		}
-		// ponytail: mode/attribute matching reverted (see above) — password
-		// and NAT only, as v0.2.28.
+		if !criteriaMatchAny(g.sess, criteria) {
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (criteria)", env.Name, candidate.GID, c.PID)
+			continue
+		}
 		if !env.nat.compatibleWith(g, c.PID) {
 			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (NAT)", env.Name, candidate.GID, c.PID)
 			continue
@@ -513,16 +534,122 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 	return createSession(env, c, msg, sess)
 }
 
-// attributesMatch is reserved for the real mode-separation fix: every
-// attribute the searcher sent must equal the room's at the same index.
-// Unused until the mode marker is identified (see autoMatchmake).
-func attributesMatch(room, want []uint32) bool {
-	for i, v := range want {
-		if i >= len(room) || room[i] != v {
+// searchCriteria is one MatchmakeSessionSearchCriteria as far as matching
+// needs it: the GameMode string and the attribute strings. Everything else
+// in the structure (participant bounds, system type, codeword…) is unread.
+type searchCriteria struct {
+	Attribs  []string
+	GameMode string
+}
+
+// readSearchCriteriaList parses the AutoMatchmakeParam tail past the source
+// session: the participant block-list, the check gid, the option, the join
+// message, the participant count, then the criteria list. Only the criteria
+// are kept.
+func readSearchCriteriaList(r *rmc.Reader) ([]*searchCriteria, error) {
+	if _, err := readPIDList(r); err != nil { // additional participants
+		return nil, err
+	}
+	if _, err := r.U32(); err != nil { // GID for participation check
+		return nil, err
+	}
+	if _, err := r.U32(); err != nil { // auto-matchmake option
+		return nil, err
+	}
+	if _, err := r.String(); err != nil { // join message
+		return nil, err
+	}
+	if _, err := r.U16(); err != nil { // participation count
+		return nil, err
+	}
+	n, err := r.ListHeader()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*searchCriteria, 0, min(int(n), 8))
+	for i := uint32(0); i < n && len(out) < 8; i++ {
+		_, cr, err := r.Struct()
+		if err != nil {
+			return nil, err
+		}
+		an, err := cr.ListHeader()
+		if err != nil {
+			return nil, err
+		}
+		c := &searchCriteria{}
+		for k := uint32(0); k < an && len(c.Attribs) < 16; k++ {
+			s, err := cr.String()
+			if err != nil {
+				return nil, err
+			}
+			c.Attribs = append(c.Attribs, s)
+		}
+		if c.GameMode, err = cr.String(); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// criteriaMatchAny reports whether a stored room satisfies at least one of
+// the searcher's criteria — the reference tries each criterion in turn and
+// takes the first room with results. No criteria (the pre-param path) matches
+// everything.
+func criteriaMatchAny(room *Session, criteria []*searchCriteria) bool {
+	if len(criteria) == 0 {
+		return true
+	}
+	for _, c := range criteria {
+		if criteriaMatch(room, c) {
+			return true
+		}
+	}
+	return false
+}
+
+// criteriaMatch is one criterion against one room, following the reference:
+// the GameMode agrees, and every non-empty attribute string equals the room's
+// attribute at the same index — or falls in its min,max range. Attribute
+// index 1 is reserved for the selection method (ranked ordering) and never
+// filters.
+func criteriaMatch(room *Session, c *searchCriteria) bool {
+	if c.GameMode != "" && !numberMatch(c.GameMode, uint64(room.GameMode)) {
+		return false
+	}
+	for i, a := range c.Attribs {
+		if i == 1 || a == "" {
+			continue
+		}
+		if i >= len(room.Attributes) {
+			return false
+		}
+		if !numberMatch(a, uint64(room.Attributes[i])) {
 			return false
 		}
 	}
 	return true
+}
+
+// numberMatch compares a criteria number string against a room value: either
+// an exact number or a min,max range, as the reference accepts both.
+func numberMatch(expr string, v uint64) bool {
+	if lo, hi, ok := strings.Cut(expr, ","); ok {
+		min, err := strconv.ParseUint(strings.TrimSpace(lo), 10, 32)
+		if err != nil {
+			return false
+		}
+		max, err := strconv.ParseUint(strings.TrimSpace(hi), 10, 32)
+		if err != nil {
+			return false
+		}
+		return min <= v && v <= max
+	}
+	n, err := strconv.ParseUint(strings.TrimSpace(expr), 10, 32)
+	if err != nil {
+		return false
+	}
+	return n == v
 }
 
 // logSessionTemplate dumps a searcher's full session template in one line:
