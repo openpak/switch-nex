@@ -471,9 +471,20 @@ func orEnv(given, envVar string) string {
 	return os.Getenv(envVar)
 }
 
-// pidFor returns a stable NEX PID for a login username: the console must keep
-// recognizing itself as the same principal across logins.
+// pidFor returns a stable NEX PID for a login username.
+//
+// ACNH (and potentially other titles with an out-of-band account id) logs in
+// with its NUMERIC account id as the username — observed on the wire
+// 2026-09-21 ("12297829382472990721", "12297829382472990722"). A numeric
+// username IS the principal: hashing it (below) mints a second, unrelated
+// identity, and anything that resolves by id — FindMatchmakeSessionBy-
+// Participant island visits included — looks for the number the game knows
+// and never finds the hash. So a username that parses as a nonzero uint64
+// is used verbatim; only opaque names fall back to the hash.
 func pidFor(username string) uint64 {
+	if id, err := strconv.ParseUint(username, 10, 64); err == nil && id != 0 {
+		return id
+	}
 	h := sha512.Sum512_256([]byte("openpak-switch-nex-pid:" + username))
 	return 0x6C000000 | uint64(binary.BigEndian.Uint32(h[:4])&0x00FFFFFF)
 }

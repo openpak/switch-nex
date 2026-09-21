@@ -1,5 +1,14 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.29: numeric login usernames are the PID
+
+- **A numeric login username is used verbatim as the NEX PID.** ACNH logs
+  in with its numeric account id (`"12297829382472990721"`), and hashing it
+  minted a second, unrelated identity: `FindMatchmakeSessionByParticipant`
+  looked for the number the game knows and found only the hash, so every
+  island visit answered empty ("no island to visit"). Opaque names keep the
+  stable hash; `0`/empty never become PID 0.
+
 ## 2026-09-21 — v0.2.34: Golf explicit joins echo the session
 
 - **Golf-only `JoinEchoSession`** (same flag MK8D and Clubhouse carry).
