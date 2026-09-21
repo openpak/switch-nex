@@ -1,5 +1,13 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.31: log raw auto-match searches
+
+- **Diagnostic:** confirmed on console that Golf's Speed and Standard ranked
+  searches are identical in every parsed field (GameMode 2, same attributes,
+  same params, empty appBuf/description) — the v0.2.29 attribute theory is
+  dead. Each auto-match search now also logs its raw bytes (capped) so the
+  marker can be found by offline diff, if the server ever sees it.
+
 ## 2026-09-21 — v0.2.30: revert mode-split matching, log session templates
 
 - **Reverted:** v0.2.29 matched auto-match rooms on GameMode plus the full

@@ -463,7 +463,7 @@ func finalizeCreatedSession(env *Env, s *Session) {
 // the real mode marker is identified; the template log below is what will
 // identify it.
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session) []byte {
-	logSessionTemplate(env, c.PID, sess)
+	logSessionTemplate(env, c.PID, sess, msg.Body)
 	for _, candidate := range env.Match.open() {
 		g, ok := env.Match.get(candidate.GID)
 		if !ok {
@@ -530,7 +530,7 @@ func attributesMatch(room, want []uint32) bool {
 // description are all candidates for the field that names the lobby's mode.
 // Diagnostic, for the Golf Speed/Standard split (2026-09-21) — searches are
 // infrequent, so one line per search is cheap.
-func logSessionTemplate(env *Env, pid uint64, sess *Session) {
+func logSessionTemplate(env *Env, pid uint64, sess *Session, body []byte) {
 	const maxAppBuf = 64
 	app := sess.ApplicationBuffer
 	if len(app) > maxAppBuf {
@@ -544,6 +544,15 @@ func logSessionTemplate(env *Env, pid uint64, sess *Session) {
 	log.Printf("[%s] matchmake: template pid=%d gameMode=%d attrs=%v appBuf=%x params={%s} desc=%q pw=%v",
 		env.Name, pid, sess.GameMode, sess.Attributes, app,
 		strings.Join(params, " "), sess.Description, sess.UserPassword != "")
+	// Raw search bytes (capped): the parsed fields above are identical across
+	// Golf's Speed and Standard queues, so the marker — if the server ever
+	// sees it — is in a field not decoded above. One line per search.
+	const maxRaw = 1024
+	raw := body
+	if len(raw) > maxRaw {
+		raw = raw[:maxRaw]
+	}
+	log.Printf("[%s] matchmake: raw pid=%d %x", env.Name, pid, raw)
 }
 
 // variantString renders one matchmake-param entry for the template log.
