@@ -119,6 +119,10 @@ var titles = []title{
 		e.DataStore = protocols.DSEmptyList
 	}},
 	{"animal-crossing-new-horizons", 22180, "v43a10em", func(e *protocols.Env) {
+		// prudps, not prudp: ACNH builds its secure station with the
+		// secure scheme, and on prudp its CONNECT arrives empty and the
+		// title dies when Pia needs the session (servers/nex provenance).
+		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSStub

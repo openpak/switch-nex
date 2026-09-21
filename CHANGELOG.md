@@ -1,5 +1,15 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.28: ACNH gets its secure station scheme
+
+- **Animal Crossing: New Horizons serves `prudps`, not `prudp`.** Its entry
+  carried no scheme override, so the default went out in every login station
+  URL. The title builds its secure station with the secure scheme, and on
+  `prudp` its CONNECT arrives empty and dies when Pia needs the session
+  (servers/nex provenance, legacy/acnh main.go). Untested live — no ACNH
+  client has completed a login yet — but the wrong scheme fails closed on
+  first contact, so it ships before the title's first session, not after.
+
 ## 2026-09-20 — v0.2.27: Golf gets the Pia shape the reference gives it
 
 - **Mario Golf: Super Rush moves to the Pia 5.19+ station shape.** The
