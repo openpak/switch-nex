@@ -440,17 +440,18 @@ func finalizeCreatedSession(env *Env, s *Session) {
 		s.UserPasswordEnabled = false
 		s.State = 1 // open / active
 	}
+	if !env.FinalizeParams {
+		// Titles without measured param behaviour keep exactly what the
+		// client sent: foreign keys (@GIR) and padded attributes break
+		// strict readers (ACNH 2306-0116, 2026-09-21).
+		return
+	}
 	for len(s.Attributes) < 6 {
 		s.Attributes = append(s.Attributes, 0)
 	}
 	// The reference stamps these two on every session it creates. Left out, the
 	// param map goes back exactly as the client sent it, which for a session the
 	// client has not filled in is empty.
-	if s.MatchmakeParam == nil {
-		s.MatchmakeParam = map[string]rmc.Variant{}
-	}
-	s.MatchmakeParam["@SR"] = rmc.Variant{TypeID: 3, Bool: true}
-	s.MatchmakeParam["@GIR"] = rmc.Variant{TypeID: 1, I64: 3}
 	if s.MatchmakeParam == nil {
 		s.MatchmakeParam = map[string]rmc.Variant{}
 	}

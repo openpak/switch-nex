@@ -90,6 +90,7 @@ var titles = []title{
 		// each other, neither ever started, and each gave up after ~60 s
 		// (2026-09-20).
 		e.FinalizeCreateSession = true
+		e.FinalizeParams = true
 	}},
 	{"arms", 22140, "b6b34c51", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
@@ -104,6 +105,7 @@ var titles = []title{
 		// timestamped: a session with no key and nobody in it is not one a
 		// console can start P2P on.
 		e.FinalizeCreateSession = true
+		e.FinalizeParams = true
 		// The join family answers the full session, not a bool: the joiner
 		// parses the answer as the MatchmakeSession it is joining and builds
 		// its P2P mesh from the echoed pre-join count and session key. A bare
@@ -142,6 +144,8 @@ var titles = []title{
 		// timestamped, and joins answer the full session: without a
 		// session key the visitor has nothing to start P2P with, and the
 		// Dodo-code browse result is unusable (2026-09-21, NMT18 visit).
+		// No FinalizeParams: ACNH never heard of @GIR and foreign keys
+		// break its parse (2306-0116 on a Dodo-code browse result).
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 	}},
@@ -216,6 +220,7 @@ var titles = []title{
 		// station, then left (EndParticipation): the room had no session key
 		// for it to join with. Clubhouse's create-time normalisation mints one.
 		e.FinalizeCreateSession = true
+		e.FinalizeParams = true
 		e.Ranking2 = true
 		e.DataStore = protocols.DSEmptyList
 	}},
@@ -230,6 +235,7 @@ var titles = []title{
 		e.DataStore = protocols.DSClubhouse
 		e.ForceOpenParticipation = true
 		e.FinalizeCreateSession = true
+		e.FinalizeParams = true
 		e.JoinEchoSession = true
 	}},
 }

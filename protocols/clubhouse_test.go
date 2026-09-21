@@ -16,6 +16,7 @@ func clubhouseEnv() *Env {
 	e.DataStore = DSClubhouse
 	e.ForceOpenParticipation = true
 	e.FinalizeCreateSession = true
+	e.FinalizeParams = true
 	e.JoinEchoSession = true
 	return e
 }
@@ -208,4 +209,40 @@ func structThenCount(r *rmc.Reader) (uint32, uint32, error) {
 	}
 	n, err := r.ListHeader()
 	return total, n, err
+}
+
+// A title with FinalizeCreateSession but without FinalizeParams (ACNH)
+// keeps exactly the parameters its client sent, plus key/count/time: no
+// @GIR foreign key, no attribute padding. ACNH's binary never heard of
+// @GIR and its presence breaks the client's parse (2306-0116, 2026-09-21).
+func TestFinalizeWithoutParamsKeepsClientShape(t *testing.T) {
+	env := NewEnv("animal-crossing-new-horizons", "10.0.0.1", 22180)
+	env.Match = NewMatchmakingStore()
+	env.FinalizeCreateSession = true
+	env.JoinEchoSession = true
+	sess := &Session{MaxParticipants: 8, Attributes: []uint32{1, 2}}
+	resp := Dispatch(env, conn(100), request(ProtoMatchmakeExt, 0x06, sessionHolder(sess)))
+	ok, body, errCode := decodeResponse(resp)
+	if errCode != 0 || !ok {
+		t.Fatalf("create failed: %#v", resp)
+	}
+	created, err := readSession(rmc.NewReader(body))
+	if err != nil {
+		t.Fatalf("create body: %v", err)
+	}
+	if len(created.SessionKey) != 32 {
+		t.Fatalf("session key: %d bytes", len(created.SessionKey))
+	}
+	if created.ParticipationCount != 1 {
+		t.Fatalf("participation: %d", created.ParticipationCount)
+	}
+	if _, ok := created.MatchmakeParam["@GIR"]; ok {
+		t.Fatalf("@GIR injected into a title that never heard of it")
+	}
+	if _, ok := created.MatchmakeParam["@SR"]; ok {
+		t.Fatalf("@SR injected although the client sent none")
+	}
+	if len(created.Attributes) != 2 {
+		t.Fatalf("attributes padded to %d", len(created.Attributes))
+	}
 }

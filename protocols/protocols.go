@@ -120,6 +120,14 @@ type Env struct {
 	// ForceOpenParticipation — mark the session open and active.
 	FinalizeCreateSession bool
 
+	// FinalizeParams adds the matchmake-param normalisation to the above:
+	// pad attributes to 6 and stamp `@SR`=true / `@GIR`=3. Measured on the
+	// reference for Clubhouse Games (and tolerated by MK8D, Golf and Kirby),
+	// but ACNH's binary knows `@SR` and has never heard of `@GIR`: foreign
+	// keys in its sessions break its parse (2306-0116 on a Dodo-code browse
+	// result, 2026-09-21). Off unless the title was measured with them.
+	FinalizeParams bool
+
 	// MatchModeAttribute matches auto-match rooms on the search criteria's
 	// primary option (GameMode plus the first attribute string) instead of
 	// taking any open room. Golf-only: its ranked queues share every server

@@ -1,5 +1,15 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.36: ACNH sessions carry no foreign keys
+
+- **Param-map normalisation is per-title (`FinalizeParams`).** The shared
+  create-time finalise stamped Clubhouse-measured `@SR`/`@GIR` and padded
+  attributes to 6 on every title that opts into it. ACNH's binary knows
+  `@SR` and has never heard of `@GIR`: the foreign key broke its parse of
+  Dodo-code browse results (2306-0116, KYRWJ visit). Golf, MK8D, Kirby and
+  Clubhouse keep the measured behaviour unchanged; ACNH (and everyone else)
+  now keeps exactly the parameters its client sent, plus key/count/time.
+
 ## 2026-09-21 — v0.2.35: ACNH identity + joinable islands
 
 - **A numeric login username is used verbatim as the NEX PID.** ACNH logs
