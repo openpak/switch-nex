@@ -1,5 +1,14 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.34: Golf explicit joins echo the session
+
+- **Golf-only `JoinEchoSession`** (same flag MK8D and Clubhouse carry).
+  Ranked joins go through auto-match, which already echoes the full session
+  — this changes nothing there. It covers explicit joins (friend/private
+  rooms) only. No mesh effect expected; the mesh join is now a client-side
+  question (tap evidence: transport up both ways, join payloads
+  retransmitted unanswered ~3.5 min, Pia error 2219-0021 both directions).
+
 ## 2026-09-21 — v0.2.33: match Golf rooms on the primary option
 
 - **Golf-only `MatchModeAttribute`:** auto-match rooms compare the search

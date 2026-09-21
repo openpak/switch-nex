@@ -79,6 +79,11 @@ var titles = []title{
 		// the search criteria's primary option: without this both modes seat
 		// one lobby (2026-09-21, console).
 		e.MatchModeAttribute = true
+		// The explicit-join family answers the full session, as MK8D and
+		// Clubhouse need. Golf's ranked path joins through auto-match, which
+		// already echoes the session — this changes nothing there; it covers
+		// explicit joins (friend/private rooms) only.
+		e.JoinEchoSession = true
 		// The reference normalises EVERY session it creates, for every title.
 		// Without it Golf's lobby went back keyless, with a participation count
 		// of one while two players stood in it: both sides punched through to
