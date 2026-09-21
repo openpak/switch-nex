@@ -1,6 +1,6 @@
 # Changelog — switch-nex
 
-## 2026-09-21 — v0.2.29: numeric login usernames are the PID
+## 2026-09-21 — v0.2.35: ACNH identity + joinable islands
 
 - **A numeric login username is used verbatim as the NEX PID.** ACNH logs
   in with its numeric account id (`"12297829382472990721"`), and hashing it
@@ -8,6 +8,11 @@
   looked for the number the game knows and found only the hash, so every
   island visit answered empty ("no island to visit"). Opaque names keep the
   stable hash; `0`/empty never become PID 0.
+- **ACNH sessions are created joinable and joins echo the session.**
+  `FinalizeCreateSession` (host counted, 32-byte key, timestamps) plus
+  `JoinEchoSession`: the Dodo-code browse result for NMT18 carried a keyless
+  session the visitor could not start P2P with. Same treatment MK8D,
+  Clubhouse Games and Kirby already get.
 
 ## 2026-09-21 — v0.2.34: Golf explicit joins echo the session
 

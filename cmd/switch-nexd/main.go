@@ -138,6 +138,12 @@ var titles = []title{
 		// The one title that uses find-by-participant for real: island visits
 		// resolve through it, and it needs the session key in the answer.
 		e.FindByParticipant = true
+		// A created island goes back occupied by its host, keyed and
+		// timestamped, and joins answer the full session: without a
+		// session key the visitor has nothing to start P2P with, and the
+		// Dodo-code browse result is unusable (2026-09-21, NMT18 visit).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
 	}},
 	{"luigis-mansion-3", 22190, "aab95246", func(e *protocols.Env) {
 		e.Pia = protocols.LegacyPia()
