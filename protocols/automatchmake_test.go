@@ -24,32 +24,10 @@ func TestAutoMatchmakeTogetherAndPasswords(t *testing.T) {
 	}
 }
 
-// TestAutoMatchmakeSeparatesModes: Golf's ranked Speed and Standard queues
-// both arrive with GameMode 2 and only the attributes differing — they must
-// not share a room, while identical settings still meet.
-func TestAutoMatchmakeSeparatesModes(t *testing.T) {
-	e := NewEnv("mario-golf-super-rush", "10.0.0.1", 22130)
-	e.Match = NewMatchmakingStore()
-	e.ForceOpenParticipation = true
-	search := func(pid uint64, gameMode uint32, attrs ...uint32) uint32 {
-		sess := &Session{MaxParticipants: 4, GameMode: gameMode, Attributes: attrs}
-		autoMatchmake(e, conn(pid), request(ProtoMatchmakeExt, 0x28, nil), sess)
-		return e.Match.sessionsOf(pid)[0].GID
-	}
-
-	standard := search(1, 2, 1, 0, 320, 9, 0, 0)
-	speed := search(2, 2, 1, 0, 259, 0, 0, 0)
-	if standard == speed {
-		t.Fatalf("speed and standard share gid %d", standard)
-	}
-	if got := search(3, 2, 1, 0, 259, 0, 0, 0); got != speed {
-		t.Fatalf("second speed searcher got gid %d, want %d", got, speed)
-	}
-	if got := search(4, 3, 1, 0, 259, 0, 0, 0); got == speed {
-		t.Fatalf("other-GameMode searcher joined gid %d", got)
-	}
-}
-
+// ponytail: TestAutoMatchmakeSeparatesModes lived here (v0.2.29) and was
+// reverted with the attribute check — same-mode searches vary their
+// attributes, so it separated everything. It returns with the real
+// mode-marker fix, once the template log names the field.
 // TestAutoMatchmakeJoinerLearnsTheRoom: the joiner is announced to host and
 // itself, and hears one Participate naming the host.
 func TestAutoMatchmakeJoinerLearnsTheRoom(t *testing.T) {

@@ -1,5 +1,17 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.30: revert mode-split matching, log session templates
+
+- **Reverted:** v0.2.29 matched auto-match rooms on GameMode plus the full
+  attribute list. The attributes vary per search even inside one mode, so
+  same-mode lobbies stopped meeting entirely — both Golf ranked queues sat
+  alone. Matching is back to v0.2.28 behaviour (password + NAT) while the
+  real mode marker is found.
+- **Added:** every auto-match search now logs its full session template
+  (`matchmake: template …` — gameMode, attributes, application buffer,
+  matchmake-param map, description). That line is what will name the field
+  that distinguishes Speed from Standard.
+
 ## 2026-09-21 — v0.2.29: Golf's match points upload is acknowledged
 
 - **Ranking `UploadScore` (0x70.0x01) answers bool true.** Mario Golf posts its

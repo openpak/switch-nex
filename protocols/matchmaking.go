@@ -12,7 +12,10 @@ package protocols
 
 import (
 	"crypto/rand"
+	"fmt"
 	"log"
+	"sort"
+	"strings"
 	"sync"
 
 	switchnex "github.com/openpak/switch-nex"
@@ -452,12 +455,15 @@ func finalizeCreatedSession(env *Env, s *Session) {
 // reach ends up hosting alone, which is a worse experience for one person
 // rather than a broken one for five.
 //
-// "Same game" is the other half: the searcher's GameMode and attributes travel
-// in the request and name the lobby it belongs in. Mario Golf's ranked Speed
-// and Standard queues both arrive here with GameMode 2 and only the attributes
-// differing (2026-09-21, console: speed [1,0,259,0,0,…] vs standard
-// [1,0,320,9,0,…]) — ignoring them sat both modes in one room.
+// "Same game" is the other half, and it is NOT solved yet: v0.2.29 matched on
+// GameMode plus the full attribute list, which turned out to vary per search
+// even inside one mode — same-mode lobbies stopped meeting entirely
+// (2026-09-21, Golf: a Standard and a Speed lobby both unjoinable). The
+// attribute check is reverted to v0.2.28 behaviour (password + NAT only) until
+// the real mode marker is identified; the template log below is what will
+// identify it.
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session) []byte {
+	logSessionTemplate(env, c.PID, sess)
 	for _, candidate := range env.Match.open() {
 		g, ok := env.Match.get(candidate.GID)
 		if !ok {
@@ -471,10 +477,8 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		if candidate.UserPassword != sess.UserPassword {
 			continue
 		}
-		if candidate.GameMode != sess.GameMode || !attributesMatch(candidate.Attributes, sess.Attributes) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (mode/attributes)", env.Name, candidate.GID, c.PID)
-			continue
-		}
+		// ponytail: mode/attribute matching reverted (see above) — password
+		// and NAT only, as v0.2.28.
 		if !env.nat.compatibleWith(g, c.PID) {
 			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (NAT)", env.Name, candidate.GID, c.PID)
 			continue
@@ -509,12 +513,9 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 	return createSession(env, c, msg, sess)
 }
 
-// attributesMatch reports whether a stored session satisfies a searcher's
-// attributes: every attribute the searcher sent must equal the room's at the
-// same index. Prefix, not exact, comparison — a room can grow attributes
-// after creation (0x08 UpdateMatchmakeSessionAttribute appends past the
-// searcher's six), and extra room-side settings must not strand a matching
-// player.
+// attributesMatch is reserved for the real mode-separation fix: every
+// attribute the searcher sent must equal the room's at the same index.
+// Unused until the mode marker is identified (see autoMatchmake).
 func attributesMatch(room, want []uint32) bool {
 	for i, v := range want {
 		if i >= len(room) || room[i] != v {
@@ -522,6 +523,43 @@ func attributesMatch(room, want []uint32) bool {
 		}
 	}
 	return true
+}
+
+// logSessionTemplate dumps a searcher's full session template in one line:
+// the GameMode, attributes, application buffer, matchmake-param map and
+// description are all candidates for the field that names the lobby's mode.
+// Diagnostic, for the Golf Speed/Standard split (2026-09-21) — searches are
+// infrequent, so one line per search is cheap.
+func logSessionTemplate(env *Env, pid uint64, sess *Session) {
+	const maxAppBuf = 64
+	app := sess.ApplicationBuffer
+	if len(app) > maxAppBuf {
+		app = app[:maxAppBuf]
+	}
+	params := make([]string, 0, len(sess.MatchmakeParam))
+	for k, v := range sess.MatchmakeParam {
+		params = append(params, variantString(k, v))
+	}
+	sort.Strings(params)
+	log.Printf("[%s] matchmake: template pid=%d gameMode=%d attrs=%v appBuf=%x params={%s} desc=%q pw=%v",
+		env.Name, pid, sess.GameMode, sess.Attributes, app,
+		strings.Join(params, " "), sess.Description, sess.UserPassword != "")
+}
+
+// variantString renders one matchmake-param entry for the template log.
+func variantString(k string, v rmc.Variant) string {
+	switch v.TypeID {
+	case 1:
+		return fmt.Sprintf("%s=i64:%d", k, v.I64)
+	case 2:
+		return fmt.Sprintf("%s=f64:%v", k, v.F64)
+	case 3:
+		return fmt.Sprintf("%s=bool:%v", k, v.Bool)
+	case 4:
+		return fmt.Sprintf("%s=str:%q", k, v.Str)
+	default:
+		return fmt.Sprintf("%s=t%d:u64:%d", k, v.TypeID, v.U64)
+	}
 }
 
 // Disconnected tells a title's sessions that a player's connection went away:
