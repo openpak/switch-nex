@@ -1,5 +1,6 @@
 // Ranking (0x70) — the common-data profile store and the competition surface.
 //
+//	0x01 UploadScore              -> bool true; the score is acknowledged, not stored
 //	0x04 UploadCommonData        -> empty; the profile blob is kept per player
 //	0x09 GetRanking              -> empty RankingResult
 //	0x0C GetRankingByPIDList     -> empty RankingResult
@@ -26,6 +27,7 @@
 package protocols
 
 import (
+	"log"
 	"sync"
 
 	"github.com/openpak/switch-nex/prudplite"
@@ -34,6 +36,7 @@ import (
 
 // Ranking method numbers.
 const (
+	methodRankingUploadScore         uint32 = 0x01
 	methodRankingUploadCommonData    uint32 = 0x04
 	methodRankingGetRanking          uint32 = 0x09
 	methodRankingByPIDList           uint32 = 0x0C
@@ -73,6 +76,16 @@ func (rs *rankingStore) get(pid uint64) []byte {
 func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
 	switch msg.MethodID {
+	case methodRankingUploadScore: // (RankingScoreData, u64 uniqueID) -> bool true
+		// Mario Golf posts its match points here the moment a ranked match
+		// ends (2026-09-21, console: EndParticipation then 0x70/0x01 with
+		// category 26, score 1037). Answering NotImplemented disconnects the
+		// client with 2306-0103 and the game reports the points as lost, so
+		// the upload is acknowledged, never refused. Scores are not stored —
+		// same stance as DataStore: shapes first, persistence later.
+		logUploadScore(env, c, msg.Body)
+		return boolTrue(msg)
+
 	case methodRankingUploadCommonData: // (Buffer commonData, …) -> empty
 		if blob, err := r.Buffer(); err == nil {
 			env.ranking.put(c.PID, blob)
@@ -108,6 +121,26 @@ func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 	default:
 		return notImplemented(env, msg)
 	}
+}
+
+// logUploadScore reads what it can of an UploadScore body for the log: a
+// structure version byte, then the RankingScoreData category and score.
+// Best effort only — a shape we do not recognise is still acknowledged,
+// because refusing is what walls the mode off entirely.
+func logUploadScore(env *Env, c *prudplite.Connection, body []byte) {
+	r := rmc.NewReader(body)
+	if _, err := r.U8(); err != nil {
+		return
+	}
+	category, err := r.U32()
+	if err != nil {
+		return
+	}
+	score, err := r.U32()
+	if err != nil {
+		return
+	}
+	log.Printf("[%s] ranking: pid=%d upload category=%d score=%d", env.Name, c.PID, category, score)
 }
 
 // commonDataByPIDs answers one entry per requested PID, in the order asked.

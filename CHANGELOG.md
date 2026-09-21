@@ -1,5 +1,13 @@
 # Changelog — switch-nex
 
+## 2026-09-21 — v0.2.29: Golf's match points upload is acknowledged
+
+- **Ranking `UploadScore` (0x70.0x01) answers bool true.** Mario Golf posts its
+  match points the moment a ranked match ends (console-measured 2026-09-21:
+  `EndParticipation`, then 0x70/0x01, category 26, score 1037). It got
+  `NotImplemented`, hung up with 2306-0103, and the game reported the points
+  as lost. Scores are acknowledged, not stored — same stance as DataStore.
+
 ## 2026-09-21 — v0.2.28: ACNH gets its secure station scheme
 
 - **Animal Crossing: New Horizons serves `prudps`, not `prudp`.** Its entry

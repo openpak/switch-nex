@@ -426,6 +426,31 @@ func TestRankingSubmissionsAnswerOneZeroByte(t *testing.T) {
 	}
 }
 
+// TestRankingUploadScoreAnswersTrue: Mario Golf posts its match points with
+// UploadScore (0x01) the moment a ranked match ends. A NotImplemented there
+// disconnects the console with 2306-0103 and the points are lost, so the
+// upload is acknowledged with a true bool — the NEX UploadScore answer shape.
+func TestRankingUploadScoreAnswersTrue(t *testing.T) {
+	env := testEnv()
+	env.Ranking = true
+	upload := rmc.NewWriter()
+	upload.U8(0)       // RankingScoreData structure version
+	upload.U32(26)     // category (Golf's match-points board)
+	upload.U32(1037)   // score
+	upload.U8(1)       // orderBy
+	upload.U8(0)       // updateMode
+	upload.Buffer(nil) // groups
+	upload.U64(0)      // param
+	upload.U64(1234)   // uniqueID
+	_, body, errCode := decodeResponse(Dispatch(env, conn(5), request(ProtoRanking, 0x01, upload.Bytes())))
+	if errCode != 0 {
+		t.Fatalf("errored %#x — refusing loses the player's match points", errCode)
+	}
+	if len(body) != 1 || body[0] != 1 {
+		t.Fatalf("answered %v, want a single true byte", body)
+	}
+}
+
 // TestCommonDataByPIDsKeepsRequestOrder: the client pairs the nth reply with
 // the nth PID it asked about, and an unknown player is an empty entry rather
 // than a missing one.
