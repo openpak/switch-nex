@@ -451,6 +451,12 @@ func finalizeCreatedSession(env *Env, s *Session) {
 // EVERYONE in it a communication error, not just the two. A player nobody can
 // reach ends up hosting alone, which is a worse experience for one person
 // rather than a broken one for five.
+//
+// "Same game" is the other half: the searcher's GameMode and attributes travel
+// in the request and name the lobby it belongs in. Mario Golf's ranked Speed
+// and Standard queues both arrive here with GameMode 2 and only the attributes
+// differing (2026-09-21, console: speed [1,0,259,0,0,…] vs standard
+// [1,0,320,9,0,…]) — ignoring them sat both modes in one room.
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session) []byte {
 	for _, candidate := range env.Match.open() {
 		g, ok := env.Match.get(candidate.GID)
@@ -463,6 +469,10 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		// A password room is only for searchers carrying the same password, and a
 		// random search (no password) never lands in one.
 		if candidate.UserPassword != sess.UserPassword {
+			continue
+		}
+		if candidate.GameMode != sess.GameMode || !attributesMatch(candidate.Attributes, sess.Attributes) {
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (mode/attributes)", env.Name, candidate.GID, c.PID)
 			continue
 		}
 		if !env.nat.compatibleWith(g, c.PID) {
@@ -497,6 +507,21 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		return success(msg, candidate.bytes())
 	}
 	return createSession(env, c, msg, sess)
+}
+
+// attributesMatch reports whether a stored session satisfies a searcher's
+// attributes: every attribute the searcher sent must equal the room's at the
+// same index. Prefix, not exact, comparison — a room can grow attributes
+// after creation (0x08 UpdateMatchmakeSessionAttribute appends past the
+// searcher's six), and extra room-side settings must not strand a matching
+// player.
+func attributesMatch(room, want []uint32) bool {
+	for i, v := range want {
+		if i >= len(room) || room[i] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // Disconnected tells a title's sessions that a player's connection went away:
