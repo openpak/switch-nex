@@ -1,5 +1,24 @@
 # Changelog — switch-nex
 
+## 2026-09-22 — v0.2.37: ACNH Dodo codes work
+
+- **UpdateMatchmakeSessionPart (0x6D/0x2C) reads the whole param.** The
+  wire body carries every field of UpdateMatchmakeSessionParam and the
+  modification flags only say which to apply; reading just the flagged
+  fields took the attribute count as the open flag and the zeroed
+  attributes as the codeword, so every Dodo Code was stored as six NULs and
+  the island stayed closed. Console-measured (host flags 0x4002, 93B).
+- **BrowseMatchmakeSessionNoHolderNoResultRange (0x6D/0x34) answers a raw
+  session list filtered by codeword.** The visitor's Dodo-code lookup
+  carries the code in the criteria and expects `u32 count + bodies` — no
+  ResultRange, no holder. The ResultRange prefix was the 2306-0116 on
+  "locate island by code". The session key stays in the answer: the code
+  is the pass.
+- nx-baas v0.12.54 (same session): Orville's "Passport violates the Code
+  of Conduct" refusal was a verdict the game remembered from an earlier
+  failed passport upload, cleared by a changed passport being re-uploaded.
+  `profile_status` values do not gate it either way.
+
 ## 2026-09-21 — v0.2.36: ACNH sessions carry no foreign keys
 
 - **Param-map normalisation is per-title (`FinalizeParams`).** The shared

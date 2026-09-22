@@ -119,7 +119,25 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		}
 		return autoMatchmake(env, c, msg, sess, nil)
 
-	case 0x04, 0x2A, 0x34: // BrowseMatchmakeSession[NoHolder][NoResultRange](criteria, resultRange?)
+	case 0x34: // BrowseMatchmakeSessionNoHolderNoResultRange(criteria) -> list<session>
+		// ACNH's Dodo-code lookup (console-measured 2026-09-22, code
+		// "0JJJK"): the criteria carry the code in their codeword field,
+		// and the answer is a RAW list<MatchmakeSession> — u32 count and
+		// bodies, no ResultRange, no holder. The ResultRange prefix the
+		// other browse variants answer with was the 2306-0116 on this call.
+		// A code names the island the visitor is allowed into, so the
+		// session key stays (the visit needs it, as with find-by-participant).
+		code := criteriaCodeword(r)
+		var sessions []*Session
+		for _, s := range env.Match.open() {
+			if code == "" || s.CodeWord == code {
+				sessions = append(sessions, s)
+			}
+		}
+		log.Printf("[%s] matchmake: browse code=%q -> %d session(s)", env.Name, code, len(sessions))
+		return success(msg, sessionList(sessions))
+
+	case 0x04, 0x2A: // BrowseMatchmakeSession[NoHolder](criteria, resultRange)
 		sessions := env.Match.open()
 		return browseResponse(msg, sessions)
 
@@ -840,23 +858,99 @@ func firstOtherParticipant(g *gathering, except uint64, candidates []uint64) uin
 	return 0
 }
 
-// updateSessionPart applies 0x2C flag-gated partial updates. Flags follow the
-// public modification-flag table (provenance: nex-protocols-go constants):
+// updateSessionPart applies 0x2C UpdateMatchmakeSessionPart. The wire body
+// is an UpdateMatchmakeSessionParam: EVERY field is present, in order, and
+// the modification flags say which ones to apply — they do not gate what is
+// serialised. Measured on ACNH 3.0.3 (2026-09-22, gid=1, flags=0x4002, 93B):
+// gid, flags, attributes[6], openParticipation, applicationBuffer,
+// progressScore, matchmakeParam (struct-wrapped map), startedTime,
+// userPassword, gameMode, description, min, max, matchmakeSystemType,
+// participationPolicy, policyArgument, codeword. Reading only the flagged
+// fields (the previous shape) took the attribute count as the bool and the
+// zeroed attributes as the codeword, so the Dodo Code was six NULs and the
+// island stayed closed — the "nobody can find my island" bug. Flag table:
 // 0x1 attributes, 0x2 openParticipation, 0x4 applicationBuffer,
 // 0x8 progressScore, 0x20/0x40 matchmakeParam, 0x80 startedTime,
-// 0x100 userPassword, 0x200 gameMode, 0x400 description, 0x800 min, 0x1000
-// max, 0x2000 matchmakeSystemType, 0x4000 codeword.
+// 0x100 userPassword, 0x200 gameMode, 0x400 description, 0x800 min,
+// 0x1000 max, 0x2000 matchmakeSystemType, 0x4000 codeword.
 func updateSessionPart(env *Env, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
+	bad := func() []byte { return errorResp(msg, rmc.ResultInvalidArgument) }
 	if _, _, err := r.StructHeader(); err != nil {
-		return errorResp(msg, rmc.ResultInvalidArgument)
+		return bad()
 	}
 	gid, err := r.U32()
 	if err != nil {
-		return errorResp(msg, rmc.ResultInvalidArgument)
+		return bad()
 	}
 	flags, err := r.U32()
 	if err != nil {
-		return errorResp(msg, rmc.ResultInvalidArgument)
+		return bad()
+	}
+	n, err := r.ListHeader()
+	if err != nil {
+		return bad()
+	}
+	attrs := make([]uint32, 0, n)
+	for i := uint32(0); i < n; i++ {
+		v, err := r.U32()
+		if err != nil {
+			return bad()
+		}
+		attrs = append(attrs, v)
+	}
+	open, err := r.Bool()
+	if err != nil {
+		return bad()
+	}
+	appBuf, err := r.Buffer()
+	if err != nil {
+		return bad()
+	}
+	progress, err := r.U8()
+	if err != nil {
+		return bad()
+	}
+	params, err := readStringVariantMap(r)
+	if err != nil {
+		return bad()
+	}
+	started, err := r.U64()
+	if err != nil {
+		return bad()
+	}
+	password, err := r.String()
+	if err != nil {
+		return bad()
+	}
+	gameMode, err := r.U32()
+	if err != nil {
+		return bad()
+	}
+	description, err := r.String()
+	if err != nil {
+		return bad()
+	}
+	minP, err := r.U16()
+	if err != nil {
+		return bad()
+	}
+	maxP, err := r.U16()
+	if err != nil {
+		return bad()
+	}
+	systemType, err := r.U32()
+	if err != nil {
+		return bad()
+	}
+	if _, err := r.U32(); err != nil { // participationPolicy
+		return bad()
+	}
+	if _, err := r.U32(); err != nil { // policyArgument
+		return bad()
+	}
+	codeword, err := r.String()
+	if err != nil {
+		return bad()
 	}
 	g, ok := env.Match.get(gid)
 	if !ok {
@@ -864,80 +958,45 @@ func updateSessionPart(env *Env, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
 	}
 	s := g.sess
 	if flags&0x0001 != 0 {
-		n, err := r.ListHeader()
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		attrs := make([]uint32, 0, n)
-		for i := uint32(0); i < n; i++ {
-			v, err := r.U32()
-			if err != nil {
-				return errorResp(msg, rmc.ResultInvalidArgument)
-			}
-			attrs = append(attrs, v)
-		}
 		s.Attributes = attrs
 	}
 	if flags&0x0002 != 0 {
-		if v, err := r.Bool(); err == nil {
-			s.OpenParticipation = v
-		}
+		s.OpenParticipation = open
 	}
 	if flags&0x0004 != 0 {
-		if v, err := r.Buffer(); err == nil {
-			s.ApplicationBuffer = v
-		}
+		s.ApplicationBuffer = appBuf
 	}
 	if flags&0x0008 != 0 {
-		if v, err := r.U8(); err == nil {
-			s.ProgressScore = v
-		}
+		s.ProgressScore = progress
 	}
-	if flags&0x0020 != 0 || flags&0x0040 != 0 {
-		if m, err := readStringVariantMap(r); err == nil {
-			s.MatchmakeParam = m
-		}
+	if flags&0x0060 != 0 {
+		s.MatchmakeParam = params
 	}
 	if flags&0x0080 != 0 {
-		if v, err := r.U64(); err == nil {
-			s.StartedTime = v
-		}
+		s.StartedTime = started
 	}
 	if flags&0x0100 != 0 {
-		if v, err := r.String(); err == nil {
-			s.UserPassword = v
-		}
+		s.UserPassword = password
 	}
 	if flags&0x0200 != 0 {
-		if v, err := r.U32(); err == nil {
-			s.GameMode = v
-		}
+		s.GameMode = gameMode
 	}
 	if flags&0x0400 != 0 {
-		if v, err := r.String(); err == nil {
-			s.Description = v
-		}
+		s.Description = description
 	}
 	if flags&0x0800 != 0 {
-		if v, err := r.U16(); err == nil {
-			s.MinParticipants = v
-		}
+		s.MinParticipants = minP
 	}
 	if flags&0x1000 != 0 {
-		if v, err := r.U16(); err == nil {
-			s.MaxParticipants = v
-		}
+		s.MaxParticipants = maxP
 	}
 	if flags&0x2000 != 0 {
-		if v, err := r.U32(); err == nil {
-			s.MatchmakeSystemType = v
-		}
+		s.MatchmakeSystemType = systemType
 	}
 	if flags&0x4000 != 0 {
-		if v, err := r.String(); err == nil {
-			s.CodeWord = v // ACNH's Dodo Code rides in here (flags 0x4002)
-		}
+		s.CodeWord = codeword // ACNH's Dodo Code
 	}
+	log.Printf("[%s] matchmake: session part gid=%d flags=%#x open=%v codeword=%q", env.Name, gid, flags, s.OpenParticipation, s.CodeWord)
 	return success(msg, nil)
 }
 
@@ -1260,6 +1319,58 @@ func sessionList(sessions []*Session) []byte {
 		s.write(w)
 	}
 	return w.Bytes()
+}
+
+// criteriaCodeword reads one MatchmakeSessionSearchCriteria (NEX 4.0.0
+// layout: attribs, gameMode, min, max, system, three bools, selection
+// method, vacant participants, param map, two bools, refer gid, codeword,
+// result range) and returns its codeword; anything unreadable is "".
+func criteriaCodeword(r *rmc.Reader) string {
+	_, cr, err := r.Struct()
+	if err != nil {
+		return ""
+	}
+	n, err := cr.ListHeader()
+	if err != nil {
+		return ""
+	}
+	for i := uint32(0); i < n; i++ {
+		if _, err := cr.String(); err != nil {
+			return ""
+		}
+	}
+	for i := 0; i < 4; i++ { // gameMode, min, max, system
+		if _, err := cr.String(); err != nil {
+			return ""
+		}
+	}
+	for i := 0; i < 3; i++ { // vacantOnly, excludeLocked, excludeNonHostPID
+		if _, err := cr.Bool(); err != nil {
+			return ""
+		}
+	}
+	if _, err := cr.U32(); err != nil { // selection method
+		return ""
+	}
+	if _, err := cr.U16(); err != nil { // vacant participants
+		return ""
+	}
+	if _, err := readStringVariantMap(cr); err != nil {
+		return ""
+	}
+	for i := 0; i < 2; i++ { // excludeUserPassword, excludeSystemPassword
+		if _, err := cr.Bool(); err != nil {
+			return ""
+		}
+	}
+	if _, err := cr.U32(); err != nil { // refer gid
+		return ""
+	}
+	code, err := cr.String()
+	if err != nil {
+		return ""
+	}
+	return code
 }
 
 // browseResponse: BrowseMatchmakeSession*(criteria, resultRange) ->
