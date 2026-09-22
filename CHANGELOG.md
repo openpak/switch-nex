@@ -1,5 +1,13 @@
 # Changelog — switch-nex
 
+## 2026-09-22 — v0.2.38: ACNH islands carry @SR/@GIR again
+
+- **`FinalizeParams` back on for ACNH.** With the 0x34 answer parsed and
+  code-matched (v0.2.37), the visitor still refused the island ("no island
+  I can take you to right now"). The reference stamps `@SR`/`@GIR` and pads
+  attributes on every ACNH island and its visits work; v0.2.36 had removed
+  them blaming a 2306-0116 that was in fact the ResultRange prefix.
+
 ## 2026-09-22 — v0.2.37: ACNH Dodo codes work
 
 - **UpdateMatchmakeSessionPart (0x6D/0x2C) reads the whole param.** The

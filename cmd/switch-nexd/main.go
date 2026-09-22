@@ -144,9 +144,15 @@ var titles = []title{
 		// timestamped, and joins answer the full session: without a
 		// session key the visitor has nothing to start P2P with, and the
 		// Dodo-code browse result is unusable (2026-09-21, NMT18 visit).
-		// No FinalizeParams: ACNH never heard of @GIR and foreign keys
-		// break its parse (2306-0116 on a Dodo-code browse result).
+		// FinalizeParams too: the reference stamps @SR/@GIR on every ACNH
+		// island and its Dodo-code visits work. v0.2.36 dropped them for
+		// ACNH blaming a 2306-0116 on a Dodo-code browse result, but that
+		// 0116 was the ResultRange prefix on the 0x34 answer (fixed in
+		// v0.2.37): with a correctly parsed, code-matched, open island and
+		// no params, the visitor still says "no island I can take you to"
+		// (console-measured 2026-09-22, code 0JJJK).
 		e.FinalizeCreateSession = true
+		e.FinalizeParams = true
 		e.JoinEchoSession = true
 	}},
 	{"luigis-mansion-3", 22190, "aab95246", func(e *protocols.Env) {
