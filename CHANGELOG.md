@@ -1,5 +1,18 @@
 # Changelog — switch-nex
 
+## 2026-09-22 — v0.2.40: ACNH visitors get the join recap
+
+- **`JoinRecapParticipate` for ACNH.** On an explicit join the reference
+  pushes Participate (3001) about the joiner to every participant, joiner
+  included, then one Participate per pre-existing participant to the joiner.
+  We sent 3001 to the others and 122000 to the joiner; ACNH's visitor waited
+  ten seconds for the recap, sent EndParticipation and showed "A
+  communication error has occurred" (Ryujinx visiting the console's NMT18).
+  Auto-match titles keep their measured pair.
+- Dodo-code visits now reach the join (v0.2.37–v0.2.39). Friends-only
+  islands are still invisible to a friend: the console does not see the
+  host PID as a friend. Open.
+
 ## 2026-09-22 — v0.2.38: ACNH islands carry @SR/@GIR again
 
 - **`FinalizeParams` back on for ACNH.** With the 0x34 answer parsed and

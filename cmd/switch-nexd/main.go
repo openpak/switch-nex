@@ -154,6 +154,9 @@ var titles = []title{
 		e.FinalizeCreateSession = true
 		e.FinalizeParams = true
 		e.JoinEchoSession = true
+		// The visitor waits for the join recap (Participate per existing
+		// participant) before it will build its mesh; see the flag.
+		e.JoinRecapParticipate = true
 	}},
 	{"luigis-mansion-3", 22190, "aab95246", func(e *protocols.Env) {
 		e.Pia = protocols.LegacyPia()

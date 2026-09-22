@@ -141,6 +141,18 @@ type Env struct {
 	// joined caller (Clubhouse Games measured working this way).
 	JoinEchoSession bool
 
+	// JoinRecapParticipate sends the reference's explicit-join notification
+	// set instead of the auto-match one: Participate (3001) about the joiner
+	// to every participant INCLUDING the joiner, then a recap Participate
+	// per pre-existing participant to the joiner, so it learns who is
+	// already in the session. ACNH's Pia waits on that recap to build its
+	// mesh: without it the visitor sits ten seconds after the join, sends
+	// EndParticipation and shows "A communication error has occurred"
+	// (console-measured 2026-09-22, Ryujinx visiting NMT18). MK8D and the
+	// auto-match titles keep the 3001-to-others + 122000-to-joiner pair
+	// they were measured working with.
+	JoinRecapParticipate bool
+
 	// ParticipateDelay holds back every Participate (3001) push by this long.
 	// Super Mario 3D World + Bowser's Fury was measured working on the
 	// reference with a 100 ms delay (ExternalReference/super-mario-3d-world).
