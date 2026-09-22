@@ -16,6 +16,7 @@ const acnhBrowse = "005600000006000000010000010000010000010000010000010000020032
 
 func TestACNHDodoCodeUpdateAndLookup(t *testing.T) {
 	env := testEnv()
+	env.Match.next = 0 // the captured update names gid 1; the store seeds from the clock
 	host := &Session{OwnerPID: 1900000001, HostPID: 1900000001, MaxParticipants: 8}
 	gid := env.Match.create(host)
 	if gid != 1 {
@@ -47,5 +48,53 @@ func TestACNHDodoCodeUpdateAndLookup(t *testing.T) {
 	}
 	if got.CodeWord != "0JJJK" {
 		t.Fatalf("browse returned codeword %q", got.CodeWord)
+	}
+}
+
+// The "visit a friend" menu: a host publishes its gate (0x09), and a friend
+// asking (0x0D) gets it back — open gates only — plus a live push at
+// type*1000. A stranger gets nothing.
+func TestACNHFriendNotificationData(t *testing.T) {
+	env := testEnv()
+	var pushed []notificationEvent
+	env.sent = func(pid uint64, ev notificationEvent) { pushed = append(pushed, ev) }
+	host, friend, stranger := uint64(0xaaaaaaaaaaaa0001), uint64(0xaaaaaaaaaaaa0002), uint64(7)
+	env.SetFriends(friend, []uint64{host})
+
+	publish := func(open uint64) {
+		w := rmc.NewWriter()
+		w.U32(101)
+		w.U64(0x4f)
+		w.U64(open)
+		w.String("island")
+		resp := matchmakeExtHandler(env, conn(host), request(0x6D, 0x09, w.Bytes()))
+		if resp[5] != 1 {
+			t.Fatalf("publish answered %x", resp)
+		}
+	}
+	ask := func(pid uint64) int {
+		w := rmc.NewWriter()
+		w.List(1)
+		w.U32(101)
+		resp := matchmakeExtHandler(env, conn(pid), request(0x6D, 0x0D, w.Bytes()))
+		n, err := rmc.NewReader(resp[14:]).ListHeader()
+		if err != nil {
+			t.Fatalf("answer is not a list: %v", err)
+		}
+		return int(n)
+	}
+	publish(1)
+	if n := ask(friend); n != 1 {
+		t.Fatalf("friend sees %d open gate(s), want 1", n)
+	}
+	if len(pushed) == 0 || pushed[len(pushed)-1].Type != 101000 || pushed[len(pushed)-1].SourcePID != host {
+		t.Fatalf("friend was not pushed the host's presence at type*1000: %+v", pushed)
+	}
+	if n := ask(stranger); n != 0 {
+		t.Fatalf("stranger sees %d gate(s), want 0", n)
+	}
+	publish(0)
+	if n := ask(friend); n != 0 {
+		t.Fatalf("closed gate still listed (%d)", n)
 	}
 }

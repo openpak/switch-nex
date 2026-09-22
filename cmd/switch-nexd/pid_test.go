@@ -43,3 +43,18 @@ func TestPidForNameStillHashes(t *testing.T) {
 		t.Fatalf("hashed PID %#x outside the hash range", got)
 	}
 }
+
+// A Switch principal id is the network service account id: the hex
+// baas_user_id as a number, with the minted pid only as a fallback.
+func TestNexPIDIsTheNSAID(t *testing.T) {
+	p := player{PID: 1900000001, BaasUserID: "aaaaaaaaaaaa0001", Friends: []player{{PID: 5, BaasUserID: "aaaaaaaaaaaa0002"}, {PID: 9}}}
+	if got := p.nexPID(); got != 0xaaaaaaaaaaaa0001 {
+		t.Fatalf("nexPID = %d", got)
+	}
+	if got := p.friendPIDs(); len(got) != 2 || got[0] != 0xaaaaaaaaaaaa0002 || got[1] != 9 {
+		t.Fatalf("friendPIDs = %v", got)
+	}
+	if got := (player{PID: 42}).nexPID(); got != 42 {
+		t.Fatalf("fallback nexPID = %d", got)
+	}
+}

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,10 +43,35 @@ var (
 
 // player is what nx-baas answers with.
 type player struct {
-	PID        uint64 `json:"pid"`
-	BaasUserID string `json:"baas_user_id"`
-	Nickname   string `json:"nickname"`
-	Country    string `json:"country"`
+	PID        uint64   `json:"pid"`
+	BaasUserID string   `json:"baas_user_id"`
+	Nickname   string   `json:"nickname"`
+	Country    string   `json:"country"`
+	Friends    []player `json:"friends"`
+}
+
+// nexPID is the principal id a Switch title expects for this account: the
+// network service account id itself (the 16-hex `baas_user_id`), as a
+// number. That is what the game logs in with as its username (ACNH sends
+// "12297829382472990721" = 0xaaaaaaaaaaaa0001, its NSA id), what its own
+// web API calls the user, and what it compares friends' NSA ids against
+// when an island is friends-only. nx-baas's minted `pid` is the fallback
+// for an account without one.
+func (p player) nexPID() uint64 {
+	if id, err := strconv.ParseUint(p.BaasUserID, 16, 64); err == nil && id != 0 {
+		return id
+	}
+	return p.PID
+}
+
+func (p player) friendPIDs() []uint64 {
+	out := make([]uint64, 0, len(p.Friends))
+	for _, f := range p.Friends {
+		if id := f.nexPID(); id != 0 {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // identity resolves consoles to accounts through nx-baas. A zero value (no URL

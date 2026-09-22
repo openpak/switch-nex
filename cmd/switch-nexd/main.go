@@ -785,8 +785,10 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 		log.Printf("[%s] login UNPROVEN (%v): falling back to the name %q", env.Name, err, username)
 		return pidFor(username), 0, true
 	}
-	log.Printf("[%s] login pid=%d nickname=%q", env.Name, p.PID, p.Nickname)
-	return p.PID, 0, true
+	pid = p.nexPID()
+	env.SetFriends(pid, p.friendPIDs())
+	log.Printf("[%s] login pid=%d nsa=%s nickname=%q friends=%d", env.Name, pid, p.BaasUserID, p.Nickname, len(p.Friends))
+	return pid, 0, true
 }
 
 // handleLoginEx mints the two-layer Switch v1 ticket and returns the login

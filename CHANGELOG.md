@@ -1,5 +1,22 @@
 # Changelog — switch-nex
 
+## 2026-09-22 — v0.2.41: Switch principal ids are the NSA id; friend visits
+
+- **A proven login's PID is its network service account id** (the hex
+  `baas_user_id` as a number), not nx-baas's minted pid. The game logs in
+  with that number as its username, its web API names the user by it, and
+  friends-only islands compare the host's PID against the visitor's friend
+  NSA ids: with a minted pid a friend never matched (console could not see
+  <user-a>'s friends-only island, 2026-09-22). The friend list nx-baas
+  returns with the identity is kept per login.
+- **Friend notification data (0x6D/0x09, 0x0A, 0x0D) implemented** the
+  reference way: a host's published data goes to its online friends as
+  type*1000 at once, and a friend asking gets the open gates (Param2 != 0)
+  back, each pushed again at type*1000 after the answer. This is the "visit
+  a friend" menu; it was an empty list.
+- Gathering ids seed from the clock so ACNH's Dodo Codes (derived from the
+  id) stop repeating after every deploy.
+
 ## 2026-09-22 — v0.2.40: ACNH visitors get the join recap
 
 - **`JoinRecapParticipate` for ACNH.** On an explicit join the reference

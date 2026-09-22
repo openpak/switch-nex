@@ -161,6 +161,15 @@ type Env struct {
 	// sent, when set, sees every notification as it is pushed (tests).
 	sent func(pid uint64, event notificationEvent)
 
+	// friends is each principal's friend list as of its last login (nx-baas
+	// answers it with the identity). notifData is what each principal last
+	// published per notification type (MatchmakeExtension 0x09), the source
+	// of the "visit a friend" menu (0x0A/0x0D). Both in memory, like the
+	// sessions they describe.
+	friendsMu sync.Mutex
+	friends   map[uint64][]uint64
+	notifData map[uint64]map[uint32]notificationEvent
+
 	// DataStore mode. dsOff: not registered. dsStub: reference-level answers
 	// (empty lists, NotFound on GetMeta, real data IDs from PostMetaBinary).
 	// dsBalloonErrors: Super Mario Odyssey's balloon methods (0x73.0x2F-0x35)
@@ -223,6 +232,43 @@ func NewEnv(name, stationAddress string, portBase int) *Env {
 		StationScheme:  "prudp",
 		Pia:            Pia519(),
 	}
+}
+
+// SetFriends records a principal's friends, as resolved at login. The list
+// is a snapshot: a friend added mid-session shows up at the next login.
+func (e *Env) SetFriends(pid uint64, friends []uint64) {
+	e.friendsMu.Lock()
+	defer e.friendsMu.Unlock()
+	if e.friends == nil {
+		e.friends = map[uint64][]uint64{}
+	}
+	e.friends[pid] = append([]uint64(nil), friends...)
+}
+
+// FriendPIDs answers a principal's friends; nobody when unknown (fails closed).
+func (e *Env) FriendPIDs(pid uint64) []uint64 {
+	e.friendsMu.Lock()
+	defer e.friendsMu.Unlock()
+	return e.friends[pid]
+}
+
+func (e *Env) putNotifData(pid uint64, ev notificationEvent) {
+	e.friendsMu.Lock()
+	defer e.friendsMu.Unlock()
+	if e.notifData == nil {
+		e.notifData = map[uint64]map[uint32]notificationEvent{}
+	}
+	if e.notifData[pid] == nil {
+		e.notifData[pid] = map[uint32]notificationEvent{}
+	}
+	e.notifData[pid][ev.Type] = ev
+}
+
+func (e *Env) notifDataOf(pid uint64, typ uint32) (notificationEvent, bool) {
+	e.friendsMu.Lock()
+	defer e.friendsMu.Unlock()
+	ev, ok := e.notifData[pid][typ]
+	return ev, ok
 }
 
 // SecureStationURL renders the secure station URL this title hands out.

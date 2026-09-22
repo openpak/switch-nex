@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
@@ -40,7 +41,11 @@ type MatchmakingStore struct {
 
 // NewMatchmakingStore returns an empty store.
 func NewMatchmakingStore() *MatchmakingStore {
-	return &MatchmakingStore{byGID: map[uint32]*gathering{}}
+	// ponytail: gathering ids restart with the process, and ACNH derives its
+	// Dodo Code from the id (gid 1 is always 0JJJK), so every deploy handed
+	// out the same codes. A clock-seeded start keeps ids unique across
+	// restarts; kept under 2^20 so a five-character code still encodes it.
+	return &MatchmakingStore{byGID: map[uint32]*gathering{}, next: uint32(time.Now().Unix()) % (1 << 20)}
 }
 
 func (m *MatchmakingStore) create(sess *Session) uint32 {
@@ -170,15 +175,14 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		}
 		return success(msg, nil)
 
-	case 0x09, 0x0A, 0x0D: // UpdateNotificationData / GetFriendNotificationData / GetlstFriendNotificationData
-		if msg.MethodID == 0x0A || msg.MethodID == 0x0D {
-			return success(msg, func() []byte {
-				w := rmc.NewWriter()
-				w.EmptyList()
-				return w.Bytes()
-			}())
-		}
-		return success(msg, nil)
+	case 0x09: // UpdateNotificationData(u32 type, pid param1, pid param2, string)
+		// "My gate is open": the host publishes, its online friends get the
+		// same event pushed at type*1000, and friends who ask later (0x0A,
+		// 0x0D) read it back. Reference-measured shape for ACNH.
+		return updateNotificationData(env, c, msg, r)
+
+	case 0x0A, 0x0D: // GetFriendNotificationData(s32 type) / GetlstFriendNotificationData(list<u32>)
+		return friendNotificationData(env, c, msg, r, msg.MethodID == 0x0D)
 
 	case 0x0B: // UpdateApplicationBuffer(gid, buffer)
 		if gid, err := r.U32(); err == nil {
@@ -475,6 +479,90 @@ func finalizeCreatedSession(env *Env, s *Session) {
 	}
 	s.MatchmakeParam["@SR"] = rmc.Variant{TypeID: 3, Bool: true}
 	s.MatchmakeParam["@GIR"] = rmc.Variant{TypeID: 1, I64: 3}
+}
+
+// updateNotificationData stores the caller's published data for its type and
+// pushes it to every online friend as type*1000 — the real-time presence
+// event ACNH's visitor waits on (reference, measured against the original
+// service). Param2 is the gate: 1 open, 0 closed.
+func updateNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
+	typ, err := r.U32()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	p1, err := r.U64()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	p2, err := r.U64()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	str, err := r.String()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	ev := notificationEvent{SourcePID: c.PID, Type: typ, Param1: p1, Param2: p2, StrParam: str}
+	env.putNotifData(c.PID, ev)
+	pushed := 0
+	for _, friend := range env.FriendPIDs(c.PID) {
+		if _, online := env.push.connection(friend); !online {
+			continue
+		}
+		live := ev
+		live.Type = typ * 1000
+		env.notify(friend, live)
+		pushed++
+	}
+	log.Printf("[%s] notifdata: pid=%d type=%d param1=%d param2=%d pushed to %d online friend(s)", env.Name, c.PID, typ, p1, p2, pushed)
+	return success(msg, nil)
+}
+
+// friendNotificationData answers the caller's friends' published data for the
+// requested types, open gates only (Param2 != 0), then pushes each entry to
+// the caller as type*1000 after the answer — the reference's measured order.
+func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Reader, list bool) []byte {
+	var types []uint32
+	if list {
+		n, err := r.ListHeader()
+		if err != nil {
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
+		for i := uint32(0); i < n && i < 16; i++ {
+			t, err := r.U32()
+			if err != nil {
+				return errorResp(msg, rmc.ResultInvalidArgument)
+			}
+			types = append(types, t)
+		}
+	} else {
+		t, err := r.U32()
+		if err != nil {
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
+		types = []uint32{t}
+	}
+	var events []notificationEvent
+	for _, friend := range env.FriendPIDs(c.PID) {
+		for _, typ := range types {
+			if ev, ok := env.notifDataOf(friend, typ); ok && ev.Param2 != 0 {
+				events = append(events, ev)
+			}
+		}
+	}
+	w := rmc.NewWriter()
+	w.List(len(events))
+	for _, ev := range events {
+		w.Raw(ev.bytes())
+	}
+	log.Printf("[%s] notifdata: pid=%d types=%v -> %d friend entr(y/ies)", env.Name, c.PID, types, len(events))
+	resp := success(msg, w.Bytes())
+	for _, ev := range events {
+		live := ev
+		live.Type = ev.Type * 1000
+		env.notify(c.PID, live)
+	}
+	return resp
 }
 
 // autoMatchmake joins the first session the caller can actually reach, and
