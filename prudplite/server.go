@@ -583,9 +583,15 @@ func (c *Connection) handleData(p *Packet) {
 	} else if response == nil {
 		outcome = "NO ANSWER SENT"
 	}
+	// ponytail: matchmaking calls (0x6D) log in full — a session a client
+	// silently rejects can only be diagnosed from every byte it was sent.
+	reqHead, respHead := 96, 48
+	if msg.Protocol == 0x6D {
+		reqHead, respHead = 2048, 2048
+	}
 	log.Printf("[%s] rmc pid=%d proto=0x%X method=0x%X call=%d %s req(%dB)=%x resp(%dB)=%x",
 		c.Endpoint.Name, c.PID, msg.Protocol, msg.MethodID, msg.CallID, outcome,
-		len(msg.Body), headBytes(msg.Body, 96), len(response), headBytes(response, 48))
+		len(msg.Body), headBytes(msg.Body, reqHead), len(response), headBytes(response, respHead))
 	if outcome != "ok" && len(msg.Body) > 96 {
 		// The head is enough for a call that worked. One that did not is worth
 		// every byte: the full request is what the fix is written from.
