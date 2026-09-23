@@ -347,6 +347,7 @@ const (
 	ResultNotImplemented     uint32 = 0x00010002 // Core::NotImplemented
 	ResultInvalidArgument    uint32 = 0x0001000A // Core::InvalidArgument
 	ResultAccessDenied       uint32 = 0x00010006 // Core::AccessDenied
+	ResultAccountDisabled    uint32 = 0x00030067 // RendezVous::AccountDisabled — the account is banned
 	ResultInvalidPID         uint32 = 0x0003006B // RendezVous::InvalidPID
 	ResultSessionVoid        uint32 = 0x00030073 // RendezVous::SessionVoid
 	ResultSessionFull        uint32 = 0x000300C8 // RendezVous::SessionFull

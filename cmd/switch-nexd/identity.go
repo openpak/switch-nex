@@ -23,11 +23,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -36,9 +39,15 @@ import (
 // which is the right move. errNoAccount means the token was genuine but names
 // nobody we know — retrying cannot fix that, and answering the retryable code
 // instead puts the console in a refresh loop.
+//
+// errBanned means nx-baas proved the console but the account is banned or
+// being deleted (403 account_banned / account_deleted). It is refused even
+// when identity is not enforced: falling back to the login name would let a
+// banned player straight back in.
 var (
 	errTokenRejected = errors.New("id token not proven")
 	errNoAccount     = errors.New("no account for this token")
+	errBanned        = errors.New("account banned")
 )
 
 // player is what nx-baas answers with.
@@ -81,6 +90,10 @@ type identity struct {
 	url    string
 	key    string
 	client *http.Client
+
+	// accounts maps a proven login's NEX PID to nx-baas's own pid for the
+	// account, so WatchBans can ask about a connected player again.
+	accounts sync.Map // uint64 -> uint64
 }
 
 func newIdentity(url, key string) *identity {
@@ -102,6 +115,27 @@ func (i *identity) resolve(idToken string) (*player, error) {
 	if claim := openpakClaim(idToken); claim != "" {
 		query["openpak"] = claim
 	}
+	p, err := i.post(query)
+	if err != nil {
+		return nil, err
+	}
+	i.accounts.Store(p.nexPID(), p.PID)
+	return p, nil
+}
+
+// stillAllowed re-asks nx-baas about a player who logged in earlier. It
+// returns errBanned for a locked-out account, nil for one still allowed, and
+// any other error when nx-baas could not answer (the session is kept then).
+func (i *identity) stillAllowed(nexPID uint64) error {
+	v, ok := i.accounts.Load(nexPID)
+	if !ok {
+		return nil // not a proven login: nothing to ask about
+	}
+	_, err := i.post(map[string]any{"pid": v.(uint64)})
+	return err
+}
+
+func (i *identity) post(query map[string]any) (*player, error) {
 	body, err := json.Marshal(query)
 	if err != nil {
 		return nil, err
@@ -123,6 +157,8 @@ func (i *identity) resolve(idToken string) (*player, error) {
 	case http.StatusOK:
 	case http.StatusUnauthorized:
 		return nil, errTokenRejected
+	case http.StatusForbidden:
+		return nil, errBanned
 	case http.StatusNotFound:
 		return nil, errNoAccount
 	default:
@@ -205,6 +241,10 @@ func authenticationToken(r *rmc.Reader) (string, bool) {
 
 // loginResultCode maps a resolution failure onto the code the console acts on.
 func loginResultCode(err error) uint32 {
+	if errors.Is(err, errBanned) {
+		// RendezVous::AccountDisabled: the NEX result for a disabled account.
+		return rmc.ResultAccountDisabled
+	}
 	if errors.Is(err, errTokenRejected) {
 		// Retryable: the console fetches a fresh token and comes back.
 		return rmc.ResultAuthTokenExpired
@@ -212,4 +252,41 @@ func loginResultCode(err error) uint32 {
 	// Not retryable. Answering the retryable code here is what turns an
 	// unknown account into a console retrying forever.
 	return rmc.ResultAuthValidationFail
+}
+
+// banSweepEvery is how often watchBans re-asks about connected players.
+// nx-baas caches an active answer for at most 30 s, so a ban reaches a live
+// session within a minute.
+const banSweepEvery = 30 * time.Second
+
+// watchBans drops secure connections whose account nx-baas now refuses as
+// banned. Only a positive "banned" drops a session; an nx-baas outage keeps
+// it. The console's next login is refused with RendezVous::AccountDisabled.
+func (i *identity) watchBans(ep *prudplite.Endpoint) {
+	if !i.enabled() {
+		return
+	}
+	for {
+		time.Sleep(banSweepEvery)
+		i.sweepBans(ep)
+	}
+}
+
+func (i *identity) sweepBans(ep *prudplite.Endpoint) {
+	checked := map[uint64]bool{}
+	for _, c := range ep.Connections() {
+		pid := c.PID
+		if pid == 0 {
+			continue
+		}
+		banned, seen := checked[pid]
+		if !seen {
+			banned = errors.Is(i.stillAllowed(pid), errBanned)
+			checked[pid] = banned
+		}
+		if banned {
+			log.Printf("[%s] pid=%d is banned, dropping its connection", ep.Name, pid)
+			c.Drop()
+		}
+	}
 }

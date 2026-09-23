@@ -53,6 +53,13 @@ like this lineage, but a raw PRUDP/UDP secure stage and a kerberos v0 ticket,
 neither of which this lineage provides — and it shares its NEX code, and its
 access key, with Pretendo's Monster Hunter XX server, which is on nex-go.
 
+## Bans
+
+An account banned in the OpenPak admin is refused at login with `RendezVous::AccountDisabled`
+and its secure connections are dropped within a minute; nx-baas's
+`/internal/switch/identity` (403 `account_banned`) is the source. Nothing to configure beyond
+the identity URL and key.
+
 ## Milestones
 
 1. **MK8D login** — ✅ TLS listener on the auth port, PRUDPLite connect, LoginEx

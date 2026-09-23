@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -599,6 +600,7 @@ type service struct {
 	targetKey []byte
 	auth      *prudplite.Endpoint
 	secure    *prudplite.Endpoint
+	ids       *identity // nil in tests that build a service without one
 
 	// base is the title's port block; healthz reports base and base+1.
 	base int
@@ -619,7 +621,7 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 	}
 	targetKey := switchnex.DeriveKey([]byte(securePassword), env.SecurePID)
 
-	s := &service{env: env, targetKey: targetKey, base: t.base}
+	s := &service{env: env, targetKey: targetKey, base: t.base, ids: ids}
 	s.auth = &prudplite.Endpoint{
 		Name:      t.name + "/auth",
 		StreamID:  1,
@@ -688,6 +690,7 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 func (s *service) serve(authLn, secureLn net.Listener) {
 	go s.auth.Listen(authLn)
 	go s.secure.Listen(secureLn)
+	go s.ids.watchBans(s.secure)
 	s.authUp.Store(true)
 	s.secureUp.Store(true)
 }
@@ -778,6 +781,12 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 
 	p, err := ids.resolve(token)
 	if err != nil {
+		if errors.Is(err, errBanned) {
+			// Refused whether or not identity is enforced: the name fallback
+			// below would let a banned account straight back in.
+			log.Printf("[%s] login refused: %v", env.Name, err)
+			return 0, loginResultCode(err), false
+		}
 		if *requireIdentity {
 			log.Printf("[%s] login refused: %v", env.Name, err)
 			return 0, loginResultCode(err), false

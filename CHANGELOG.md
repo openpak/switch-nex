@@ -1,5 +1,18 @@
 # Changelog — switch-nex
 
+## Unreleased — bans
+
+- **A banned account is locked out** (website/docs/ban-lookup.md). nx-baas answers
+  `/internal/switch/identity` with 403 `account_banned`/`account_deleted` for it; the login is
+  refused with `RendezVous::AccountDisabled` (0x00030067), the NEX result for a disabled
+  account, whether or not `-require-identity` is set (the name fallback would otherwise let
+  a banned player straight back in).
+- **Live sessions end within a minute.** Every 30 s the secure endpoint re-asks nx-baas (by
+  the nx-baas pid recorded at login) about each connected player and drops the connection of
+  one now banned. nx-baas caches an active answer for at most 30 s. An nx-baas outage keeps
+  sessions. New `prudplite.Endpoint.Connections` and `Connection.Drop`.
+- No new flags or environment variables.
+
 ## 2026-09-22 — v0.2.41: Switch principal ids are the NSA id; friend visits
 
 - **A proven login's PID is its network service account id** (the hex

@@ -73,6 +73,26 @@ func (e *Endpoint) ConnectionByPID(pid uint64) (*Connection, bool) {
 	return nil, false
 }
 
+// Connections is a snapshot of the endpoint's live connections.
+func (e *Endpoint) Connections() []*Connection {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := make([]*Connection, 0, len(e.conns))
+	for _, c := range e.conns {
+		out = append(out, c)
+	}
+	return out
+}
+
+// Drop closes the connection from the server side. Its serve loop ends on the
+// closed socket, forgets it and runs OnDisconnect as for any other hang-up.
+func (c *Connection) Drop() {
+	c.writeMu.Lock()
+	conn := c.conn
+	c.writeMu.Unlock()
+	conn.Close()
+}
+
 // Listen starts serving the endpoint on an already-open TLS listener.
 func (e *Endpoint) Listen(ln net.Listener) {
 	e.mu.Lock()
