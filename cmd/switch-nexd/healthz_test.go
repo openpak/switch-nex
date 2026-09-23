@@ -25,7 +25,7 @@ func TestHealthzFollowsTheListeners(t *testing.T) {
 	}
 	ln.Close()
 	addr := ln.Addr().String()
-	serveHealth(addr, svc)
+	serveHealth(addr, svc, nil)
 
 	get := func() (int, string) {
 		t.Helper()

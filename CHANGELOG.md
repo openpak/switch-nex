@@ -1,5 +1,18 @@
 # Changelog — switch-nex
 
+## 2026-09-23 — v0.3.1: voice-chat gathering lookup
+
+- **`GET /internal/voice/gathering?account_id=<core id>`** on every title's healthz port
+  (`X-Internal-Key` = `NX_INTERNAL_KEY`): the gathering that account is playing in on any
+  title this process serves, and its participants with their OpenPak accounts. The website's
+  voice chat (phone app) uses it to put a gathering's players in one voice room. 404 when the
+  account is in no gathering.
+- A proven login now remembers the core `account_id` nx-baas already returns with the
+  identity. Unproven (name-fallback) logins have no account and show with an empty one.
+- `protocols.Env.GatheringOf(pid)`: the newest gathering a PID participates in, copied
+  under the title lock.
+- No new flags, ports or environment variables.
+
 ## Unreleased — bans
 
 - **A banned account is locked out** (website/docs/ban-lookup.md). nx-baas answers

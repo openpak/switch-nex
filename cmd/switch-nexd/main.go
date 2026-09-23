@@ -1,6 +1,7 @@
 // Command switch-nexd serves every Switch-era NEX title on the switch-nex
 // lineage: one process, one TLS listener per endpoint (auth on the title's
-// port base, secure on base+1) and an HTTP GET /healthz on base+2.
+// port base, secure on base+1) and an HTTP GET /healthz on base+2 (which also
+// answers the internal voice-chat gathering lookup, see voice.go).
 //
 // Auth endpoint: TicketGranting 0x0A — LoginEx (0x02) and
 // ValidateAndRequestTicketWithParam (0x06, the NEX 4.4+ path) both answered
@@ -561,15 +562,18 @@ func main() {
 		log.Printf("identity: resolving against %s, falling back to the login name when a token does not prove", ids.url)
 	}
 
+	voice := &voiceIndex{ids: ids}
 	for _, t := range titles {
 		if len(want) > 0 && !want[t.name] {
 			continue
 		}
 		svc := newService(t, *stationAddress, recall, ids)
+		voice.add(svc.env)
 		// healthz is bound whatever happens to the game ports: a title whose
 		// listener failed answers 503 there, which says more than a refused
-		// connection does.
-		serveHealth(fmt.Sprintf(":%d", t.base+2), svc)
+		// connection does. Every one of them also answers the voice lookup
+		// for the whole process (voice.go).
+		serveHealth(fmt.Sprintf(":%d", t.base+2), svc, voice)
 
 		authLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
 		if err != nil {
@@ -719,7 +723,7 @@ func (s *service) healthz(w http.ResponseWriter, _ *http.Request) {
 // serveHealth binds s's healthz on addr (all interfaces, like the game ports)
 // and serves it for the life of the process. A failed bind is logged, not
 // fatal: the title's game ports matter more than its probe.
-func serveHealth(addr string, s *service) {
+func serveHealth(addr string, s *service, voice *voiceIndex) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Printf("[%s] healthz listen %s: %v", s.env.Name, addr, err)
@@ -727,6 +731,9 @@ func serveHealth(addr string, s *service) {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.healthz)
+	if voice != nil {
+		mux.HandleFunc("GET /internal/voice/gathering", voice.gathering)
+	}
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 }

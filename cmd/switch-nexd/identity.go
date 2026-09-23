@@ -57,6 +57,9 @@ type player struct {
 	Nickname   string   `json:"nickname"`
 	Country    string   `json:"country"`
 	Friends    []player `json:"friends"`
+	// AccountID is the core account behind the console, when nx-baas knows it.
+	// Voice chat maps a gathering's participants to accounts with it.
+	AccountID string `json:"account_id"`
 }
 
 // nexPID is the principal id a Switch title expects for this account: the
@@ -94,6 +97,11 @@ type identity struct {
 	// accounts maps a proven login's NEX PID to nx-baas's own pid for the
 	// account, so WatchBans can ask about a connected player again.
 	accounts sync.Map // uint64 -> uint64
+
+	// members maps a proven login's NEX PID to who it is on OpenPak, for the
+	// voice lookup (voice.go). Only proven logins land here: an unproven name
+	// is nobody's account.
+	members sync.Map // uint64 -> member
 }
 
 func newIdentity(url, key string) *identity {
@@ -120,6 +128,9 @@ func (i *identity) resolve(idToken string) (*player, error) {
 		return nil, err
 	}
 	i.accounts.Store(p.nexPID(), p.PID)
+	if p.AccountID != "" {
+		i.members.Store(p.nexPID(), member{AccountID: p.AccountID, Nickname: p.Nickname})
+	}
 	return p, nil
 }
 

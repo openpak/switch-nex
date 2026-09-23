@@ -45,6 +45,7 @@ func newFakeBaas(t *testing.T, pid uint64) *fakeBaas {
 		}
 		json.NewEncoder(w).Encode(map[string]any{
 			"pid": f.pid, "baas_user_id": "nsa-abc", "nickname": "Player", "country": "GB",
+			"account_id": "acct-1",
 		})
 	}))
 	t.Cleanup(f.Close)
@@ -180,6 +181,10 @@ func TestProvenLoginUsesTheAccountPID(t *testing.T) {
 	}
 	if baas.gotKey != "secret-key" {
 		t.Errorf("internal key = %q", baas.gotKey)
+	}
+	// The voice lookup (voice.go) finds this player by account.
+	if m, ok := ids.members.Load(uint64(accountPID)); !ok || m.(member).AccountID != "acct-1" {
+		t.Errorf("proven login not remembered for voice: %v", m)
 	}
 
 	// And the proven PID is what the secure stage recovers from the ticket —
