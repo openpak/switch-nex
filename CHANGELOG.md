@@ -1,5 +1,14 @@
 # Changelog — switch-nex
 
+## 2026-09-24 — v0.3.2: Streets of Rage 4
+
+- **New title `streets-of-rage-4`** (0100EC9010258000, game server 27C90000, NEX 4.6.3,
+  Pia 5.26.2) on port block 22880 (auth 22880, secure 22881, healthz 22882). Access key
+  read from our v0 dump. Matchmaking only: the binary links NAT traversal and the
+  notification protocols and nothing else. Not console-verified yet — the game reached
+  the auth host and got a 404 from the catch-all before this.
+- No new flags or environment variables.
+
 ## 2026-09-23 — v0.3.1: voice-chat gathering lookup
 
 - **`GET /internal/voice/gathering?account_id=<core id>`** on every title's healthz port

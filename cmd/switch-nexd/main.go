@@ -249,6 +249,13 @@ var titles = []title{
 		e.FinalizeParams = true
 		e.JoinEchoSession = true
 	}},
+	{"streets-of-rage-4", 22880, "14c73f27", func(e *protocols.Env) {
+		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
+		// Pia 5.26.2). Key read from our v0 dump, next to the game's network
+		// strings. The binary links NAT traversal and the notification
+		// protocols only: no Ranking, no DataStore. Not console-verified yet.
+		e.Match = protocols.NewMatchmakingStore()
+	}},
 }
 
 // dumpTitles prints each title's configuration as newService resolves it, so
