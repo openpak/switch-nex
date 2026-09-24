@@ -129,7 +129,14 @@ client addresses; the by-IP recall is exact again. Three wires keep working:
   the quadlet passes `NX_INTERNAL_URL=http://127.0.0.1:20070`. A working
   chain logs `identity: resolving against http://127.0.0.1:20070 …`.
 - **Firewall**: INPUT accepts the fifteen secure ports via the multiport rule
-  above; the 443→21443 REDIRECT that feeds Traefik is untouched.
+  above; the 443→21443 REDIRECT that feeds Traefik is untouched. **INPUT must
+  also accept 21081**, the 80→21081 REDIRECT target: a REDIRECT happens
+  before the filter, so without it every plain-HTTP request from a console is
+  rejected. Missing until 2026-09-24 — the console's connection test
+  (`http://ctest.cdn.nintendo.net/`, one header) failed with 2160-6000 as
+  soon as the nro redirected the whole `.nintendo.net` family, and with no
+  NAT type every P2P title aborted at once (Golf 2618-0006). Persisted in
+  `/etc/iptables/rules.v4` next to the 21443 line.
 
 **The certificate names the station address.** The game reaches the auth stage by
 hostname and the secure stage by the raw IP in the station URL, verifying the name both
