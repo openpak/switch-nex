@@ -13,7 +13,7 @@
   under the title lock.
 - No new flags, ports or environment variables.
 
-## Unreleased — bans
+## 2026-09-23 — v0.3.0: bans
 
 - **A banned account is locked out** (website/docs/ban-lookup.md). nx-baas answers
   `/internal/switch/identity` with 403 `account_banned`/`account_deleted` for it; the login is
