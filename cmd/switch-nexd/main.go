@@ -318,6 +318,13 @@ var titles = []title{
 		// Bool(true) where the client parses a whole session.
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
+		// Console-measured 2026-09-25, after the two above: the join now
+		// succeeds (gid=451565, count=1, no more 2306-0116) and the joiner then
+		// sits exactly 10 s, sends EndParticipation and shows "Connection was
+		// lost". It had been told only AddedToGathering (122000) about itself and
+		// nothing about the host. That ten-seconds-then-EndParticipation signature
+		// is the one ACNH was measured with.
+		e.JoinRecapParticipate = true
 	}},
 	{"risk-of-rain-returns", 23000, "", func(e *protocols.Env) {
 		// Risk of Rain Returns (0100D1801A0F4000, game server 45559E00). The
