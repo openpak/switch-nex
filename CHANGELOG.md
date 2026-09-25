@@ -1,5 +1,22 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.9: Risk of Rain Returns, the created session
+
+- **`risk-of-rain-returns` gets `FinalizeCreateSession`.** The v0.3.7 recap worked — the joiner
+  now receives a `3001` per participant instead of only `AddedToGathering` about itself — and it
+  still timed out, with the join echo logging `count=0`. `ParticipationCount` is only ever set to
+  1 (the host) inside `finalizeCreatedSession`, and `createSession` never generates the 32-byte
+  `SessionKey`, so a title that leaves this off hands its joiner a session that reports nobody in
+  it and carries no key. ACNH's provenance records Pia using that key to seed the P2P session
+  *before* JOIN, which matches the measurement: the probe and its reply cross the LAN fine, three
+  times, and nothing follows them.
+- `FinalizeParams` stays false, so the normalisation returns before touching attributes or the
+  param map — foreign keys and padded attributes are what broke ACNH with 2306-0116.
+- Reached independently from the host side by `openpak-56` for `risk-of-rain` in v0.3.8: create is
+  the same code for both titles, so two sessions converging on it from opposite ends of the
+  session lifecycle is the better part of the evidence.
+- No new flags or environment variables.
+
 ## 2026-09-25 — v0.3.7: Risk of Rain gets the legacy station shape (does NOT fix its crash)
 
 - **`risk-of-rain` moves to `LegacyPia()`.** The title is bare NEX 4.5 with no Pia, and

@@ -351,6 +351,20 @@ var titles = []title{
 		// about itself (AddedToGathering). The recap is the same cure
 		// risk-of-rain needed, for the same reason.
 		e.JoinRecapParticipate = true
+		// The recap alone was not enough: the joiner heard about the host and
+		// still timed out, and the join echo logged count=0. ParticipationCount
+		// is only ever set to 1 (the host) in finalizeCreatedSession, and
+		// createSession never generates the 32-byte SessionKey either, so a
+		// title that leaves this off hands its joiner a session reporting
+		// nobody in it and carrying no key. ACNH's provenance records Pia
+		// using that key to seed the P2P session before JOIN -- which matches
+		// what the wire showed here: the probe and its reply cross the LAN
+		// fine, three times, and nothing follows them.
+		//
+		// FinalizeParams stays false, so this returns before touching
+		// attributes or the param map: foreign keys and padded attributes are
+		// what broke ACNH with 2306-0116, and this title reads strictly.
+		e.FinalizeCreateSession = true
 	}},
 }
 
