@@ -15,6 +15,20 @@
   joins cleanly and then never learns of the host. This joiner never got that far — it
   rejected the join answer itself. Left off until a run needs it.
 - No new flags or environment variables.
+- Deployed to quilted-waffle 2026-09-25 (`ghcr.io/openpak/switch-nex:v0.3.6`, quadlet previous
+  saved as `.before-v0.3.6-20260925`). **Confirmed**: the join is accepted on screen,
+  2306-0116 is gone and `matchmake: joined … count=0` shows the echo path ran. The game then
+  reaches the NAT probe exchange and both peers exchange InitiateProbe.
+- **Still not playable together, and not a server fault.** Both clients ran on one machine
+  behind one NAT, both classified `moderate` (mapping=1 filtering=2). Each advertises its
+  public pair plus a LAN path in `Ntrpa`/`Ntrpp`, and reaching the public pair from inside the
+  same NAT needs router hairpinning. Same wall Mario Kart 8 Deluxe hit on 2026-09-20; see the
+  comment in `protocols/nattraversal.go`. The relay itself is correct: the prober's own `self`
+  station, with its real port, is what gets pushed — not the `port=1` placeholder the clients
+  register before Pia binds its socket. Two separate networks, or a relayed P2P path through
+  the existing coturn, is what would settle it.
+- Emulator-side note: both emulators defaulted to the same host NIC, so both advertised
+  `10.87.0.2` and probed themselves. Eden is now pinned to `enp5s0` (`10.87.0.3`).
 
 ## 2026-09-25 — v0.3.5: Risk of Rain Returns
 
