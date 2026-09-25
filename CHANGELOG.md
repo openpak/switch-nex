@@ -41,6 +41,15 @@
   DataStore were never called. They stay registered — the binary links them, and a single
   matchmaking session is not the whole game.
 - No new flags or environment variables.
+- Deployed to quilted-waffle 2026-09-25: image `ghcr.io/openpak/switch-nex:v0.3.5` pushed and
+  pinned in the quadlet (previous saved as `.before-v0.3.5-20260925`), Traefik SNI router
+  `g45559e00-lp1.s.n.srv.nintendo.net` → `host.containers.internal:23000` (delta backup
+  `dynamic.before-risk-of-rain-returns-20260925.yml`), INPUT ACCEPT for 23001/tcp inserted
+  before the REJECT and persisted to `/etc/iptables/rules.v4`, OCI ingress opened for
+  23000–23999/tcp. Verified: `[risk-of-rain-returns] serving auth :23000 secure :23001
+  healthz :23002`, all three bound, in-container binary sha256 `a1d6b913…` equal to the
+  released `switch-nexd-arm64`, and both stages serve the OpenPak leaf from outside the host
+  (23001 direct, 443 via SNI). Not console-verified.
 
 ## 2026-09-25 — v0.3.3: Risk of Rain
 
