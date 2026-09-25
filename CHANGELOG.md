@@ -1,5 +1,20 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.4: Risk of Rain joins
+
+- **`risk-of-rain` gets `JoinRecapParticipate`.** First console contact (Eden hosting,
+  Ryujinx joining) got all the way through login, browse and join: the key `61b8f3a6` and
+  game server `29C91300` read out of the game's own `nx/config.csv` are correct, and nothing
+  answered NotImplemented. The joiner then sent MatchMakingExt EndParticipation two seconds
+  after the join without ever asking for participant URLs — the ACNH shape: it heard only
+  `AddedToGathering` (122000) about itself and never learned the host was there. The recap
+  notification set is the measured cure.
+- Measured protocol use, narrower than v0.3.3 assumed: MatchmakeExtension `0x34`/`0x27`,
+  MatchMakingExt `0x32`, Secure and NAT traversal. Ranking, Ranking2, MatchmakeReferee and
+  DataStore were never called. They stay registered — the binary links them, and a single
+  matchmaking session is not the whole game.
+- No new flags or environment variables.
+
 ## 2026-09-25 — v0.3.3: Risk of Rain
 
 - **New title `risk-of-rain`** (0100AAA00ACBE800, game server 29C91300, nnSdk 4.5.0, no Pia)

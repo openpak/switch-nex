@@ -265,6 +265,12 @@ var titles = []title{
 		e.Ranking2 = true
 		e.MatchmakeReferee = true
 		e.DataStore = protocols.DSEmptyList
+		// Console-measured 2026-09-25 (Eden hosting, Ryujinx joining): the
+		// joiner takes the session, then 2 s later sends MatchMakingExt
+		// EndParticipation without ever asking for participant URLs — the
+		// ACNH shape. It only learns of itself from AddedToGathering (122000)
+		// and never hears about the host, so the recap is what it waits on.
+		e.JoinRecapParticipate = true
 	}},
 	{"streets-of-rage-4", 22880, "14c73f27", func(e *protocols.Env) {
 		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
