@@ -1,17 +1,21 @@
 # Changelog — switch-nex
 
-## 2026-09-25 — v0.3.5: Risk of Rain hosts
+## 2026-09-25 — v0.3.7: Risk of Rain gets the legacy station shape (does NOT fix its crash)
 
-- **`risk-of-rain` moves to `LegacyPia()`.** Hosting was measured crashing the game on a real
-  Switch and on Ryujinx alike: the gathering is created and NAT reported, then the title dies
-  two seconds later. Its own log reads `netgroup: OpenSocket` / `Open failed` with no socket
-  call behind it, and it then calls a method on the object `Open` never built. A failure
-  decided before any syscall is a parse of something already in hand — and the only such thing
-  is its own registered station, which `Register` was writing in the Pia 5.19 shape
-  (`type=0x0B` plus `Pa=`). This title is bare NEX 4.5 with no Pia and its station parser
-  predates both fields. First user of `LegacyPia()`, which had sat unused since it was written.
-- Why the two Risk of Rain titles differed on one daemon: Returns is NEX 4.6 and takes the 5.19
-  shape happily — it hosts and joins with full NAT traversal.
+- **`risk-of-rain` moves to `LegacyPia()`.** The title is bare NEX 4.5 with no Pia, and
+  `Register` was writing its public station in the Pia 5.19 shape (`type=0x0B` plus `Pa=`),
+  which its station parser predates. First user of `LegacyPia()`, unused since it was written.
+  Correct on its own terms — the register line now reads `type=3` with no `Pa=`.
+- **It does not fix the hosting crash, which is still open.** Console-measured on a real Switch
+  and on Ryujinx alike, before and after this change: the gathering is created and NAT
+  reported, then the game dies ~2 s later. Its own log reads `netgroup: OpenSocket` /
+  `Open failed` with not one socket call behind it, and it then calls a method on the object
+  `Open` never built (null `this`, PC `RiskOfRain_NX.nss:0x184838`, LR `0x16bc90`). A failure
+  decided before any syscall is a parse or precondition on something already in hand; the
+  station shape was the candidate and it was wrong. Next step is disassembling the title at
+  those offsets — the remaining alternatives are guesses.
+- Risk of Rain Returns is NEX 4.6, keeps the 5.19 shape, and hosts and joins fine on the same
+  daemon. That contrast is what made the station shape look like the answer.
 - No new flags or environment variables.
 
 ## 2026-09-25 — v0.3.6: Risk of Rain Returns joins
