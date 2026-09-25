@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **`risk-of-rain-2`'s game server id was wrong, and it cost a boot: 2855FF00, not 23C34600.**
+  Console-measured 2026-09-25 on a real Switch *and* on Ryujinx, both failing identically with
+  **2306-0502**: the title resolves `g2855ff00-lp1.s.n.srv.nintendo.net` and nothing else. With
+  no Traefik router for that name the console's TLS landed on the catch-all, got an HTTP answer
+  where NEX expected a carriage, and gave up without ever spending its ticket — the same
+  signature Minecraft showed with 2306-0502 on 2026-09-18. `switch-nexd` logged nothing at all
+  for the title, which is the tell: a routing failure, not a protocol one. Router repointed, no
+  restart needed (Traefik watches the file), backup
+  `dynamic.before-ror2-gsid-fix-20260925.yml`. **Fixed in config only — the code change here is
+  comments.**
+- **`gsid.py` could not have found it, and this is the lesson for the next Unity title.**
+  `2855FF00` is absent from `main.bin` entirely: not a little-endian word, not ASCII, not a
+  movz/movk pair at any distance up to 24 instructions — and not in `global-metadata.dat`
+  either. Every candidate the scan *did* offer (`23C34600`, `2E040301`, `20104000`, `2E090300`)
+  was wrong. Picking `23C34600` on shape ("ends in 00, sits in the right era") was reasoning
+  over a candidate set that never contained the answer, which no amount of care about the
+  shortlist would have caught. **For a Unity IL2CPP title, boot it and read the DNS line before
+  scanning anything** — that is one run, and it is decisive.
+- **The access key `8bac191f` is now doubtful and should be treated as unconfirmed.** It was
+  picked as "the only 8-char hex-shaped literal in global-metadata.dat", but it sits in a long
+  alphabetical run of 32-char Unity asset GUIDs, so hex-shapedness does not separate an access
+  key from an asset id in this game — and the game server id, reached by the same style of
+  argument, did not survive contact. It is left in place for exactly one test because a wrong
+  key announces itself: `prudplite: CONNECT bad signature got=… want=…`. If that appears, empty
+  the key (how `risk-of-rain-returns` runs, and it plays), and recover the real one offline from
+  the logged signature — HMAC-MD5(md5(key), md5(key) || connSig) over 32 bytes.
+- **`risk-of-rain-2` is missing from the status page's checks.** Gatus on Draughts probes
+  `streets-of-rage-4`, `risk-of-rain` and `risk-of-rain-returns` every minute from
+  145.241.228.207 and has never probed 23041. Not this repo's file, but nobody would have
+  noticed the title was unroutable from the monitoring either.
+
 - **`-dump` was hiding a third of each title's behaviour.** Its list covered
   `FinalizeCreateSession` and `JoinEchoSession` but not `JoinRecapParticipate`, `FinalizeParams`
   or `MatchModeAttribute`, so a title with all three of the session-lifecycle flags printed

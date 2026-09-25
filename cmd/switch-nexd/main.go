@@ -442,27 +442,30 @@ var titles = []title{
 	}},
 	{"risk-of-rain-2", 23040, "8bac191f", func(e *protocols.Env) {
 		// Risk of Rain 2 (010076D00E4BA000, update v1.4.1, NEX 4.6.7 + Pia
-		// 5.45.0 — Unity IL2CPP, Mirror networking over Pia). Both IDs are
-		// static findings, not console-measured yet:
+		// 5.45.0 — Unity IL2CPP, Mirror networking over Pia).
 		//
-		//   game server 23C34600 — the only value in the Switch ID range that
-		//   the binary builds as a movz/movk pair and that has the trailing
-		//   00 every allocated Switch ID has. The other candidates gsid.py
-		//   turns up (2EDBE6FE, 24924925, 2AAAAAAB, …) are division magic
-		//   numbers and hash constants.
+		// Game server 2855FF00, CONSOLE-MEASURED 2026-09-25: the title resolves
+		// g2855ff00-lp1.s.n.srv.nintendo.net and nothing else, on a real Switch
+		// and on Ryujinx alike. This corrects a static guess of 23C34600 that
+		// cost a boot — see the changelog. 2855FF00 is not in main.bin AT ALL:
+		// not as a little-endian word, not as ASCII, not as a movz/movk pair at
+		// any distance, and not in global-metadata.dat either. gsid.py could
+		// not have found it, and every candidate it did offer was wrong. For a
+		// Unity title, boot it and read the DNS line first; the static scan is
+		// for titles that keep the id in the NSO.
 		//
-		//   access key 8bac191f — the only 8-char hex-shaped string literal in
-		//   the whole game's global-metadata.dat, where the C# side keeps the
-		//   `accessKey` it passes to the SDK. Unlike Risk of Rain Returns the
-		//   key is NOT an ARM64 immediate (keys.py finds none) and it is not
-		//   in main.bin at all, which is why looking only at the binary missed
-		//   it.
-		//
-		// Both are checked by the first boot and cost nothing if wrong: a bad
-		// game server id shows up as the console resolving some other
-		// g<hex>-lp1 host, and a bad access key as a CONNECT signature that
-		// does not verify. If that happens, empty the key — Returns runs that
-		// way and plays.
+		// Access key 8bac191f is a STATIC GUESS AND PROBABLY WRONG. It is the
+		// only 8-char hex-shaped literal in global-metadata.dat, but it sits in
+		// a long alphabetical run of 32-char Unity asset GUIDs, so "hex-shaped
+		// literal" does not distinguish an access key from an asset id here —
+		// and the game server id, found by the same kind of reasoning, did not
+		// survive the console. A wrong key is cheap and self-announcing: the
+		// CONNECT frame fails its signature check and prudplite logs
+		// `CONNECT bad signature got=… want=…`. If that appears, empty the key
+		// — signatures then go unverified, which is how risk-of-rain-returns
+		// runs and plays — and the logged signature is enough to recover the
+		// real key offline, since it is
+		// HMAC-MD5(md5(key), md5(key) || connSig) over 32 bytes.
 		//
 		// Protocols from the SDK banners the binary carries: NEX_MM, NEX_RK,
 		// NEX_R2, NEX_DS, NEX_UT, NEX_SS, NEX_CO. No NEX_MR, so no
