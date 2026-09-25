@@ -307,8 +307,17 @@ var titles = []title{
 		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
 		// Pia 5.26.2). Key read from our v0 dump, next to the game's network
 		// strings. The binary links NAT traversal and the notification
-		// protocols only: no Ranking, no DataStore. Not console-verified yet.
+		// protocols only: no Ranking, no DataStore.
 		e.Match = protocols.NewMatchmakingStore()
+		// Console-measured 2026-09-25, and predicted before it was measured:
+		// this title was the only served matchmaking title left reporting
+		// `behaviour: none` in -dump, so it had to fail the way Risk of Rain
+		// and Risk of Rain Returns did. It does -- 2306-0116 on join. Same
+		// pair, same reasons: createSession otherwise leaves ParticipationCount
+		// at 0 with an empty SessionKey, and the join family answers a bare
+		// Bool(true) where the client parses a whole session.
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
 	}},
 	{"risk-of-rain-returns", 23000, "", func(e *protocols.Env) {
 		// Risk of Rain Returns (0100D1801A0F4000, game server 45559E00). The
@@ -375,6 +384,43 @@ var titles = []title{
 		// attributes or the param map: foreign keys and padded attributes are
 		// what broke ACNH with 2306-0116, and this title reads strictly.
 		e.FinalizeCreateSession = true
+	}},
+	{"risk-of-rain-2", 23040, "8bac191f", func(e *protocols.Env) {
+		// Risk of Rain 2 (010076D00E4BA000, update v1.4.1, NEX 4.6.7 + Pia
+		// 5.45.0 — Unity IL2CPP, Mirror networking over Pia). Both IDs are
+		// static findings, not console-measured yet:
+		//
+		//   game server 23C34600 — the only value in the Switch ID range that
+		//   the binary builds as a movz/movk pair and that has the trailing
+		//   00 every allocated Switch ID has. The other candidates gsid.py
+		//   turns up (2EDBE6FE, 24924925, 2AAAAAAB, …) are division magic
+		//   numbers and hash constants.
+		//
+		//   access key 8bac191f — the only 8-char hex-shaped string literal in
+		//   the whole game's global-metadata.dat, where the C# side keeps the
+		//   `accessKey` it passes to the SDK. Unlike Risk of Rain Returns the
+		//   key is NOT an ARM64 immediate (keys.py finds none) and it is not
+		//   in main.bin at all, which is why looking only at the binary missed
+		//   it.
+		//
+		// Both are checked by the first boot and cost nothing if wrong: a bad
+		// game server id shows up as the console resolving some other
+		// g<hex>-lp1 host, and a bad access key as a CONNECT signature that
+		// does not verify. If that happens, empty the key — Returns runs that
+		// way and plays.
+		//
+		// Protocols from the SDK banners the binary carries: NEX_MM, NEX_RK,
+		// NEX_R2, NEX_DS, NEX_UT, NEX_SS, NEX_CO. No NEX_MR, so no
+		// MatchmakeReferee — unlike the two Risk of Rain titles. Pia 5.45 is
+		// well past 5.19, so the default public station shape is right.
+		// Nothing about the session lifecycle is measured yet, so no
+		// JoinEchoSession / recap / finalize: those were each a response to a
+		// specific console symptom in the other two titles, and guessing them
+		// here would change what the first boot means.
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		e.Ranking2 = true
+		e.DataStore = protocols.DSEmptyList
 	}},
 }
 
