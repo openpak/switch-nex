@@ -279,6 +279,38 @@ var titles = []title{
 		// protocols only: no Ranking, no DataStore. Not console-verified yet.
 		e.Match = protocols.NewMatchmakingStore()
 	}},
+	{"risk-of-rain-returns", 23000, "", func(e *protocols.Env) {
+		// Risk of Rain Returns (0100D1801A0F4000, game server 45559E00). The
+		// game server id is console-measured, not guessed: the title resolves
+		// g45559e00-lp1.s.n.srv.nintendo.net and nothing else, on three
+		// separate attempts in one Ryujinx run (2026-09-25). It is NEX despite
+		// the GameMaker runner exporting the whole switch_npln_* API — the
+		// runner links both stacks and this title picks NEX, and it never asks
+		// for a t-*-lp1 NPLN tenant.
+		//
+		// Access key unknown, and empty on purpose. Unlike Risk of Rain it
+		// ships no nx/config.csv (its RomFS has none), the key is not in
+		// game.win, and no 8-hex string sits in main/subsdk0/subsdk1/sdk, so
+		// it is built as an ARM64 immediate. Empty means CONNECT signatures go
+		// unverified, which costs nothing here: the server never signs its own
+		// CONNECT-Ack, so the client has nothing of ours to check. Recovering
+		// it later is a brute force over one logged handshake — the signature
+		// is HMAC-MD5(md5(key), md5(key) || connSig) over 32 bytes.
+		//
+		// Same protocol set as Risk of Rain, read from the binary:
+		// MatchmakeExtension, Ranking, Ranking2, MatchmakeReferee, DataStore,
+		// NATTraversal, SecureConnection. The game drives switch_matchmaking_*
+		// and switch_leaderboard_{get_scores,post_score,post_common_data}.
+		// It calls session_open_participation / session_close_participation
+		// itself, so participation is left alone rather than forced open.
+		// Which calls actually arrive is the first boot's NotImplemented log.
+		// Not console-verified.
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		e.Ranking2 = true
+		e.MatchmakeReferee = true
+		e.DataStore = protocols.DSEmptyList
+	}},
 }
 
 // dumpTitles prints each title's configuration as newService resolves it, so

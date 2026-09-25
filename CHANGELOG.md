@@ -1,5 +1,32 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.5: Risk of Rain Returns
+
+- **New title `risk-of-rain-returns`** (0100D1801A0F4000, game server 45559E00) on port
+  block 23000 (auth 23000, secure 23001, healthz 23002) — a new range, because
+  22700–22899 filled up with `risk-of-rain` and every earlier NEX range was already full.
+  ports.md now carries 23000–23499 for Switch NEX and leaves 23500–23999 unallocated.
+- **The game server id is console-measured, not read out of a config file.** The title
+  resolves `g45559e00-lp1.s.n.srv.nintendo.net` and nothing else, on three separate
+  attempts in one Ryujinx run, and never asks for a `t-*-lp1` NPLN tenant. This corrects
+  `research-switch-dump-stacks.md`, which had it as NPLN on the strength of the
+  `switch_npln_*` symbols its GameMaker runner exports: the runner links both stacks in
+  every build it produces, so the symbols prove nothing and the
+  `SDK MW+Nintendo+NEX-4_6_7` banner was right.
+- **Access key unknown, and empty on purpose.** Unlike `risk-of-rain` this title ships no
+  `nx/config.csv` (its RomFS has none), the key is not in `game.win`, and no 8-hex string
+  sits in `main`/`subsdk0`/`subsdk1`/`sdk` — it is built as an ARM64 immediate. Empty
+  means CONNECT signatures go unverified, which costs nothing here: the server never signs
+  its own CONNECT-Ack, so the client has nothing of ours to check. Recovering it later is a
+  brute force over one logged handshake, since the signature is
+  HMAC-MD5(md5(key), md5(key) || connSig) over 32 bytes.
+- Registers matchmaking, Ranking, Ranking2, MatchmakeReferee and an empty-list DataStore —
+  the same set the binary links. The game drives `switch_matchmaking_*` and
+  `switch_leaderboard_{get_scores,post_score,post_common_data}`, and calls
+  `session_open_participation`/`session_close_participation` itself, so participation is
+  left alone rather than forced open. Not console-verified.
+- No new flags or environment variables.
+
 ## 2026-09-25 — v0.3.4: Risk of Rain joins
 
 - **`risk-of-rain` gets `JoinRecapParticipate`.** First console contact (Eden hosting,
