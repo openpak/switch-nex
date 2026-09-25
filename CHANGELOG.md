@@ -14,8 +14,20 @@
   decided before any syscall is a parse or precondition on something already in hand; the
   station shape was the candidate and it was wrong. Next step is disassembling the title at
   those offsets — the remaining alternatives are guesses.
-- Risk of Rain Returns is NEX 4.6, keeps the 5.19 shape, and hosts and joins fine on the same
-  daemon. That contrast is what made the station shape look like the answer.
+- Risk of Rain Returns is NEX 4.6 and keeps the 5.19 shape. It creates, browses and joins on
+  the same daemon; it does **not** yet play — see its own bullet below. That contrast is what
+  made the station shape look like the answer.
+- **`risk-of-rain-returns` gets `JoinRecapParticipate`** (shipped in this same image, commit
+  3b955d6). With the join answer fixed in v0.3.6, a quick lobby showed two players to the host
+  and counted down while the joiner's screen stayed empty: the default pairing tells everyone
+  already in the gathering about the joiner, and tells the joiner only about itself
+  (`AddedToGathering`), so it never hears the host exists. The recap is the same cure
+  `risk-of-rain` needed in v0.3.4. Measured working — the joiner now receives a `3001` per
+  participant — and the title still times out afterwards, so it is not the last problem.
+- **The Pia punch is not what is wrong with Risk of Rain Returns.** `tcpdump` on the LAN caught
+  the probe and its reply crossing in both directions between the console and the emulator,
+  three attempts, each succeeding and then going quiet (25-byte request, 27-byte reply). Host
+  firewall, routing and NAT were all ruled out this way.
 - No new flags or environment variables.
 
 ## 2026-09-25 — v0.3.6: Risk of Rain Returns joins
