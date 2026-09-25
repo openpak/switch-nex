@@ -428,6 +428,15 @@ var titles = []title{
 		e.Ranking = true
 		e.Ranking2 = true
 		e.DataStore = protocols.DSEmptyList
+		// Session-lifecycle flags requested by the title's author (openpak-55)
+		// 2026-09-25, on the evidence from the other titles rather than from this
+		// one: FinalizeCreateSession + JoinEchoSession are 4-for-4 tonight and the
+		// recap 4-for-4 with them. Neither affects what the first boot is for here
+		// -- gsid 23C34600 and key 8bac191f are settled at DNS and handshake time,
+		// nowhere near matchmaking. FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 }
 
