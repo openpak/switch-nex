@@ -1,5 +1,19 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.5: Risk of Rain hosts
+
+- **`risk-of-rain` moves to `LegacyPia()`.** Hosting was measured crashing the game on a real
+  Switch and on Ryujinx alike: the gathering is created and NAT reported, then the title dies
+  two seconds later. Its own log reads `netgroup: OpenSocket` / `Open failed` with no socket
+  call behind it, and it then calls a method on the object `Open` never built. A failure
+  decided before any syscall is a parse of something already in hand — and the only such thing
+  is its own registered station, which `Register` was writing in the Pia 5.19 shape
+  (`type=0x0B` plus `Pa=`). This title is bare NEX 4.5 with no Pia and its station parser
+  predates both fields. First user of `LegacyPia()`, which had sat unused since it was written.
+- Why the two Risk of Rain titles differed on one daemon: Returns is NEX 4.6 and takes the 5.19
+  shape happily — it hosts and joins with full NAT traversal.
+- No new flags or environment variables.
+
 ## 2026-09-25 — v0.3.6: Risk of Rain Returns joins
 
 - **`risk-of-rain-returns` gets `JoinEchoSession`.** First two-client contact (Ryujinx
