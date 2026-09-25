@@ -283,6 +283,17 @@ var titles = []title{
 		// Risk of Rain Returns is NEX 4.6 and takes that shape happily, which
 		// is why it hosts on the same daemon. First user of LegacyPia.
 		e.Pia = protocols.LegacyPia()
+		// The legacy shape was correct and changed nothing: the host still dies
+		// at the same instruction. Create is handled by identical code for both
+		// Risk of Rain titles and Returns hosts fine from the same console, so
+		// the only server-side lever left on this path is what the create
+		// ANSWER contains. Clubhouse's normalisation is the one thing that
+		// changes it: count the host as its own first participant, mint a
+		// session key, stamp the start time. A host whose own session reports
+		// zero participants is a candidate for the empty object the game then
+		// calls a method on. Experiment, not a diagnosis -- if this does not
+		// take, the next step is the title's own code at 0x184838.
+		e.FinalizeCreateSession = true
 	}},
 	{"streets-of-rage-4", 22880, "14c73f27", func(e *protocols.Env) {
 		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
