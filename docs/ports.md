@@ -38,5 +38,6 @@ port needs a firewall ACCEPT before the host's final REJECT), +2 /healthz.
 | 22880 | `servers/switch-nex` — Streets of Rage 4 (0100EC9010258000, game server 27C90000; served by `cmd/switch-nexd`, not console-verified) | 22880 | 22881 | 22882 |
 | 22890 | `servers/switch-nex` — Risk of Rain (0100AAA00ACBE800, game server 29C91300; served by `cmd/switch-nexd`, **live** — console-verified playable 2026-09-25) | 22890 | 22891 | 22892 |
 | 23000 | `servers/switch-nex` — Risk of Rain Returns (0100D1801A0F4000, game server 45559E00; served by `cmd/switch-nexd`, **live** — console-verified playable 2026-09-25, Ryujinx hosting and a real Switch joining; access key not recovered so CONNECT signatures are unverified) | 23000 | 23001 | 23002 |
+| 23040 | `servers/switch-nex` — Risk of Rain 2 (010076D00E4BA000, game server 23C34600, access key 8bac191f — both static findings, not console-measured; served by `cmd/switch-nexd`, not console-verified) | 23040 | 23041 | 23042 |
 
 The canonical allocation table lives in Openpak/ports.md.

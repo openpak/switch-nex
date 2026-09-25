@@ -1,5 +1,36 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.10: Risk of Rain 2
+
+Shared release: `openpak-56`'s `streets-of-rage-4` flags (commit 47db0d1) are in the same
+unreleased build and that session writes its own bullets here.
+
+- **New title `risk-of-rain-2`** (010076D00E4BA000, update v1.4.1, NEX 4.6.7 + Pia 5.45.0) on
+  port block 23040 (auth 23040, secure 23041, healthz 23042). 23040 rather than 23010 so the
+  block collides with nothing in ports.md's development table — 23000/23001 already sit on two
+  Postgres reservations and a third strikethrough was avoidable.
+- **The access key is a C# literal, not an ARM64 immediate.** `keys.py` finds no 8-char
+  immediate in `main.bin` and the key is not a string there either, the same dead end Returns
+  hit. It is in the Unity metadata: `8bac191f` is the only hex-shaped 8-char string literal in
+  all 29 230 literals of `Data/Managed/Metadata/global-metadata.dat`, which is where the
+  managed side keeps the `accessKey` it hands the SDK. Returns has no metadata to read
+  (GameMaker), so the same search there had nowhere to go.
+- **Game server `23C34600`, chosen from `gsid.py`'s candidates on shape.** It is the only value
+  in the Switch range the binary builds as a movz/movk pair that also ends in `00`, as every
+  allocated Switch id does; the higher-frequency candidates (`2EDBE6FE`, `24924925`,
+  `2AAAAAAB`) are division magic and hash constants. Not console-measured — the first boot's
+  DNS log settles it, and a wrong guess shows as the console resolving some other `g<hex>-lp1`
+  host.
+- Registers matchmaking, Ranking, Ranking2 and an empty-list DataStore, from the SDK banners
+  the binary carries (`NEX_MM`, `NEX_RK`, `NEX_R2`, `NEX_DS`, `NEX_UT`, `NEX_SS`, `NEX_CO`).
+  **No `MatchmakeReferee`** — there is no `NEX_MR` banner, which is where this title differs
+  from both Risk of Rain and Returns.
+- **No session-lifecycle flags.** `JoinEchoSession`, `JoinRecapParticipate` and
+  `FinalizeCreateSession` were each a response to a named console symptom in the other two
+  titles; setting them here pre-emptively would change what the first boot's failure means.
+  Pia 5.45 is well past 5.19, so the default public station shape applies (not `LegacyPia`).
+- No new flags or environment variables. Not console-verified.
+
 ## 2026-09-25 — v0.3.9: session fixes for both Risk of Rain titles
 
 Shared release: `openpak-56` took this number for `risk-of-rain: JoinEchoSession` in the same
