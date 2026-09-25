@@ -19,6 +19,13 @@ build. Both titles' bullets belong here.
   the same code for both titles, so two sessions converging on it from opposite ends of the
   session lifecycle is the better part of the evidence.
 - No new flags or environment variables.
+- **Console-verified playable 2026-09-25**, `ghcr.io/openpak/switch-nex:v0.3.9`. Ryujinx hosted
+  `gid=450172` and a real Switch joined it: `matchmake: joined … count=1`, the recap delivered a
+  `3001` per participant, and the session held — no joiner disconnect, where every previous
+  attempt dropped 15-95 s after the join. Four fixes were needed end to end, v0.3.5 through
+  v0.3.9: the title itself (gsid 45559E00, NEX not NPLN), `JoinEchoSession`,
+  `JoinRecapParticipate` and `FinalizeCreateSession`. The access key is still unrecovered, so
+  CONNECT signatures go unverified; nothing else about the title depends on it.
 
 ## 2026-09-25 — v0.3.7: Risk of Rain gets the legacy station shape (does NOT fix its crash)
 
