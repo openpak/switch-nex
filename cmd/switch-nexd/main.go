@@ -271,6 +271,18 @@ var titles = []title{
 		// ACNH shape. It only learns of itself from AddedToGathering (122000)
 		// and never hears about the host, so the recap is what it waits on.
 		e.JoinRecapParticipate = true
+		// Console-measured 2026-09-25 (a real Switch and Ryujinx, same shape):
+		// hosting creates the gathering and reports NAT, then the game dies
+		// two seconds later -- its own log says `netgroup: OpenSocket` /
+		// `Open failed` with NOT ONE socket call behind it, and it then calls
+		// a method on the object Open never built. A failure decided before
+		// any syscall is a parse of something already in hand, and the only
+		// thing we hand it is its own registered station. This title has no
+		// Pia at all, and we were advertising the 5.19 public shape
+		// (type=0x0B plus Pa=) that its NEX 4.5 station parser predates.
+		// Risk of Rain Returns is NEX 4.6 and takes that shape happily, which
+		// is why it hosts on the same daemon. First user of LegacyPia.
+		e.Pia = protocols.LegacyPia()
 	}},
 	{"streets-of-rage-4", 22880, "14c73f27", func(e *protocols.Env) {
 		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
