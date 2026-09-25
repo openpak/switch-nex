@@ -334,8 +334,10 @@ var titles = []title{
 		// and switch_leaderboard_{get_scores,post_score,post_common_data}.
 		// It calls session_open_participation / session_close_participation
 		// itself, so participation is left alone rather than forced open.
-		// Which calls actually arrive is the first boot's NotImplemented log.
-		// Not console-verified.
+		// Console-verified playable 2026-09-25: Ryujinx hosted gid=450172 and a
+		// real Switch joined it, count=1, session held. Zero NotImplemented
+		// across every run -- Ranking, Ranking2, MatchmakeReferee and DataStore
+		// stay registered but were never called.
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.Ranking2 = true
