@@ -294,6 +294,14 @@ var titles = []title{
 		// calls a method on. Experiment, not a diagnosis -- if this does not
 		// take, the next step is the title's own code at 0x184838.
 		e.FinalizeCreateSession = true
+		// That fixed the host: the Switch now creates a gathering and holds it,
+		// and the guest log reads `netgroup: OpenSocket` with no `Open failed`
+		// after it. The joiner then joined cleanly and sat 19 s doing nothing --
+		// no GetParticipantsURLs, no probe request -- before giving up and
+		// creating its own session. Same shape Risk of Rain Returns was measured
+		// with on 0x6D.0x27: the bare Bool(true) is one byte where the client
+		// reads a whole session.
+		e.JoinEchoSession = true
 	}},
 	{"streets-of-rage-4", 22880, "14c73f27", func(e *protocols.Env) {
 		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
