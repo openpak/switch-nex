@@ -100,6 +100,14 @@ var titles = []title{
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSStub
+		// Not console-measured for this title: applied from the pattern that held
+		// on every Switch NEX title actually tested on 2026-09-25 (Risk of Rain,
+		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
+		// working WITHOUT them -- this title has simply never been on a console.
+		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"mario-kart-8-deluxe", 22150, "09c1c475", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
@@ -165,6 +173,14 @@ var titles = []title{
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.Presence = true // 0x79 station/presence stub
+		// Not console-measured for this title: applied from the pattern that held
+		// on every Switch NEX title actually tested on 2026-09-25 (Risk of Rain,
+		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
+		// working WITHOUT them -- this title has simply never been on a console.
+		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"mario-strikers-battle-league", 22300, "MAGNI5jG", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
@@ -177,6 +193,14 @@ var titles = []title{
 	{"minecraft", 22310, "f4983d87", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
+		// Not console-measured for this title: applied from the pattern that held
+		// on every Switch NEX title actually tested on 2026-09-25 (Risk of Rain,
+		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
+		// working WITHOUT them -- this title has simply never been on a console.
+		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"splatoon-2", 22320, "4eb18d39", func(e *protocols.Env) {
 		e.Pia = protocols.LegacyPia()
@@ -185,11 +209,27 @@ var titles = []title{
 		// This title takes an empty body for every DataStore method, GetMeta
 		// included — not the NotFound the others want.
 		e.DataStore = protocols.DSEmptySuccess
+		// Not console-measured for this title: applied from the pattern that held
+		// on every Switch NEX title actually tested on 2026-09-25 (Risk of Rain,
+		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
+		// working WITHOUT them -- this title has simply never been on a console.
+		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"super-mario-maker-2", 22330, "fdf6617f", func(e *protocols.Env) {
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSSMM2
+		// Not console-measured for this title: applied from the pattern that held
+		// on every Switch NEX title actually tested on 2026-09-25 (Risk of Rain,
+		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
+		// working WITHOUT them -- this title has simply never been on a console.
+		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"super-mario-odyssey", 22340, "afef0ecf", func(e *protocols.Env) {
 		// No matchmaking: Odyssey has no lobby or P2P — Utility, Ranking and
@@ -202,6 +242,14 @@ var titles = []title{
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSEmptyList
+		// Not console-measured for this title: applied from the pattern that held
+		// on every Switch NEX title actually tested on 2026-09-25 (Risk of Rain,
+		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
+		// working WITHOUT them -- this title has simply never been on a console.
+		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"super-mario-3d-world-bowsers-fury", 22370, "67f366f2", func(e *protocols.Env) {
 		// Game server 2B306A00, key and NEX 4.6.4 read from our v1.2.2 dump
@@ -462,7 +510,10 @@ func dumpTitles() {
 			{e.FindByParticipant, "FindByParticipant"},
 			{e.SanitizeDetailFind, "SanitizeDetailFind"},
 			{e.FinalizeCreateSession, "FinalizeCreateSession"},
+			{e.FinalizeParams, "FinalizeParams"},
+			{e.MatchModeAttribute, "MatchModeAttribute"},
 			{e.JoinEchoSession, "JoinEchoSession"},
+			{e.JoinRecapParticipate, "JoinRecapParticipate"},
 			{e.StrikersInit, "StrikersInit"},
 			{e.ParticipateDelay > 0, "ParticipateDelay " + e.ParticipateDelay.String()},
 		} {

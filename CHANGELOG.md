@@ -1,5 +1,47 @@
 # Changelog — switch-nex
 
+## Unreleased
+
+- **`-dump` was hiding a third of each title's behaviour.** Its list covered
+  `FinalizeCreateSession` and `JoinEchoSession` but not `JoinRecapParticipate`, `FinalizeParams`
+  or `MatchModeAttribute`, so a title with all three of the session-lifecycle flags printed
+  exactly the same two as a title with two of them. `risk-of-rain` has printed
+  `behaviour: FinalizeCreateSession, JoinEchoSession` all evening while demonstrably recapping,
+  and `risk-of-rain-2` on the deployed v0.3.13 prints it too. Found by `openpak-56` while
+  verifying v0.3.13. The three missing flags are now in the list.
+- This matters beyond tidiness: "`behaviour: none` on a matchmaking title is a defect" is the
+  rule that predicted the `streets-of-rage-4` and `risk-of-rain-2` fixes, and `-dump` is how it
+  gets checked. It was only ever able to confirm two thirds of the cure. Until a build carries
+  this, the runtime check for the recap is the join pushing a `3001` per participant rather
+  than one `AddedToGathering`.
+- Diagnostic only, no behaviour change. **Not built or deployed** — the box is mid-console-test
+  and a diagnostic does not earn a restart. Rides the next build.
+
+## 2026-09-25 — v0.3.13: risk-of-rain-2 gets the three flags after all
+
+Shared release: `openpak-56` folded this in with its own `streets-of-rage-4` recap (c9d0e0c,
+tagged v0.3.12 and pushed but never deployed) so one restart covered both; that session writes
+its own bullets. v0.3.11 was skipped — I reserved it, then stayed off the build.
+
+- **`risk-of-rain-2` gets `FinalizeCreateSession`, `JoinEchoSession` and `JoinRecapParticipate`**
+  (commit b6673db, written by `openpak-56` at this title's request). Predicted, not measured: the
+  trio went 4-for-4 across the matchmaking titles touched on 2026-09-25 — Clubhouse Games before
+  them, then `risk-of-rain`, `risk-of-rain-returns` and `streets-of-rage-4`, each arriving at it
+  from a different symptom. Shipping the title without them in v0.3.10 was the wrong call and
+  reversing it cost one restart.
+- `FinalizeParams` stays off. It is the one member of the family that has actually hurt a title
+  (ACNH, 2306-0116, foreign keys in a strict parse), and nothing about this title has been
+  measured yet.
+- **Still not console-verified**, and the two static findings still stand unconfirmed: game
+  server `23C34600` and access key `8bac191f`. The first boot settles both for free — a wrong id
+  shows as the console resolving some other `g<hex>-lp1` host, a wrong key as a CONNECT
+  signature that does not verify, and the fix for that is to empty the key, which is how Returns
+  runs and plays.
+- **No git tag exists for v0.3.11, v0.3.12 or v0.3.13** — origin carries tags only up to
+  `v0.3.10`. The deployed image is therefore not reproducible from a tag, and CI (which builds
+  on `v*.*.*` tags only) never saw these three. Worth tagging `v0.3.13` at b6673db retroactively
+  so the running image has a name in git.
+
 ## 2026-09-25 — v0.3.10: Risk of Rain 2
 
 Shared release: `openpak-56`'s `streets-of-rage-4` flags (commit 47db0d1) are in the same
@@ -28,6 +70,9 @@ unreleased build and that session writes its own bullets here.
 - **No session-lifecycle flags.** `JoinEchoSession`, `JoinRecapParticipate` and
   `FinalizeCreateSession` were each a response to a named console symptom in the other two
   titles; setting them here pre-emptively would change what the first boot's failure means.
+  **Reversed the same evening in v0.3.13 — the argument was wrong.** This boot's job is
+  confirming the game server id and the access key, and both are settled at DNS and handshake
+  time, nowhere near matchmaking; the flags could not have blurred it.
   Pia 5.45 is well past 5.19, so the default public station shape applies (not `LegacyPia`).
 - No new flags or environment variables. Not console-verified.
 
