@@ -1,6 +1,9 @@
 # Changelog — switch-nex
 
-## 2026-09-25 — v0.3.9: Risk of Rain Returns, the created session
+## 2026-09-25 — v0.3.9: session fixes for both Risk of Rain titles
+
+Shared release: `openpak-56` took this number for `risk-of-rain: JoinEchoSession` in the same
+build. Both titles' bullets belong here.
 
 - **`risk-of-rain-returns` gets `FinalizeCreateSession`.** The v0.3.7 recap worked — the joiner
   now receives a `3001` per participant instead of only `AddedToGathering` about itself — and it
