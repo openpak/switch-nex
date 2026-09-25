@@ -1,5 +1,15 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.3: Risk of Rain
+
+- **New title `risk-of-rain`** (0100AAA00ACBE800, game server 29C91300, nnSdk 4.5.0, no Pia)
+  on port block 22890 (auth 22890, secure 22891, healthz 22892). Game server id and access
+  key `61b8f3a6` come from the game's own RomFS config (`nx/config.csv`), not from the
+  binary's defaults — those are the NEX sample demo's 0x27851C01 / `12345678`, which would
+  have been wrong. Registers matchmaking, Ranking, Ranking2, MatchmakeReferee and an
+  empty-list DataStore, matching the protocols the binary links. Not console-verified yet.
+- No new flags or environment variables.
+
 ## 2026-09-24 — v0.3.2: Streets of Rage 4
 
 - **New title `streets-of-rage-4`** (0100EC9010258000, game server 27C90000, NEX 4.6.3,

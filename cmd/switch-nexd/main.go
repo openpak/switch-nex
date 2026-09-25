@@ -249,6 +249,23 @@ var titles = []title{
 		e.FinalizeParams = true
 		e.JoinEchoSession = true
 	}},
+	{"risk-of-rain", 22890, "61b8f3a6", func(e *protocols.Env) {
+		// Risk of Rain (0100AAA00ACBE800, game server 29C91300, nnSdk 4.5.0).
+		// Both values are read from the game's own RomFS config, not guessed:
+		// nx/config.csv holds game_server_id 0x29C91300 and ngs_access_key
+		// 61b8f3a6 (the binary's *game_server_id / *ngs_access_key defaults are
+		// the NEX sample demo's 0x27851C01 / 12345678 and must not be used).
+		// No Pia: this is bare NEX 4.5, ws/wss with prudp and prudps schemes.
+		// It links MatchmakeExtension, Ranking, Ranking2, MatchmakeReferee,
+		// DataStore, NATTraversal and SecureConnection; which of them it
+		// actually calls is the first boot's NotImplemented log. Not
+		// console-verified.
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		e.Ranking2 = true
+		e.MatchmakeReferee = true
+		e.DataStore = protocols.DSEmptyList
+	}},
 	{"streets-of-rage-4", 22880, "14c73f27", func(e *protocols.Env) {
 		// Streets of Rage 4 (0100EC9010258000, game server 27C90000, NEX 4.6.3,
 		// Pia 5.26.2). Key read from our v0 dump, next to the game's network

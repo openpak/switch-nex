@@ -36,5 +36,6 @@ port needs a firewall ACCEPT before the host's final REJECT), +2 /healthz.
 | 22380 | `servers/switch-nex` — Kirby's Dream Buffet (game server 25374500; served by `cmd/switch-nexd`, not console-verified) | 22380 | 22381 | 22382 |
 | 22870 | `servers/switch-nex` — Clubhouse Games: 51 Worldwide Classics (010047700D540000, game server 2035BB00; served by `cmd/switch-nexd`, new title — no nex-go predecessor) | 22870 | 22871 | 22872 |
 | 22880 | `servers/switch-nex` — Streets of Rage 4 (0100EC9010258000, game server 27C90000; served by `cmd/switch-nexd`, not console-verified) | 22880 | 22881 | 22882 |
+| 22890 | `servers/switch-nex` — Risk of Rain (0100AAA00ACBE800, game server 29C91300; served by `cmd/switch-nexd`, not console-verified) | 22890 | 22891 | 22892 |
 
 The canonical allocation table lives in Openpak/ports.md.
