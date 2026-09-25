@@ -329,6 +329,17 @@ var titles = []title{
 		// one byte where the client reads a whole session, the same shift ACNH
 		// documents for the same code. Echo the session back instead.
 		e.JoinEchoSession = true
+		// Console-measured 2026-09-25 (Switch and Ryujinx, either side hosting):
+		// with the join answer fixed, a quick lobby showed two players to the
+		// host and counted down, while the joiner's screen stayed empty. The
+		// Pia punch is not the problem -- tcpdump caught the probe and its
+		// reply crossing the LAN in both directions, three attempts, each one
+		// succeeding and then going quiet. What the joiner never received is
+		// the game-level participant list: the default pairing tells everyone
+		// already in the gathering about the joiner, and tells the joiner only
+		// about itself (AddedToGathering). The recap is the same cure
+		// risk-of-rain needed, for the same reason.
+		e.JoinRecapParticipate = true
 	}},
 }
 
