@@ -1,5 +1,21 @@
 # Changelog — switch-nex
 
+## 2026-09-25 — v0.3.6: Risk of Rain Returns joins
+
+- **`risk-of-rain-returns` gets `JoinEchoSession`.** First two-client contact (Ryujinx
+  hosting, Eden joining) got through login, register, create, NAT and browse: the host's
+  lobby was listed on the joiner's screen, `browse code="" -> 1 session(s)`, and the join
+  was accepted server-side (`matchmake: joined gid=443384`). The joiner then failed on
+  screen with **2306-0116** and sat for 95 s before closing. That code is
+  `Core::InvalidArgument` — a parse rejection, not a timeout — and JoinMatchmakeSession
+  (`0x6D.0x27`) had answered a bare `Bool(true)`, one byte where the client reads a whole
+  session. Same shift ACNH documents for the same code. The join family now echoes the
+  session, with the pre-join participation count as Clubhouse Games measured.
+- Not the recap: `risk-of-rain`'s cure (`JoinRecapParticipate`) addresses a joiner that
+  joins cleanly and then never learns of the host. This joiner never got that far — it
+  rejected the join answer itself. Left off until a run needs it.
+- No new flags or environment variables.
+
 ## 2026-09-25 — v0.3.5: Risk of Rain Returns
 
 - **New title `risk-of-rain-returns`** (0100D1801A0F4000, game server 45559E00) on port

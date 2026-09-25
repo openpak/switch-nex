@@ -310,6 +310,13 @@ var titles = []title{
 		e.Ranking2 = true
 		e.MatchmakeReferee = true
 		e.DataStore = protocols.DSEmptyList
+		// Console-measured 2026-09-25 (Ryujinx hosting, Eden joining): the
+		// host's lobby is browsable and the joiner finds it, then JoinMatchmakeSession
+		// (0x6D.0x27) fails on screen with 2306-0116 -- Core::InvalidArgument,
+		// a parse rejection, not a timeout. The bare Bool(true) we answered is
+		// one byte where the client reads a whole session, the same shift ACNH
+		// documents for the same code. Echo the session back instead.
+		e.JoinEchoSession = true
 	}},
 }
 
