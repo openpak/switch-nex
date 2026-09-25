@@ -1,6 +1,32 @@
 # Changelog — switch-nex
 
-## Unreleased
+## 2026-09-25 — v0.3.14: risk-of-rain-2 finds your friend's game
+
+- **`risk-of-rain-2` gets `FindByParticipant`.** Console-measured (a real Switch as <user-b>,
+  Ryujinx as <user-a>, both directions): the title hosts correctly — login, register, create, NAT
+  and its own `OpenParticipation` all succeed — but "join your friend's game" found nothing. The
+  friend lookup is MatchmakeExtension `0x33` (`FindMatchmakeSessionByParticipant`) and both
+  clients send their friends' real PIDs in it; with the flag off we answered an empty list to
+  both, so neither ever received a gathering id. First title in this server to need `0x33`.
+- **The access key `8bac191f` is CORRECT** — this run settles it. CONNECT carried a valid Lite
+  signature on both clients (`prudplite: CONNECT bad signature` never appeared, and the secure
+  stage reached `calls=12`), so the metadata string-literal guess was right after all even
+  though the game server id found the same way was not.
+- **Quickplay opening two rooms is a race, not a server fault — measured, and deliberately not
+  "fixed".** This title creates its session closed and opens it itself ~2 s later, after the NAT
+  check and station update: `0x6D.0x02 OpenParticipation` arrived at 21:40:26 for a gathering
+  created at 21:40:24. `autoMatchmake` only considers `Match.open()`, so two players pressing
+  quickplay inside that window each create their own room — precisely the log
+  (451906 at :24, 451907 at :26, neither open yet). `ForceOpenParticipation` would paper over it
+  and Kirby's Dream Buffet measured the price: a joiner gets in before the host's station update
+  and probes a `port=1` placeholder (2618-0502). Staggering the two searches is the test.
+- Carries the unreleased `-dump` fix, so `JoinRecapParticipate`, `FinalizeParams` and
+  `MatchModeAttribute` finally print. `risk-of-rain-2` now reads
+  `behaviour: FindByParticipant, FinalizeCreateSession, JoinEchoSession, JoinRecapParticipate`.
+- **Tagged, unlike v0.3.11-v0.3.13.** Those three shipped images with no git tag; this one has
+  one.
+
+## Unreleased — shipped in v0.3.14 above
 
 - **`risk-of-rain-2`'s game server id was wrong, and it cost a boot: 2855FF00, not 23C34600.**
   Console-measured 2026-09-25 on a real Switch *and* on Ryujinx, both failing identically with

@@ -488,6 +488,27 @@ var titles = []title{
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
+		// Console-measured 2026-09-25 (a real Switch as Leia and Ryujinx as
+		// tobagin, both directions): hosting works -- login, register, create,
+		// NAT and OpenParticipation all succeed -- but "join your friend's
+		// game" finds nothing. The friend lookup is MatchmakeExtension 0x33,
+		// FindMatchmakeSessionByParticipant, and each client sends its friends'
+		// real PIDs in it (Leia asked for tobagin's 0xAAAAAAAAAAAA0001 and
+		// tobagin for Leia's 0xAAAAAAAAAAAA0002, each alongside a third
+		// friend). With FindByParticipant off we answered an empty list to
+		// both, so neither ever received a gathering id to join.
+		e.FindByParticipant = true
+		// NOT ForceOpenParticipation, and the two-rooms-on-quickplay report is
+		// measured as a race rather than a server fault: this title creates its
+		// session closed and opens it itself about two seconds later, once the
+		// NAT check and station update are done (0x6D.0x02 OpenParticipation
+		// arrived at 21:40:26 for a gid created at 21:40:24). autoMatchmake only
+		// considers Match.open(), so two players who both press quickplay
+		// inside that window each create their own room -- exactly what the log
+		// shows (451906 at :24, 451907 at :26, neither open yet). Kirby's Dream
+		// Buffet measured the cost of forcing it open anyway: a joiner gets in
+		// before the host's station update and probes a port=1 placeholder
+		// (2618-0502). Stagger the two searches instead.
 	}},
 }
 
