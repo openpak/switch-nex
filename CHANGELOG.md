@@ -1,5 +1,43 @@
 # Changelog — switch-nex
 
+## Unreleased — risk-of-rain-2 pairs and meshes; the game crashes on its own null
+
+No code change. `v0.3.14` was measured on a console 2026-09-26 04:21 UTC (Ryujinx hosting as
+<user-a>, a real Switch joining as <user-b>) and **every server-side gate passed**:
+
+- `FindByParticipant` worked — the friend lookup found the host and `matchmake: joined gid=454173
+  pid=12297829382472990722 count=1` at 04:21:33, where before the fix both sides got an empty list.
+- The recap landed: a `3001` per participant to both PIDs.
+- NAT: both `moderate` (mapping=1 filtering=2), probes relayed in both directions, and
+  **`nat: punch to cid=1 ok (rtt=48ms detail=0)`** at 04:21:38.
+- **The Pia mesh formed and carried game data both ways.** Ryujinx's own BSD log shows 186
+  packets sent to the Switch's LAN address (144×80B, 20×336B, one 1008B) and 174 successful
+  `RecvFrom` in the same window. This is further than either other Risk of Rain title has gone:
+  RoR2 links the whole Pia 5.45 stack (PiaSession/Sync/Clone/Reckoning/Transport/Local), so it
+  needs a *sustained* mesh, not just a successful probe.
+- Zero `NotImplemented` across the run. The host's last call is `0x6D.0x01` CloseParticipation
+  at 04:22:00 — the normal "we are starting" — and the joiner's is `0x6D.0x29`
+  FindMatchmakeSessionByGatheringIDDetail at 04:21:39, answered with the full 437-byte session.
+
+**What fails is past our edge, and the order matters.** The Switch gave up at 04:22:12 showing
+"the host player has ended the game" — 34 s after the punch, 12 s after the host closed
+participation — and the host crashed **33 s later**, at 04:22:45. So the joiner left first and
+the host's crash follows it rather than causing it.
+
+The crash is the game's own null dereference, not an emulator fault: Ryujinx logged
+`Invalid memory access at virtual address 0x0000000000000000` with a guest stack trace entirely
+inside `SwitchPlayer.nss` (PC `0x1cfeea0`, LR `0x182a84c`, 20 frames down to `nnMain`), then
+aborted — SIGABRT, coredump truncated but not needed. Same class as `risk-of-rain`'s v0.3.7 host
+crash: a method called on an object that was never built.
+
+**Next experiment, one variable: let the Switch host and Ryujinx join.** That separates "Ryujinx
+cannot host RoR2 gameplay" from "the pairing is wrong", and it is free. Also unknown because we
+have no log for it: why the Switch decided the host was gone while the host was demonstrably
+still sending it packets. Both clients share one public address (37.228.205.45, Switch
+10.87.0.10, Ryujinx 10.87.0.2) — the hairpinning variable the playbook names for MK8D — though
+risk-of-rain-returns plays in exactly this topology, so same-NAT is not on its own an
+explanation.
+
 ## 2026-09-25 — v0.3.14: risk-of-rain-2 finds your friend's game
 
 - **`risk-of-rain-2` gets `FindByParticipant`.** Console-measured (a real Switch as <user-b>,
