@@ -1,0 +1,12 @@
+[Unit]
+Description=Check for a new switch-nex image every two minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=2min
+# Two minutes because a deferred title has to wait for the next tick: a player
+# who quits should not wait long for the update they were holding up.
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

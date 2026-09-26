@@ -145,6 +145,33 @@ cd ~/openpak/deploy/switch-nex
 podman build -f Dockerfile.deploy -t localhost/switch-nexd:latest .
 ```
 
+## 2d. Updates wait for an empty title (2026-09-26)
+
+`openpak-switch-drain-update.timer` replaced `AutoUpdate=registry` on these
+units. Every two minutes `deploy/drain-update.sh` pulls `:latest` and, for each
+title whose running digest differs, restarts it **only if nobody is on it** —
+otherwise it says `deferred` and tries again on the next tick.
+
+Busy means an established TCP connection on the title's auth or secure port:
+switch-nexd holds one secure connection open for a whole play session, so
+"connected" is a fair proxy for "playing". The ports come from the
+`# openpak-ports=` marker the generator writes into each quadlet. The status
+page's portcheck address is filtered out, or every title would look busy
+forever.
+
+`podman-auto-update.timer` stays enabled — it is still right for the stateless
+services. Only the switch-* quadlets drop the label, and a container keeps the
+label it was created with, so dropping it from the file needs one restart before
+podman stops seeing the unit.
+
+```sh
+sh deploy/drain-update.sh --dry-run   # what it would do, touches nothing
+systemctl --user start openpak-switch-drain-update.service   # force a tick
+```
+
+A title pinned to a version is skipped and logged as `pinned` — pinning is still
+how you hold one back.
+
 ## 3. Apply config + restart
 
 - **New title**: register it in `cmd/switch-nexd/main.go` (registry), pick a

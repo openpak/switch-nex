@@ -1,0 +1,10 @@
+[Unit]
+Description=Roll OpenPak Switch titles onto :latest, skipping any title with players on it
+Documentation=https://github.com/openpak/switch-nex/blob/main/docs/deploy.md
+
+[Service]
+Type=oneshot
+ExecStart=%h/openpak/deploy/switch-nex/drain-update.sh
+# A title that is busy is left for the next tick, so a tick finding everything
+# busy is a success, not a failure.
+SuccessExitStatus=0

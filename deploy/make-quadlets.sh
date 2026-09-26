@@ -21,11 +21,13 @@ grep -oE '^	\{"[a-z0-9-]+", [0-9]+' "$SRC" | tr -d '\t{"' | while IFS=, read -r 
   cat > "$OUT/openpak-switch-$title.container" <<EOF
 [Unit]
 Description=OpenPak Switch NEX title $title (switch-nex, ports $base/$((base+1))/$((base+2)))
+# Read by deploy/drain-update.sh to find the ports it must see idle. Machine
+# readable on purpose: the Description above is prose and may be reworded.
+# openpak-ports=$base $((base+1)) $((base+2))
 
 [Container]
 ContainerName=switch-$title
 Image=ghcr.io/openpak/switch-nex:$VERSION
-AutoUpdate=registry
 # Network=host, not PublishPort: rootless podman's forwarder rewrote every source
 # address, so Register could only synthesise stations naming the server's own
 # bridge and a room held a mesh it could not form. See docs/deploy.md.
@@ -40,10 +42,9 @@ Exec=-only $title -cert /certs/nex.pem -key /certs/nex.key -station-address 145.
 # NX_INTERNAL_KEY comes from the shared .env, never a copy in the quadlet.
 EnvironmentFile=%h/openpak/deploy/.env
 Environment=NX_INTERNAL_URL=http://127.0.0.1:20070
-# AutoUpdate=registry on :latest, so a pushed tag deploys itself within five
-# minutes — safe only because one container is one title: auto-update restarts
-# the title that changed, not all 21. Pin Image= to a version to hold a title
-# back. docs/deploy.md 2c.
+# No AutoUpdate=registry: podman-auto-update restarts a title the moment a new
+# :latest lands, players in it or not. openpak-switch-drain-update.timer does
+# the same job but waits for the title to be empty first. docs/deploy.md 2d.
 
 [Service]
 Restart=always
