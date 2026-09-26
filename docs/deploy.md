@@ -20,9 +20,9 @@ both arches from `Dockerfile`, and publishes `ghcr.io/openpak/switch-nex:X.Y.Z`,
 `:X.Y` and `:latest`. Sections 1 and 2 below are the by-hand equivalent, for when
 the runner is busy or you want a build the registry never sees.
 
-**A tag is not a deploy here.** Unlike every other OpenPak service, this quadlet
-names a pinned tag and carries no `AutoUpdate` label (see section 2), so nothing
-restarts on its own. Publishing is automatic; section 3 is still yours.
+**A tag is not a deploy here.** Unlike every other OpenPak service, these
+quadlets name a pinned tag and carry no `AutoUpdate` label (see section 2), so
+nothing restarts on its own. Publishing is automatic; section 3 is still yours.
 
 ## 1. Build (from a dev machine)
 
@@ -78,11 +78,43 @@ instead of what you chose. With a pin, rolling back is editing one line and
 restarting — and the previous quadlet is saved beside it as
 `.before-registry-<stamp>`.
 
-This is why the quadlet also has **no `AutoUpdate=registry`**, the one place
-switch-nexd departs from every other openpak service. One process serves every
-Switch title, so the five-minutely `podman auto-update` would drop every live
-console session — possibly mid-match — to pick up a tag nobody asked it to
-deploy. Confirmed as the intended trade-off 2026-09-26.
+This is why the quadlets also have **no `AutoUpdate=registry`**, the one place
+switch-nex departs from every other openpak service: the five-minutely
+`podman auto-update` would restart a title under the players in it to pick up a
+tag nobody asked it to deploy. Confirmed as the intended trade-off 2026-09-26.
+Since the split it would at least only drop the one title, so this is now a
+preference rather than a hard blocker — but it is still off.
+
+## 2c. One container per title (2026-09-26)
+
+Each title is its own container and its own quadlet,
+`openpak-switch-<title>.container` / `ContainerName=switch-<title>`, running the
+same image with `-only <title>`. Generate them with
+`sh deploy/make-quadlets.sh vX.Y.Z out/` — the list and its ports come from the
+registry in `cmd/switch-nexd/main.go`, so a new title is named in one place. This is what the Wii U/3DS lineage has always
+done (39 containers off one `ghcr.io/openpak/nex` image, selected by
+`NEX_TITLE=`); the Switch side ran all 21 titles in one process until the split.
+
+What it buys: a panic, a hang or a deploy touches one title instead of 21.
+
+Three things the split needed, all of them easy to get wrong:
+
+- **A recall table per title.** `-recall-file /state/recall.json` is now
+  `%h/openpak/deploy/switch-nex/state/<title>/`. One shared file across 21
+  titles is how two of them could hand each other a PID, since the by-title
+  fallback claims "the title's latest login inside 30 s".
+- **`VOICE_GATHERING_URLS` must list every title's healthz port.** The voice
+  lookup answers for the whole *process*, so one port covered all 21 before;
+  now it covers one. The website asks each URL in order and the first that
+  knows wins, so the fix is the 21-entry list in the shared `.env` — no code.
+- **The INPUT chain must admit the internal network to the healthz ports.**
+  `-s 10.89.2.0/24 -p tcp --dport 22000:23099 -j ACCEPT`, inserted *before* the
+  REJECT. This was missing entirely: only MK8D's 22152 had ever been opened, so
+  the status page reported every other Switch title down and the voice lookup
+  at 22322 was blocked. Insert by the number `iptables -L INPUT --line-numbers`
+  gives for the REJECT — `iptables -S` output starts with the `-P` policy line,
+  so its line numbers are one higher and inserting at one of them lands the rule
+  *after* the REJECT, where it is dead.
 
 Attach the same binary to a GitHub release (`gh release create vX.Y.Z
 switch-nexd-arm64 mk8d-arm64 SHA256SUMS.txt`). The binary is not in git; the
@@ -126,7 +158,21 @@ podman build -f Dockerfile.deploy -t localhost/switch-nexd:latest .
 
 ```sh
 systemctl --user daemon-reload        # picks up quadlet changes
-systemctl --user restart openpak-switch-nexd.service
+systemctl --user restart openpak-switch-<title>.service
+```
+
+Rolling the whole lineage onto a new image is 21 pins, so do it with one loop
+rather than 21 edits — and expect it to interrupt every title, which is the
+thing per-title units exist to avoid. Prefer restarting only the titles the
+release actually changes:
+
+```sh
+sed -i 's|switch-nex:v0\.3\.15|switch-nex:v0.3.16|' \
+  ~/.config/containers/systemd/openpak-switch-*.container
+systemctl --user daemon-reload
+for u in ~/.config/containers/systemd/openpak-switch-*.container; do
+  systemctl --user restart "$(basename "$u" .container).service"
+done
 ```
 
 **Host networking, why and how.** Behind published ports, rootless podman's
