@@ -4,10 +4,10 @@ name: release
 # for amd64 and arm64. Runs on the OpenPak self-hosted runner (podman), so it costs no
 # GitHub-hosted minutes; this repository is private and those are metered.
 #
-# Unlike every other OpenPak service, pushing a tag is NOT the deploy: the switch-nexd quadlet
-# names a pinned version tag and carries no AutoUpdate label on purpose. One process serves
-# every Switch title, so an unattended restart drops every live console session, possibly
-# mid-match. Deploying is still editing Image= and restarting — see docs/deploy.md §3.
+# Pushing a tag IS the deploy: each title's quadlet tracks :latest with AutoUpdate=registry,
+# so podman-auto-update rolls it within five minutes. That is only safe because one container
+# is one title (2026-09-26) — a restart drops the players in that title, not all 21. Pin a
+# title's Image= to hold it back; see docs/deploy.md §2c.
 on:
   push:
     tags: ['v*.*.*']

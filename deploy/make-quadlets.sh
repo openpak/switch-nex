@@ -5,13 +5,13 @@
 # title to the registry is the only place a title is named. Writing these by
 # hand is how one ends up sharing a recall file between two titles again.
 #
-#   sh deploy/make-quadlets.sh v0.3.15 out/
+#   sh deploy/make-quadlets.sh latest out/
 #   scp out/*.container ubuntu@<host>:~/.config/containers/systemd/
 #
 # Then, on the host, per title: mkdir -p ~/openpak/deploy/switch-nex/state/<title>
 set -e
-VERSION="${1:?usage: make-quadlets.sh <image-tag> <outdir>}"
-OUT="${2:?usage: make-quadlets.sh <image-tag> <outdir>}"
+VERSION="${1:-latest}"
+OUT="${2:?usage: make-quadlets.sh [image-tag] <outdir>}"
 SRC="$(dirname "$0")/../cmd/switch-nexd/main.go"
 mkdir -p "$OUT"
 n=0
@@ -25,6 +25,7 @@ Description=OpenPak Switch NEX title $title (switch-nex, ports $base/$((base+1))
 [Container]
 ContainerName=switch-$title
 Image=ghcr.io/openpak/switch-nex:$VERSION
+AutoUpdate=registry
 # Network=host, not PublishPort: rootless podman's forwarder rewrote every source
 # address, so Register could only synthesise stations naming the server's own
 # bridge and a room held a mesh it could not form. See docs/deploy.md.
@@ -39,8 +40,10 @@ Exec=-only $title -cert /certs/nex.pem -key /certs/nex.key -station-address 145.
 # NX_INTERNAL_KEY comes from the shared .env, never a copy in the quadlet.
 EnvironmentFile=%h/openpak/deploy/.env
 Environment=NX_INTERNAL_URL=http://127.0.0.1:20070
-# No AutoUpdate on purpose: pushing a tag must not restart a title under
-# players. Deploy by moving Image= and restarting. docs/deploy.md 3.
+# AutoUpdate=registry on :latest, so a pushed tag deploys itself within five
+# minutes — safe only because one container is one title: auto-update restarts
+# the title that changed, not all 21. Pin Image= to a version to hold a title
+# back. docs/deploy.md 2c.
 
 [Service]
 Restart=always

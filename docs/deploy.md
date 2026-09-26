@@ -20,9 +20,10 @@ both arches from `Dockerfile`, and publishes `ghcr.io/openpak/switch-nex:X.Y.Z`,
 `:X.Y` and `:latest`. Sections 1 and 2 below are the by-hand equivalent, for when
 the runner is busy or you want a build the registry never sees.
 
-**A tag is not a deploy here.** Unlike every other OpenPak service, these
-quadlets name a pinned tag and carry no `AutoUpdate` label (see section 2), so
-nothing restarts on its own. Publishing is automatic; section 3 is still yours.
+**A tag is the deploy, since 2026-09-26.** The quadlets track `:latest` with
+`AutoUpdate=registry`, like every other openpak service, so `podman auto-update`
+rolls each title onto the new image within five minutes. Section 3 is for holding
+a title back, or for a build the registry never saw.
 
 ## 1. Build (from a dev machine)
 
@@ -67,23 +68,32 @@ host authenticates from `~/.config/containers/auth.json` (not the runtime
 `auth.json`, which is empty); if a pull ever fails with a 403, that file is
 where the credential lives.
 
-The quadlet names a pinned version tag, never `latest`:
+The quadlets track `:latest` and auto-update (2026-09-26; before that they
+named a pinned version, for the reason in the next paragraph). **Pin a title to
+hold it back or to roll it back**, which is editing one line and restarting:
 
 ```
-Image=ghcr.io/openpak/switch-nex:vX.Y.Z
+Image=ghcr.io/openpak/switch-nex:vX.Y.Z    # drop AutoUpdate=registry too
 ```
 
-`latest` would make a restart redeploy whatever was pushed most recently
-instead of what you chose. With a pin, rolling back is editing one line and
-restarting — and the previous quadlet is saved beside it as
-`.before-registry-<stamp>`.
+The danger a pin protected against is real and cost nothing to hit: on
+2026-09-26 the registry's `:latest` was still v0.3.14 while production ran
+v0.3.15, because hand-built releases had only ever pushed the version tag.
+Turning auto-update on against that `:latest` would have reverted a fix
+published an hour earlier. **Before trusting `:latest`, check it is not behind:**
 
-This is why the quadlets also have **no `AutoUpdate=registry`**, the one place
-switch-nex departs from every other openpak service: the five-minutely
-`podman auto-update` would restart a title under the players in it to pick up a
-tag nobody asked it to deploy. Confirmed as the intended trade-off 2026-09-26.
-Since the split it would at least only drop the one title, so this is now a
-preference rather than a hard blocker — but it is still off.
+```sh
+podman pull -q ghcr.io/openpak/switch-nex:latest
+podman image inspect ghcr.io/openpak/switch-nex:latest --format '{{.Digest}}'
+```
+
+`AutoUpdate=registry` is only defensible **because** of the split below: it
+restarts the title that changed, not all 21. While one process served every
+title, the five-minutely auto-update would have dropped every live console
+session to pick up a tag nobody asked it to deploy, which is why it was off
+until the titles were separated (both decided 2026-09-26, in that order).
+A restart still drops the players in *that* title mid-match — pin it if that
+matters for a release.
 
 ## 2c. One container per title (2026-09-26)
 
