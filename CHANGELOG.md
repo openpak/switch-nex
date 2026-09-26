@@ -1,5 +1,25 @@
 # Changelog — switch-nex
 
+## 2026-09-26 — v0.3.15: GetSessionURLs stops burning its 2.5s wait (Kirby regression)
+
+- **`StationURL.GetInt` never read a parsed station.** `Parse` puts every field
+  in `Params` as a string; only `SetInt` fills `IntVals`, and `GetInt` (added
+  with the wait on 2026-09-20) read `IntVals` alone — so it returned 0
+  for RVCID, CID and port on every station that came off the wire.
+  `hasValidReplaceURL` therefore never fired, and
+  `stationURLListWithHostWait` slept the whole 2500 ms on **every** join before
+  returning the same stations it already had. It now reads the string side too,
+  the way `Get` does.
+- **Kirby's Dream Buffet is what this broke.** Its host opens its room for only
+  ~13 s after the search and then closes it to fill CPUs, so the joiner has to
+  finish its mesh inside that window. Journal 2026-09-26 19:06: the joiner
+  auto-joined at +8 s, spent 2.5 s of dead wait in `0x15/0x29`, punched
+  successfully at +13 s — the same second the host sent CloseParticipation —
+  and sent `EndParticipation` one second later. The same pair on 2026-09-19
+  (before the wait existed) went join → probe → punch in 2 s and played for
+  7 minutes. Every other NEX title paid the 2.5 s too; Kirby is just the one
+  with no slack to pay it from.
+
 ## Unreleased — risk-of-rain-2 pairs and meshes; the game crashes on its own null
 
 No code change. `v0.3.14` was measured on a console 2026-09-26 04:21 UTC (Ryujinx hosting as

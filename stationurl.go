@@ -85,11 +85,17 @@ func (u *URL) Remove(k string) {
 }
 
 // GetInt returns a parameter as uint64, or 0 if not present or not an integer.
+// Both sides have to be read, the way Get does: Parse puts every field in
+// Params as a string and only SetInt ever fills IntVals. Reading IntVals alone
+// returned 0 for every PARSED station, so hasValidReplaceURL never fired and
+// GetSessionURLs burned its whole 2.5s wait on every join — which is what shut
+// Kirby's joiner out of the host's ~13s room window (2026-09-26).
 func (u *URL) GetInt(k string) uint64 {
 	if v, ok := u.IntVals[k]; ok {
 		return v
 	}
-	return 0
+	n, _ := strconv.ParseUint(u.Params[k], 10, 64)
+	return n
 }
 
 // Copy returns an independent copy, key order included.
