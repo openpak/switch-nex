@@ -18,6 +18,11 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -o /out/switch-nexd ./cmd/switch-nexd
 
 FROM alpine:3.20
+# Links the GHCR package to this repository, which is what lets the repo's
+# Actions token push to it. Without the link GITHUB_TOKEN gets a 403 on the
+# blob check, even with packages:write — the package this repo had was created
+# by hand-pushes under a personal token and belonged to no repo (2026-09-26).
+LABEL org.opencontainers.image.source=https://github.com/openpak/switch-nex
 WORKDIR /app
 COPY --from=build /out/switch-nexd /app/switch-nexd
 ENTRYPOINT ["/app/switch-nexd"]
