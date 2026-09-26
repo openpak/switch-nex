@@ -1,0 +1,58 @@
+name: release
+
+# Tag a release (v1.2.3) and this publishes ghcr.io/openpak/switch-nex:1.2.3, :1.2 and :latest
+# for amd64 and arm64. Runs on the OpenPak self-hosted runner (podman), so it costs no
+# GitHub-hosted minutes; this repository is private and those are metered.
+#
+# Unlike every other OpenPak service, pushing a tag is NOT the deploy: the switch-nexd quadlet
+# names a pinned version tag and carries no AutoUpdate label on purpose. One process serves
+# every Switch title, so an unattended restart drops every live console session, possibly
+# mid-match. Deploying is still editing Image= and restarting — see docs/deploy.md §3.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: [self-hosted, linux, podman]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # full history, so `git describe` in the build stage is meaningful
+      - name: Scratch in the runner's temp, not the machine's shared /tmp
+        # /tmp is a RAM disk every build on the machine shares; when it filled on
+        # 2026-09-24 a compiler died and a job hung for hours instead of failing.
+        run: |
+          mkdir -p "$RUNNER_TEMP/scratch"
+          echo "TMPDIR=$RUNNER_TEMP/scratch" >> "$GITHUB_ENV"
+      - name: Tests and vet, before anything is published
+        # docs/deploy.md 1 opens with these two; publishing an image that fails
+        # them is the one thing CI is here to stop.
+        run: |
+          podman run --rm -v "$PWD:/src" -w /src -e GOWORK=off -e GOFLAGS=-mod=mod \
+            docker.io/library/golang:1.26-alpine sh -c 'go test ./... && go vet ./...'
+      # Job-scoped login, never the runner user's own. The runner context is not
+      # available in job-level env, so each step that touches the registry sets it.
+      - env:
+          REGISTRY_AUTH_FILE: ${{ runner.temp }}/auth.json
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - env:
+          REGISTRY_AUTH_FILE: ${{ runner.temp }}/auth.json
+        run: |
+          set -e
+          IMG="ghcr.io/${{ github.repository }}"
+          case "${GITHUB_REF_NAME}" in v*) VER="${GITHUB_REF_NAME#v}";; *) VER="";; esac
+          podman manifest rm "$IMG:build" 2>/dev/null || true
+          podman build --platform linux/amd64,linux/arm64 --manifest "$IMG:build" .
+          TAGS="latest"; [ -n "$VER" ] && TAGS="$TAGS $VER $(echo "$VER" | cut -d. -f1,2)"
+          for t in $TAGS; do podman manifest push --all "$IMG:build" "docker://$IMG:$t"; done
+          podman manifest rm "$IMG:build"
+          echo "pushed $IMG: $TAGS"
+      - name: Clear scratch
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/scratch"

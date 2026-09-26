@@ -12,6 +12,18 @@ forwarder.
 
 Host access: `ssh <prod-host>`.
 
+## 0. Or just push a tag
+
+`.github/workflows/release.yml` does sections 1 and 2 on the self-hosted runner:
+`git tag vX.Y.Z && git push origin vX.Y.Z` runs the tests and vet, cross-compiles
+both arches from `Dockerfile`, and publishes `ghcr.io/openpak/switch-nex:X.Y.Z`,
+`:X.Y` and `:latest`. Sections 1 and 2 below are the by-hand equivalent, for when
+the runner is busy or you want a build the registry never sees.
+
+**A tag is not a deploy here.** Unlike every other OpenPak service, this quadlet
+names a pinned tag and carries no `AutoUpdate` label (see section 2), so nothing
+restarts on its own. Publishing is automatic; section 3 is still yours.
+
 ## 1. Build (from a dev machine)
 
 ```sh
@@ -65,6 +77,12 @@ Image=ghcr.io/openpak/switch-nex:vX.Y.Z
 instead of what you chose. With a pin, rolling back is editing one line and
 restarting — and the previous quadlet is saved beside it as
 `.before-registry-<stamp>`.
+
+This is why the quadlet also has **no `AutoUpdate=registry`**, the one place
+switch-nexd departs from every other openpak service. One process serves every
+Switch title, so the five-minutely `podman auto-update` would drop every live
+console session — possibly mid-match — to pick up a tag nobody asked it to
+deploy. Confirmed as the intended trade-off 2026-09-26.
 
 Attach the same binary to a GitHub release (`gh release create vX.Y.Z
 switch-nexd-arm64 mk8d-arm64 SHA256SUMS.txt`). The binary is not in git; the
