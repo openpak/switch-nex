@@ -1,5 +1,24 @@
 # Changelog — switch-nex
 
+## 2026-09-28 — v0.3.17: Don't Starve Together (game server 251BB200)
+
+One registry entry, ports 23050–23052, access key `c8e4be5d`. Both the id and the
+key were read out of the title's own executable rather than guessed: its
+`nxInternetStartup` passes `0x251BB200` in `w2` beside the literal key at
+`main.nso 0x227dc4`, in the call that logs "nxInternetStartup: Performing NGS
+login...". Neither value appears in Kinnay's Switch game-server list.
+
+DST is a **two-stack title** — the first one here. Klei's own HTTPS backend
+(`servers/klei`) carries the account and the server browser; NEX carries the
+session and NAT traversal. Hosting runs Klei login, TokenPurpose, NGS login,
+start NAT session, then a RakNet UDP server, and when any of it is missing the
+player sees the same "Server failed to start".
+
+NEX 4.6.7 with Pia 5.45.0, so the default 5.19 station shape applies. It links
+MatchmakeExtension, NATTraversal, SecureConnection, Ranking, Ranking2,
+MatchmakeReferee, DataStore and Utility; which it calls is the first boot's
+NotImplemented log. Not console-verified.
+
 ## 2026-09-26 — v0.3.16: CI, one container per title, and auto-update
 
 No server code change; `v0.3.15`'s `GetInt` fix is still the newest behaviour.

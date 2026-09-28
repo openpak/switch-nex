@@ -440,6 +440,37 @@ var titles = []title{
 		// what broke ACNH with 2306-0116, and this title reads strictly.
 		e.FinalizeCreateSession = true
 	}},
+	{"dont-starve-together", 23050, "c8e4be5d", func(e *protocols.Env) {
+		// Don't Starve Together (010090100E334000 v1.29.0, game server
+		// 251BB200, NEX 4.6.7, Pia 5.45.0). Neither value is guessed: the
+		// title's own nxInternetStartup passes the game server id in w2
+		// (mov #0xb200 / movk #0x251b) right beside the literal access key
+		// "c8e4be5d" at main.nso 0x227dc4, in the call that logs
+		// "nxInternetStartup: Performing NGS login...".
+		//
+		// This is half of a two-stack title. Klei's own HTTPS (servers/klei)
+		// carries the account and the server browser; NEX carries the session
+		// and NAT traversal. The game's order is Klei login -> TokenPurpose ->
+		// NGS login -> start NAT session -> create the RakNet server, and the
+		// failure the player sees when any of it is missing is the same one:
+		// "Server failed to start".
+		//
+		// It links MatchmakeExtension, NATTraversal, SecureConnection, Ranking,
+		// Ranking2, MatchmakeReferee, DataStore and Utility. Which of them it
+		// actually calls is the first boot's NotImplemented log. Pia 5.45 is
+		// well past 5.19, so the default station shape is the right one.
+		// Not console-verified.
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		e.Ranking2 = true
+		e.MatchmakeReferee = true
+		e.DataStore = protocols.DSEmptyList
+		// The pattern that held on every Switch NEX title actually measured on
+		// 2026-09-25 (Risk of Rain, Risk of Rain Returns, Streets of Rage 4).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"risk-of-rain-2", 23040, "8bac191f", func(e *protocols.Env) {
 		// Risk of Rain 2 (010076D00E4BA000, update v1.4.1, NEX 4.6.7 + Pia
 		// 5.45.0 — Unity IL2CPP, Mirror networking over Pia).
