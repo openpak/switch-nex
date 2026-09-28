@@ -470,6 +470,34 @@ var titles = []title{
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
+		// Console-measured 2026-09-28. Everything above was already in place and
+		// the host still never built a transport: it creates the gathering, is
+		// told about its own Participate, starts both shards -- and then each
+		// shard reports "no available shard [Master|Caves] connected" forever,
+		// with NO socket call behind it. DST's RakNet on Switch is backed by
+		// Pia (the binary links the whole nn::pia::transport stack), so a shard
+		// link that never opens is a netgroup that never opened.
+		//
+		// That is the Risk of Rain failure with the crash filed off: "Pia will
+		// not build a netgroup from" a session it does not accept -- and what
+		// we hand DST is a session the reference would never emit.
+		//
+		// The reference (earlier-nex matchmaking_handlers.go finalizeCreatedSession,
+		// read for facts only) normalises EVERY created session, for every title,
+		// by padding attributes to 6 and stamping `@SR`=true and `@GIR`=3. Here
+		// that half is behind FinalizeParams, off for titles with no measured
+		// behaviour -- so DST's Pia was reading a session with short attributes
+		// and neither param. A Pia that reads attribute[5] off the end, or looks
+		// for a param that is not there, fails exactly the way this does: before
+		// any syscall. ACNH is the one title known to break WITH `@GIR`, and it
+		// is not a Pia 5.45 title.
+		e.FinalizeParams = true
+		// The other half of that normalisation. The reference gates `State = 1`
+		// (open/active) and defaults it off, for discoverability rather than for
+		// Pia -- but DST already sets OpenParticipation itself, so the only thing
+		// this changes for it is the state flag and the user password, and a
+		// session its host never sees marked active is the remaining difference.
+		e.ForceOpenParticipation = true
 	}},
 	{"risk-of-rain-2", 23040, "8bac191f", func(e *protocols.Env) {
 		// Risk of Rain 2 (010076D00E4BA000, update v1.4.1, NEX 4.6.7 + Pia

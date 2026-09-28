@@ -1,5 +1,21 @@
 # Changelog — switch-nex
 
+## 2026-09-28 — v0.3.18: Don't Starve Together gets the reference's whole create-time shape
+
+Hosting got as far as a created gathering, its own Participate push, both shards
+running — and then each shard reported "no available shard [Master|Caves] connected"
+forever, with no socket call behind it. DST's RakNet on Switch is backed by Pia (the
+binary links the whole `nn::pia::transport` stack), so a shard link that never opens is
+a netgroup that never opened: the Risk of Rain failure with the crash filed off.
+
+`FinalizeCreateSession` was already on, so the session was bounded, keyed, timestamped
+and occupied. What it stops short of is the half the reference applies **unconditionally
+to every session of every title**: attributes padded to 6 and `@SR`/`@GIR` stamped. DST
+was reading a session with short attributes and neither param. Both halves are on for it
+now, `State = 1` included.
+
+Not console-verified yet; this is the next thing a host run tests.
+
 ## 2026-09-28 — v0.3.17: Don't Starve Together (game server 251BB200)
 
 One registry entry, ports 23050–23052, access key `c8e4be5d`. Both the id and the
