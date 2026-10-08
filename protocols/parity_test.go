@@ -1,6 +1,7 @@
 package protocols
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/openpak/switch-nex/rmc"
@@ -470,14 +471,19 @@ func TestCommonDataByPIDsKeepsRequestOrder(t *testing.T) {
 	if errCode != 0 {
 		t.Fatalf("errored %#x — this method must never refuse", errCode)
 	}
-	r := rmc.NewReader(body)
+	// A structure header (version 0, content size), then QBuffers: the shape
+	// MK8D aborts on (2162-0001) when a real profile arrives in any other.
+	if len(body) < 5 || body[0] != 0 || int(binary.LittleEndian.Uint32(body[1:5])) != len(body)-5 {
+		t.Fatalf("no version-0 structure header framing the reply: %x", body)
+	}
+	r := rmc.NewReader(body[5:])
 	n, _ := r.ListHeader()
 	if n != 3 {
 		t.Fatalf("n=%d, want one entry per requested PID", n)
 	}
-	first, _ := r.Buffer()
-	second, _ := r.Buffer()
-	third, _ := r.Buffer()
+	first, _ := r.QBuffer()
+	second, _ := r.QBuffer()
+	third, _ := r.QBuffer()
 	if len(first) != 0 || string(second) != "profile-of-7" || len(third) != 0 {
 		t.Fatalf("entries out of order: %q %q %q", first, second, third)
 	}

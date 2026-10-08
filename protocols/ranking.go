@@ -53,6 +53,9 @@ const (
 // a few bytes long.
 const commonDataMaxEntries = 512
 
+// commonDataMaxLen bounds one stored profile.
+const commonDataMaxLen = 4096
+
 type rankingStore struct {
 	mu     sync.Mutex
 	common map[uint64][]byte
@@ -87,7 +90,9 @@ func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 		return boolTrue(msg)
 
 	case methodRankingUploadCommonData: // (Buffer commonData, …) -> empty
-		if blob, err := r.Buffer(); err == nil {
+		// MK8D's profile is 132 bytes; the cap keeps a blob inside the QBuffer
+		// (u16) it is served back in.
+		if blob, err := r.Buffer(); err == nil && len(blob) <= commonDataMaxLen {
 			env.ranking.put(c.PID, blob)
 		}
 		return success(msg, nil)
@@ -165,10 +170,16 @@ func commonDataByPIDs(env *Env, body []byte) []byte {
 		}
 		pids = append(pids, pid)
 	}
+	// The shape Nintendo answers: a structure (version 0) holding the list, each
+	// profile a QBuffer (u16 length). Bare u32 Buffers parse harmlessly while
+	// every entry is empty, but the first real profile makes MK8D read garbage
+	// and abort ~10 s later with 2162-0001 (console, 2026-10-08).
 	w := rmc.NewWriter()
-	w.List(len(pids))
-	for _, pid := range pids {
-		w.Buffer(env.ranking.get(pid)) // absent renders as a zero-length blob
-	}
+	w.StructOf(0, func(w *rmc.Writer) {
+		w.List(len(pids))
+		for _, pid := range pids {
+			w.QBuffer(env.ranking.get(pid)) // absent renders as a zero-length blob
+		}
+	})
 	return w.Bytes()
 }
