@@ -1,5 +1,20 @@
 # Changelog — switch-nex
 
+## 2026-10-09 — v0.3.20: latest version only, and versions never share a match
+
+aauth (nx-baas) already turns an outdated title away with 2124-3001. The login now
+checks too: the token's `nintendo.ai`/`av` go to nx-baas's `/internal/title-version`
+(the same table), and a version below the latest is refused with
+`Authentication::ApplicationVersionIsOld` (0x00680013, 2306-0819), which carries the
+console's own update-required dialog. That catches a token cached from before an update
+was published. An nx-baas that cannot answer lets the player in.
+
+Matchmaking keeps versions apart: a gathering takes its creator's version, and a player
+of another version is not auto-matched into it, not shown it by any browse (ACNH's code
+browse included) and not let in by its id (SessionVoid). An unknown version (no token,
+or not 8 hex digits) meets everyone, as before. Every auto-matchmake now logs its search
+criteria and the searcher's version.
+
 ## 2026-09-28 — v0.3.18: Don't Starve Together gets the reference's whole create-time shape
 
 Hosting got as far as a created gathering, its own Participate push, both shards
