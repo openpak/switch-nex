@@ -170,6 +170,10 @@ type Env struct {
 	friends   map[uint64][]uint64
 	notifData map[uint64]map[uint32]notificationEvent
 
+	// appVersions is each principal's installed title version as of its last
+	// login (appversion.go). Matchmaking keeps different versions apart.
+	appVersions sync.Map // uint64 -> string
+
 	// DataStore mode. dsOff: not registered. dsStub: reference-level answers
 	// (empty lists, NotFound on GetMeta, real data IDs from PostMetaBinary).
 	// dsBalloonErrors: Super Mario Odyssey's balloon methods (0x73.0x2F-0x35)

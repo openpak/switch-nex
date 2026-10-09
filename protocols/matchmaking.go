@@ -29,6 +29,8 @@ import (
 type gathering struct {
 	sess         *Session
 	participants map[uint64]bool
+	// version is its creator's title version, "" when unknown (appversion.go).
+	version string
 }
 
 // MatchmakingStore holds a title's live sessions. In memory on purpose:
@@ -134,7 +136,7 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		// session key stays (the visit needs it, as with find-by-participant).
 		code := criteriaCodeword(r)
 		var sessions []*Session
-		for _, s := range env.Match.open() {
+		for _, s := range env.sameVersionOpen(c.PID) {
 			if code == "" || s.CodeWord == code {
 				sessions = append(sessions, s)
 			}
@@ -143,11 +145,11 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		return success(msg, sessionList(sessions))
 
 	case 0x04, 0x2A: // BrowseMatchmakeSession[NoHolder](criteria, resultRange)
-		sessions := env.Match.open()
+		sessions := env.sameVersionOpen(c.PID)
 		return browseResponse(msg, sessions)
 
 	case 0x05, 0x2B, 0x35: // BrowseMatchmakeSessionWithHostURLs* -> (range, sessions, urls)
-		sessions := env.Match.open()
+		sessions := env.sameVersionOpen(c.PID)
 		return browseWithURLsResponse(msg, sessions)
 
 	case 0x06: // CreateMatchmakeSession(GatheringHolder session, list<URL>)
@@ -423,8 +425,9 @@ func createSession(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 	gid := env.Match.create(sess)
 	if g, ok := env.Match.get(gid); ok {
 		g.participants[c.PID] = true
+		g.version = env.AppVersion(c.PID)
 	}
-	log.Printf("[%s] matchmake: created gid=%d pid=%d max=%d open=%v", env.Name, gid, c.PID, sess.MaxParticipants, sess.OpenParticipation)
+	log.Printf("[%s] matchmake: created gid=%d pid=%d max=%d open=%v version=%q", env.Name, gid, c.PID, sess.MaxParticipants, sess.OpenParticipation, env.AppVersion(c.PID))
 	// The creator joins its own session, and a join is announced to the owner
 	// — here the same player. MK8D 3.0.5 was observed (2026-09-17) to sit for
 	// exactly 10 s after a successful create, send nothing, open no P2P
@@ -590,6 +593,7 @@ func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 // password+NAT while the criteria were decoded.
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria) []byte {
 	logSessionTemplate(env, c.PID, sess)
+	logSearchCriteria(env, c.PID, criteria)
 	for _, candidate := range env.Match.open() {
 		g, ok := env.Match.get(candidate.GID)
 		if !ok {
@@ -601,6 +605,10 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		// A password room is only for searchers carrying the same password, and a
 		// random search (no password) never lands in one.
 		if candidate.UserPassword != sess.UserPassword {
+			continue
+		}
+		if !env.versionFits(g, c.PID) {
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (version %s, theirs %s)", env.Name, candidate.GID, c.PID, g.version, env.AppVersion(c.PID))
 			continue
 		}
 		if env.MatchModeAttribute && !modeAttrMatch(g.sess, criteria) {
@@ -770,6 +778,22 @@ func logSessionTemplate(env *Env, pid uint64, sess *Session) {
 		strings.Join(params, " "), sess.Description, sess.UserPassword != "")
 }
 
+// logSearchCriteria dumps the criteria a search is matched on, one line per
+// search: GameMode and every attribute string as the console sent them. The
+// template log shows the searcher's own session; this is what it asks of a
+// room (MK8D's version marker is expected among these attributes).
+func logSearchCriteria(env *Env, pid uint64, criteria []*searchCriteria) {
+	if len(criteria) == 0 {
+		log.Printf("[%s] matchmake: criteria pid=%d none version=%q", env.Name, pid, env.AppVersion(pid))
+		return
+	}
+	parts := make([]string, 0, len(criteria))
+	for _, c := range criteria {
+		parts = append(parts, fmt.Sprintf("{gameMode=%q attribs=%q}", c.GameMode, c.Attribs))
+	}
+	log.Printf("[%s] matchmake: criteria pid=%d %s version=%q", env.Name, pid, strings.Join(parts, " "), env.AppVersion(pid))
+}
+
 // variantString renders one matchmake-param entry for the template log.
 func variantString(k string, v rmc.Variant) string {
 	switch v.TypeID {
@@ -826,6 +850,12 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 	}
 	g, ok := env.Match.get(gid)
 	if !ok {
+		return errorResp(msg, rmc.ResultSessionVoid)
+	}
+	if !g.participants[c.PID] && !env.versionFits(g, c.PID) {
+		// Another version's session does not exist for this player: the same
+		// answer as a gathering that is gone.
+		log.Printf("[%s] matchmake: join gid=%d refused for pid=%d (version %s, theirs %s)", env.Name, gid, c.PID, g.version, env.AppVersion(c.PID))
 		return errorResp(msg, rmc.ResultSessionVoid)
 	}
 	was := g.participants[c.PID]
@@ -1160,6 +1190,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		gid := env.Match.create(sess)
 		if g, ok := env.Match.get(gid); ok {
 			g.participants[c.PID] = true
+			g.version = env.AppVersion(c.PID)
 		}
 		return success(msg, func() []byte {
 			w := rmc.NewWriter()
