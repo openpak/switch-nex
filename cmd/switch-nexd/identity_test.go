@@ -21,12 +21,24 @@ type fakeBaas struct {
 	gotKey   string
 	status   int
 	pid      uint64
+	// latest is the title's newest version for /internal/title-version;
+	// empty answers 404, as an nx-baas without the endpoint does.
+	latest     string
+	gotVersion string
 }
 
 func newFakeBaas(t *testing.T, pid uint64) *fakeBaas {
 	t.Helper()
 	f := &fakeBaas{status: http.StatusOK, pid: pid}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/internal/title-version" && f.latest != "" {
+			av := r.URL.Query().Get("version")
+			f.gotVersion = r.URL.Query().Get("title") + "/" + av
+			json.NewEncoder(w).Encode(map[string]any{
+				"latest": f.latest, "update_required": len(av) == 8 && av < f.latest,
+			})
+			return
+		}
 		if r.URL.Path != "/internal/switch/identity" {
 			http.Error(w, "wrong path", http.StatusNotFound)
 			return
@@ -296,5 +308,51 @@ func TestEnforcingClosesTheTicketlessRecallPath(t *testing.T) {
 			p.Type == prudplite.Connect && p.HasFlag(prudplite.FlagAck) {
 			t.Fatalf("enforcing, but a ticketless CONNECT was admitted: %x", buf[:n])
 		}
+	}
+}
+
+// TestOutdatedVersionIsRefusedAtLogin: a token naming an older version than
+// nx-baas's latest gets ApplicationVersionIsOld (2306-0819, the console's
+// update dialog); the latest logs in; an nx-baas that cannot answer lets it in.
+func TestOutdatedVersionIsRefusedAtLogin(t *testing.T) {
+	baas := newFakeBaas(t, 0x42)
+	ids := newIdentity(baas.URL, "k")
+	authAddr, _, _ := startWith(t, "mario-kart-8-deluxe", ids)
+	key := titleAccessKey(t, "mario-kart-8-deluxe")
+
+	login := func(av string) *rmc.RMCMessage {
+		token := jwt(t, map[string]any{"sub": "user-1", "openpak": "nx2.bound",
+			"nintendo": map[string]any{"ai": "0100152000022000", "av": av}})
+		c := dial(t, authAddr, key)
+		c.handshake(nil)
+		w := rmc.NewWriter()
+		w.String("name")
+		w.Raw(authInfoHolder(token))
+		return c.call(0x0A, 0x02, w.Bytes())
+	}
+
+	baas.latest = "00150000"
+	if resp := login("00140000"); !resp.IsError || resp.ErrorCode != rmc.ResultAppVersionOld {
+		t.Fatalf("old version: error=%v code=%#08x, want ApplicationVersionIsOld", resp.IsError, resp.ErrorCode)
+	}
+	if baas.gotVersion != "0100152000022000/00140000" {
+		t.Errorf("nx-baas asked about %q", baas.gotVersion)
+	}
+	if resp := login("00150000"); resp.IsError {
+		t.Fatalf("latest version refused: %#08x", resp.ErrorCode)
+	}
+	baas.latest = "" // the endpoint answers 404
+	if resp := login("00140000"); resp.IsError {
+		t.Fatalf("unanswerable check refused the login: %#08x", resp.ErrorCode)
+	}
+}
+
+func TestAppClaims(t *testing.T) {
+	ai, av := appClaims(jwt(t, map[string]any{"nintendo": map[string]any{"ai": "0100152000022000", "av": "00150000"}}))
+	if ai != "0100152000022000" || av != "00150000" {
+		t.Fatalf("got %q %q", ai, av)
+	}
+	if ai, av := appClaims("nx2.bare"); ai != "" || av != "" {
+		t.Fatalf("bare claim: %q %q", ai, av)
 	}
 }

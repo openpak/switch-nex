@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -209,6 +210,64 @@ func openpakClaim(idToken string) string {
 		return ""
 	}
 	return claims.OpenPak
+}
+
+// appClaims reads the title id and installed version out of a BAAS id
+// token's nintendo claim (ai, av): what aauth was told when the console asked
+// for the token. The token is proved separately; this only reads it.
+func appClaims(idToken string) (ai, av string) {
+	segments := strings.Split(idToken, ".")
+	if len(segments) != 3 {
+		return "", ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(segments[1], "="))
+	if err != nil {
+		return "", ""
+	}
+	var claims struct {
+		Nintendo struct {
+			AI string `json:"ai"`
+			AV string `json:"av"`
+		} `json:"nintendo"`
+	}
+	if json.Unmarshal(payload, &claims) != nil {
+		return "", ""
+	}
+	return claims.Nintendo.AI, claims.Nintendo.AV
+}
+
+// outdated asks nx-baas whether a title version is older than the latest.
+// It is the table aauth refuses with (2124-3001), so the two never disagree.
+// Anything that cannot be answered is not outdated: an nx-baas outage must
+// not lock out a player the console already let online.
+func (i *identity) outdated(ai, av string) (bool, string) {
+	if !i.enabled() || ai == "" || av == "" {
+		return false, ""
+	}
+	q := url.Values{"title": {ai}, "version": {av}}
+	req, err := http.NewRequest(http.MethodGet, i.url+"/internal/title-version?"+q.Encode(), nil)
+	if err != nil {
+		return false, ""
+	}
+	req.Header.Set("X-Internal-Key", i.key)
+	resp, err := i.client.Do(req)
+	if err != nil {
+		log.Printf("version check %s %s: %v (allowed)", ai, av, err)
+		return false, ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("version check %s %s: nx-baas %s (allowed)", ai, av, resp.Status)
+		return false, ""
+	}
+	var v struct {
+		Latest         string `json:"latest"`
+		UpdateRequired bool   `json:"update_required"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&v) != nil {
+		return false, ""
+	}
+	return v.UpdateRequired, v.Latest
 }
 
 // authenticationToken pulls the BAAS id token out of the login's extra data.

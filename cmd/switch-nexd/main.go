@@ -1106,9 +1106,12 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 			return 0, rmc.ResultAuthTokenParse, false
 		}
 		log.Printf("[%s] login UNPROVEN (no token): falling back to the name %q", env.Name, username)
-		return pidFor(username), 0, true
+		pid = pidFor(username)
+		env.SetAppVersion(pid, "")
+		return pid, 0, true
 	}
 
+	ai, av := appClaims(token)
 	p, err := ids.resolve(token)
 	if err != nil {
 		if errors.Is(err, errBanned) {
@@ -1122,11 +1125,22 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 			return 0, loginResultCode(err), false
 		}
 		log.Printf("[%s] login UNPROVEN (%v): falling back to the name %q", env.Name, err, username)
-		return pidFor(username), 0, true
+		pid = pidFor(username)
+		env.SetAppVersion(pid, av)
+		return pid, 0, true
 	}
 	pid = p.nexPID()
+	// Latest version only. aauth already turns an old version away with
+	// 2124-3001; a login that still arrives with one (a token cached from
+	// before an update was published) gets NEX's own refusal, which carries
+	// the same update-required dialog on the console (2306-0819).
+	if old, latest := ids.outdated(ai, av); old {
+		log.Printf("[%s] login refused: pid=%d title %s version %s is older than %s (ApplicationVersionIsOld)", env.Name, pid, ai, av, latest)
+		return 0, rmc.ResultAppVersionOld, false
+	}
 	env.SetFriends(pid, p.friendPIDs())
-	log.Printf("[%s] login pid=%d nsa=%s nickname=%q friends=%d", env.Name, pid, p.BaasUserID, p.Nickname, len(p.Friends))
+	env.SetAppVersion(pid, av)
+	log.Printf("[%s] login pid=%d nsa=%s nickname=%q friends=%d title=%s version=%s", env.Name, pid, p.BaasUserID, p.Nickname, len(p.Friends), ai, av)
 	return pid, 0, true
 }
 
