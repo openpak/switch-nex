@@ -1,6 +1,8 @@
 # Changelog — switch-nex
 
-## 2026-10-10 — v0.3.24: Mario Party's settings, Super Mario Maker 2's profile and Course World
+## 2026-10-10 — v0.3.25: Mario Party's settings, Super Mario Maker 2's profile and Course World
+
+(v0.3.24 carried the same changes; its CI failed on a startup race in `serve`, fixed here: `Endpoint.Listen` runs inline, so a `Close` right after `serve` no longer finds a nil channel.)
 
 - **Mario Party Superstars** logged in, got an empty GetIntegerSettings map and went
   back to its menu. Its v1.1.0 main parses a real map and looks up keys 0-5 of index 0

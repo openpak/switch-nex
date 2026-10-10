@@ -862,10 +862,13 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 	return s
 }
 
-// serve starts both endpoints on already-open listeners.
+// serve starts both endpoints on already-open listeners. Listen returns at
+// once (it starts its own accept loop), so it runs inline: started in a
+// goroutine, a Close straight after serve could find the endpoint not yet
+// initialised and close a nil channel (TestHealthzFollowsTheListeners in CI).
 func (s *service) serve(authLn, secureLn net.Listener) {
-	go s.auth.Listen(authLn)
-	go s.secure.Listen(secureLn)
+	s.auth.Listen(authLn)
+	s.secure.Listen(secureLn)
 	go s.ids.watchBans(s.secure)
 	s.authUp.Store(true)
 	s.secureUp.Store(true)
