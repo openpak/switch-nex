@@ -516,7 +516,7 @@ func (c *Connection) processConnectPayload(payload []byte) ([]byte, error) {
 		}
 		pid, ok := c.Endpoint.RecallPID(c.Host)
 		if !ok {
-			return nil, fmt.Errorf("ticketless CONNECT with no recent login from %s", c.Host)
+			return nil, fmt.Errorf("ticketless CONNECT not bound to a login")
 		}
 		c.PID = pid
 		return nil, nil

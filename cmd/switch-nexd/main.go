@@ -23,7 +23,6 @@ import (
 	"crypto/sha512"
 	"crypto/tls"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,7 +32,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -630,184 +628,13 @@ var (
 	certFile        = flag.String("cert", "/app/nex.pem", "TLS certificate (CN covers *.s.n.srv.nintendo.net)")
 	keyFile         = flag.String("key", "/app/nex.key", "TLS key")
 	only            = flag.String("only", "", "comma-separated title names to serve (default: all)")
-	recallFile      = flag.String("recall-file", "", "file the IP-to-PID recall table is persisted to (empty: memory only, lost on restart)")
+	recallFile      = flag.String("recall-file", "", "file the address-to-PID reconnect table is persisted to (empty: memory only, lost on restart)")
 	identityURL     = flag.String("identity-url", "", "nx-baas internal base URL; empty disables account resolution and every login is accepted on its unproven name")
 	identityKey     = flag.String("identity-key", "", "shared key for the nx-baas internal API (X-Internal-Key)")
 	requireIdentity = flag.Bool("require-identity", false, "refuse logins whose token cannot be proven, instead of falling back to the name")
 	dump            = flag.Bool("dump", false, "print every served title's resolved configuration and exit")
 	loginExStruct   = flag.Bool("loginex-structured", false, "answer TicketGranting method 2 with the ValidateAndRequestTicketResult structure instead of the flat layout (see docs/login-shape-conflict.md)")
 )
-
-// recall remembers login PID by client IP for the ticketless secure stage, and
-// the login name a title may later ask about instead of a PID.
-//
-// It SURVIVES A RESTART. The table used to live only in memory, so restarting
-// the server refused every console already mid-session that re-CONNECTed to a
-// secure port without replaying a full login — and a console does that often,
-// on every lobby change and reconnect. Writes are debounced off the request
-// path and the file is re-read at startup.
-type recall struct {
-	mu    sync.Mutex
-	m     map[string]recallEntry
-	names map[string]uint64 // login name -> PID
-	ttl   time.Duration
-	file  string
-	dirty atomic.Bool
-}
-
-type recallEntry struct {
-	PID uint64 `json:"pid"`
-	At  int64  `json:"at"` // unix seconds
-}
-
-// recallMax bounds the table: a recall table must not grow without end.
-const recallMax = 50000
-
-// recallFlushEvery is how often a dirty table reaches the disk.
-const recallFlushEvery = 5 * time.Second
-
-func newRecall(ttl time.Duration, file string) *recall {
-	r := &recall{m: map[string]recallEntry{}, names: map[string]uint64{}, ttl: ttl, file: file}
-	r.load()
-	if file != "" {
-		go r.flushLoop()
-	}
-	return r
-}
-
-func (r *recall) remember(host string, pid uint64) {
-	r.mu.Lock()
-	r.m[host] = recallEntry{PID: pid, At: time.Now().Unix()}
-	r.mu.Unlock()
-	r.dirty.Store(true)
-}
-
-func (r *recall) take(host string) (uint64, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	e, ok := r.m[host]
-	if !ok || e.PID == 0 {
-		return 0, false
-	}
-	if time.Since(time.Unix(e.At, 0)) > r.ttl {
-		// Expire on read as well as on flush: an IP-to-player association
-		// that outlived its session would otherwise be inherited by whoever
-		// holds that address next, which behind CGNAT is a stranger.
-		delete(r.m, host)
-		return 0, false
-	}
-	return e.PID, true
-}
-
-// recallByTitleWindow is how long a login stays claimable by title alone. The
-// game opens its secure connection within a second of the login answer.
-const recallByTitleWindow = 30 * time.Second
-
-func titleKey(name string) string { return "title:" + name }
-
-// addressSaysNothing reports whether a source address is one a NAT put there
-// rather than the client's own.
-func addressSaysNothing(host string) bool {
-	ip := net.ParseIP(host)
-	return ip != nil && (ip.IsPrivate() || ip.IsLoopback())
-}
-
-// takeRecent is take with a tighter age limit than the table's.
-func (r *recall) takeRecent(key string, window time.Duration) (uint64, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	e, ok := r.m[key]
-	if !ok || e.PID == 0 || time.Since(time.Unix(e.At, 0)) > window {
-		return 0, false
-	}
-	return e.PID, true
-}
-
-// rememberName records the login-name-to-PID mapping. Some titles never speak
-// our internal PID: they ask for profiles by the name the console logged in
-// under, and only the login ever saw both halves, so the mapping cannot be
-// recovered later by arithmetic.
-//
-// ponytail: the table is kept but nothing reads it yet — the profile store it
-// feeds does not exist. Serving a profile means emitting the title's 26-field
-// user structure, and a partial one shifts every field after it, so the current
-// "no profile stored" answer is the correct one until there is real data behind
-// it. Wire this up when the store lands, not before.
-func (r *recall) rememberName(name string, pid uint64) {
-	if name == "" || pid == 0 {
-		return
-	}
-	r.mu.Lock()
-	r.names[name] = pid
-	r.mu.Unlock()
-}
-
-// pidForName resolves a login name to the PID it logged in as.
-func (r *recall) pidForName(name string) (uint64, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	pid, ok := r.names[name]
-	return pid, ok
-}
-
-func (r *recall) load() {
-	if r.file == "" {
-		return
-	}
-	b, err := os.ReadFile(r.file)
-	if err != nil {
-		return
-	}
-	var m map[string]recallEntry
-	if json.Unmarshal(b, &m) != nil {
-		return
-	}
-	n := 0
-	for host, e := range m {
-		if e.PID == 0 || time.Since(time.Unix(e.At, 0)) > r.ttl {
-			continue
-		}
-		r.m[host] = e
-		n++
-	}
-	log.Printf("recall: restored %d entry(ies) from %s", n, r.file)
-}
-
-func (r *recall) flushLoop() {
-	t := time.NewTicker(recallFlushEvery)
-	defer t.Stop()
-	for range t.C {
-		if !r.dirty.Swap(false) {
-			continue
-		}
-		r.flush()
-	}
-}
-
-func (r *recall) flush() {
-	r.mu.Lock()
-	out := make(map[string]recallEntry, len(r.m))
-	for host, e := range r.m {
-		if time.Since(time.Unix(e.At, 0)) > r.ttl {
-			delete(r.m, host)
-			continue
-		}
-		if len(out) < recallMax {
-			out[host] = e
-		}
-	}
-	r.mu.Unlock()
-
-	b, err := json.Marshal(out)
-	if err != nil {
-		return
-	}
-	tmp := r.file + ".tmp"
-	// 0600: this file is a list of which address played as whom.
-	if os.WriteFile(tmp, b, 0o600) == nil {
-		_ = os.Rename(tmp, r.file) // atomic replace
-	}
-}
 
 // orEnv prefers an explicitly given value, falling back to the environment.
 func orEnv(given, envVar string) string {
@@ -898,12 +725,12 @@ func main() {
 		// for the whole process (voice.go).
 		serveHealth(fmt.Sprintf(":%d", t.base+2), svc, voice)
 
-		authLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
+		authLn, err := listenTitle(fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
 		if err != nil {
 			log.Printf("[%s] auth listen :%d: %v", t.name, t.base, err)
 			continue
 		}
-		secureLn, err := tls.Listen("tcp", fmt.Sprintf(":%d", t.base+1), tlsCfg.Clone())
+		secureLn, err := listenTitle(fmt.Sprintf(":%d", t.base+1), tlsCfg.Clone())
 		if err != nil {
 			log.Printf("[%s] secure listen :%d: %v", t.name, t.base+1, err)
 			// Half a title is no title: a login would hand out a secure
@@ -964,8 +791,8 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 		AccessKey:   t.accessKey,
 		KerberosKey: targetKey,
 		RecallPID: func(host string) (uint64, bool) {
-			// A ticketless CONNECT inherits the PID that logged in from this
-			// very address. That is leniency, not authentication: the Lite
+			// A ticketless CONNECT inherits the PID of the one login it can
+			// belong to. That is leniency, not authentication: the Lite
 			// signature proves knowledge of the title's PUBLIC access key,
 			// never identity.
 			//
@@ -977,25 +804,20 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 				log.Printf("[%s] secure: ticketless CONNECT from %s refused (identity enforced)", env.Name, host)
 				return 0, false
 			}
-			pid, ok := recall.take(host)
-			if !ok {
-				// ponytail: the auth stage rides Traefik, so a login is
-				// recorded under Traefik's address, never the console's; the
-				// secure dial arrives with the console's real address (host
-				// networking) or a rewritten one (any forwarder). Either way
-				// the address cannot pair the two stages, and the client —
-				// which dials secure ticketless — starves on silence. The
-				// title's latest login inside a short window is the pairing.
-				// Ceiling: two players logging in to one title within
-				// recallByTitleWindow can be handed each other's PID. Real
-				// fix: PROXY protocol from Traefik, so the login sees the
-				// console's address too and by-IP pairing turns exact.
-				pid, ok = recall.takeRecent(titleKey(env.Name), recallByTitleWindow)
+			// Bound to its own login or refused, never "the title's latest
+			// login": two consoles logging in to one title in the same second
+			// were both handed the second one's account (sweep 2026-10-10,
+			// MK8D). recall.go has the rules; no ids or addresses in the log.
+			pid, how := recall.bind(env.Name, host)
+			switch how {
+			case bindAmbiguous:
+				log.Printf("[%s] secure: ticketless CONNECT refused: more than one player it could be (only a ticket tells them apart)", env.Name)
+				return 0, false
+			case bindNone:
+				return 0, false
 			}
-			if ok {
-				log.Printf("[%s] secure: recalled pid=%d for %s", env.Name, pid, host)
-			}
-			return pid, ok
+			log.Printf("[%s] secure: ticketless CONNECT bound to %s", env.Name, how)
+			return pid, true
 		},
 		OnConnect: func(c *prudplite.Connection) {
 			log.Printf("[%s] secure: connected pid=%d cid=%d host=%s", env.Name, c.PID, c.CID, c.Host)
@@ -1193,8 +1015,7 @@ func handleLoginEx(ids *identity, recall *recall, env *protocols.Env, targetKey 
 		body = switchnexResult(env.Name, url, ticket, now, pid, sourceKey)
 	}
 
-	recall.remember(c.Host, pid)
-	recall.remember(titleKey(env.Name), pid)
+	recall.noteLogin(env.Name, c.Host, pid)
 	recall.rememberName(username, pid)
 	log.Printf("[%s] login pid=%d url=%q ticket=%dB", env.Name, pid, url, len(ticket))
 	return rmc.EncodeSuccess(0x0A, msg.CallID, msg.MethodID, body)

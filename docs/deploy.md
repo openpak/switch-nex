@@ -172,6 +172,27 @@ systemctl --user start openpak-switch-drain-update.service   # force a tick
 A title pinned to a version is skipped and logged as `pinned` — pinning is still
 how you hold one back.
 
+## 2e. Traefik sends the console's address (PROXY protocol, 2026-10-10)
+
+The auth stage arrives through Traefik's TCP passthrough router, so without help every
+login comes from Traefik's address and a ticketless secure CONNECT can only be paired by
+title (refused when two logins could be meant, `cmd/switch-nexd/recall.go`). From v0.3.21
+the title listeners accept a PROXY header from a private/loopback peer, so each `nex-*`
+TCP service in `traefik/dynamic.yml` carries:
+
+```yaml
+    nex-mario-kart-8-deluxe:
+      loadBalancer:
+        proxyProtocol:
+          version: 2
+        servers:
+          - address: "host.containers.internal:22150"
+```
+
+Order matters: every title must run v0.3.21+ **before** its service gets the header (an
+older switch-nexd reads the header as a broken TLS hello). Verify with a login: the
+`[<title>/auth] closed <addr>` line names the console's public address, not 10.0.0.x.
+
 ## 3. Apply config + restart
 
 - **New title**: register it in `cmd/switch-nexd/main.go` (registry), pick a

@@ -1,5 +1,29 @@
 # Changelog — switch-nex
 
+## 2026-10-10 — v0.3.21: a ticketless secure connection binds to its own login or none
+
+A title whose station URL is `prudp` (MK8D, Tennis, Risk of Rain, SoR4, DST and
+the rest without `prudps`) opens its secure connection with an empty CONNECT: no
+ticket, nothing naming the player. It used to take **the title's latest login in the
+last 30 s**, so two consoles logging in in the same second were both handed the
+second one's PID (multiplayer sweep 2026-10-10, MK8D note 1). Now (`recall.go`):
+
+- every login is claimable **once**, for 30 s, by a CONNECT for the same title, and
+  only from the login's own address when that address is known;
+- when more than one login could be meant, the CONNECT is **refused** (the console
+  retries) instead of guessed; only a ticket (`prudps`) separates two consoles behind
+  one address that log in in the same second;
+- a re-CONNECT with no login in flight is answered only by an address that has played
+  the title as exactly one PID (persisted, 24 h; the old one-PID-per-address file is
+  ignored on load, its addresses were all Traefik's).
+
+The auth stage reaches us through Traefik's TCP passthrough, so the login only ever saw
+Traefik's address. The title listeners now read a **PROXY protocol** header (v1 or v2)
+from a private/loopback peer, so with `proxyProtocol` on the `nex-*` Traefik services
+the login is recorded under the console's address and two households never compete for
+each other's login. Without the header the listener behaves as before. The bind log
+lines carry no PID or address.
+
 ## 2026-10-09 — v0.3.20: latest version only, and versions never share a match
 
 aauth (nx-baas) already turns an outdated title away with 2124-3001. The login now

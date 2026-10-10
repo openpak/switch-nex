@@ -69,11 +69,11 @@ func startWith(t *testing.T, name string, ids *identity) (authAddr, secureAddr s
 	}
 
 	cfg := testTLS(t)
-	authLn, err := tls.Listen("tcp", "127.0.0.1:0", cfg.Clone())
+	authLn, err := listenTitle("127.0.0.1:0", cfg.Clone())
 	if err != nil {
 		t.Fatal(err)
 	}
-	secureLn, err := tls.Listen("tcp", "127.0.0.1:0", cfg.Clone())
+	secureLn, err := listenTitle("127.0.0.1:0", cfg.Clone())
 	if err != nil {
 		t.Fatal(err)
 	}
