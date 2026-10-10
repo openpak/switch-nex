@@ -72,7 +72,14 @@ func TestDeliverMessageReachesTheGathering(t *testing.T) {
 
 	host.cast(0x1B, 0x01, smb35Message(t, gid))
 
-	for who, c := range map[string]*client{"joiner": joiner, "host": host} {
+	// The host first: its next answer comes after its cast was handled (one
+	// connection is served in order), so by then the relay has gone out to
+	// everyone and the joiner's poll cannot overtake it.
+	for _, rc := range []struct {
+		who string
+		c   *client
+	}{{"host", host}, {"joiner", joiner}} {
+		who, c := rc.who, rc.c
 		resp := c.call(ProtoUtility, 0x01, nil)
 		if resp.MethodID != 0x01 || resp.Protocol != ProtoUtility {
 			t.Fatalf("%s: the next answer is for proto=%#x method=%#x: DeliverMessage was answered", who, resp.Protocol, resp.MethodID)

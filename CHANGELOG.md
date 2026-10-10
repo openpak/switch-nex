@@ -1,6 +1,8 @@
 # Changelog — switch-nex
 
-## 2026-10-10 — v0.3.22: four titles from the multiplayer sweep
+## 2026-10-10 — v0.3.23: four titles from the multiplayer sweep
+
+(v0.3.22 carried the same changes; its CI run failed on a racy relay test and published nothing.)
 
 - **Mario Golf: Super Rush** private rooms and **Super Mario 3D World + Bowser's Fury**
   listed rooms: the joiner left exactly 10 s after a clean join (`Unable to enter the
