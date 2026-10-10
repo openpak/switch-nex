@@ -90,7 +90,18 @@ var titles = []title{
 		// each other, neither ever started, and each gave up after ~60 s
 		// (2026-09-20).
 		e.FinalizeCreateSession = true
+		// FinalizeParams stays ON for Golf, unlike the bring-up default: Golf's
+		// ranked lobbies were console-measured working with @SR/@GIR stamped
+		// (2026-10-09 sweep, a full 3-hole round), and its private-room joiner
+		// parsed the joined session cleanly. Only ACNH is known to reject them.
 		e.FinalizeParams = true
+		// Private rooms join explicitly (room code -> 0x6D.0x27), which without
+		// this pushes only 3001 to the host and 122000 to the joiner. The joiner
+		// never hears the host is there, sits exactly 10 s, sends
+		// EndParticipation and shows "Unable to enter the room." (sweep
+		// 2026-10-10, gid 581211). Ranked already got the recap: auto-match
+		// always sends it.
+		e.JoinRecapParticipate = true
 	}},
 	{"arms", 22140, "b6b34c51", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
@@ -257,6 +268,14 @@ var titles = []title{
 		e.Ranking = true
 		e.JoinEchoSession = true
 		e.ParticipateDelay = 100 * time.Millisecond
+		// Listed-room joins (Online Play > Join Game, 0x6D.0x27) failed the
+		// 2026-10-10 sweep with the bring-up notes' two signatures at once: the
+		// join echo said count=0 (the created room counted nobody and carried no
+		// session key) and the joiner, told only 122000 about itself, left
+		// exactly 10 s later with "An error has occurred". FinalizeParams stays
+		// off: nothing measured says this title wants @SR/@GIR.
+		e.FinalizeCreateSession = true
+		e.JoinRecapParticipate = true
 	}},
 	{"kirbys-dream-buffet", 22380, "6wVacwwe", func(e *protocols.Env) {
 		// Game server 25374500 and key read from our v0 dump; nothing measured
