@@ -553,3 +553,23 @@ func TestRankingBoardReadIsAnEmptyResult(t *testing.T) {
 		}
 	}
 }
+
+// TestEmptyListPostMetaBinaryAnswersADataID: PostMetaBinary is a write, and the
+// client reads the u64 id of what it posted. The empty-list profile answered it
+// with a bare u32 count, four bytes short, and Mario Tennis Aces showed
+// 2306-0116 right after login (sweep 2026-10-10).
+func TestEmptyListPostMetaBinaryAnswersADataID(t *testing.T) {
+	env := testEnv()
+	env.DataStore = DSEmptyList
+	var ids [2]uint64
+	for i := range ids {
+		_, body, errCode := decodeResponse(Dispatch(env, conn(5), request(ProtoDataStore, 0x15, nil)))
+		if errCode != 0 || len(body) != 8 {
+			t.Fatalf("PostMetaBinary: err %#x, %d bytes; want a u64 data id", errCode, len(body))
+		}
+		ids[i] = binary.LittleEndian.Uint64(body)
+	}
+	if ids[0] == 0 || ids[0] == ids[1] {
+		t.Fatalf("data ids %d, %d: want nonzero and distinct", ids[0], ids[1])
+	}
+}

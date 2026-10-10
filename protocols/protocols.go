@@ -227,7 +227,7 @@ func (e *Env) BindPush(endpoint *prudplite.Endpoint) { e.push.bind(endpoint) }
 
 // NewEnv builds a title environment.
 func NewEnv(name, stationAddress string, portBase int) *Env {
-	return &Env{
+	e := &Env{
 		Name:           name,
 		StationAddress: stationAddress,
 		SecurePort:     uint16(portBase + 1),
@@ -236,6 +236,10 @@ func NewEnv(name, stationAddress string, portBase int) *Env {
 		StationScheme:  "prudp",
 		Pia:            Pia519(),
 	}
+	// Data ids start from the clock, so a restart never hands out an id a
+	// client was already given before it.
+	e.dataID.Store(uint64(time.Now().Unix()) << 20)
+	return e
 }
 
 // SetFriends records a principal's friends, as resolved at login. The list

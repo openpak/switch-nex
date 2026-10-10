@@ -31,8 +31,15 @@ func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		// Every method, GetMeta included, takes an empty body.
 		return success(msg, nil)
 	case DSEmptyList:
-		if msg.MethodID == 0x08 { // GetMeta
+		switch msg.MethodID {
+		case 0x08: // GetMeta
 			return errorResp(msg, rmc.ResultDataStoreNotFound)
+		case 0x15: // PostMetaBinary -> u64 data id
+			// A write, not a list query: the client reads the id of the object
+			// it just posted. Mario Tennis Aces posts its tournament entry here
+			// right after login, and the bare u32 of an empty list is four bytes
+			// short of the u64 it parses: 2306-0116 (sweep 2026-10-10).
+			return postedDataID(env, msg)
 		}
 		return emptyList(msg)
 	}
@@ -60,11 +67,7 @@ func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		}())
 
 	case 0x15, 0x29, 0x2A: // PostMetaBinary[WithDataID(s)] -> u64 data id
-		return success(msg, func() []byte {
-			w := rmc.NewWriter()
-			w.U64(env.dataID.Add(1))
-			return w.Bytes()
-		}())
+		return postedDataID(env, msg)
 
 	case 0x18, 0x19, 0x21, 0x1B, 0x1F, 0x20, 0x0A, 0x0B, 0x2D:
 		// Prepare post/get + transfer plumbing: the reference answered these
@@ -158,6 +161,14 @@ func clubhouseDataStore(env *Env, msg *rmc.RMCMessage) []byte {
 			return w.Bytes()
 		}())
 	}
+}
+
+// postedDataID answers a post with a fresh u64 data id. Nothing is stored
+// behind it yet; the id only has to be one the client has not been given.
+func postedDataID(env *Env, msg *rmc.RMCMessage) []byte {
+	w := rmc.NewWriter()
+	w.U64(env.dataID.Add(1))
+	return success(msg, w.Bytes())
 }
 
 func emptyList(msg *rmc.RMCMessage) []byte {
