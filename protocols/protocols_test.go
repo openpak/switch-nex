@@ -310,37 +310,6 @@ func TestPresenceStub(t *testing.T) {
 	}
 }
 
-// TestSMM2GetUsersShape: (list<UserInfo> empty, per-PID NotFound results).
-func TestSMM2GetUsersShape(t *testing.T) {
-	env := testEnv()
-	env.DataStore = DSSMM2
-	w := rmc.NewWriter()
-	w.List(2)
-	w.U64(111)
-	w.U64(222)
-	w.U32(0) // option
-	resp := Dispatch(env, conn(1), request(ProtoDataStore, 0x30, w.Bytes()))
-	ok, body, errCode := decodeResponse(resp)
-	if errCode != 0 || !ok {
-		t.Fatal("GetUsers failed")
-	}
-	r := rmc.NewReader(body)
-	n, _ := r.ListHeader()
-	if n != 0 {
-		t.Fatalf("user infos: %d", n)
-	}
-	m, _ := r.ListHeader()
-	if m != 2 {
-		t.Fatalf("results: %d", m)
-	}
-	for i := 0; i < 2; i++ {
-		code, _ := r.U32()
-		if code != rmc.ResultDataStoreNotFound {
-			t.Fatalf("result %d: %#x", i, code)
-		}
-	}
-}
-
 // helpers
 
 func u32(v uint32) []byte {

@@ -232,6 +232,10 @@ var titles = []title{
 		e.JoinRecapParticipate = true
 	}},
 	{"super-mario-maker-2", 22330, "fdf6617f", func(e *protocols.Env) {
+		// prudps: on prudp the console completes the handshake and then sends
+		// an EMPTY CONNECT, no ticket, and SMM2 dies at matchmaking (the
+		// reference's measured note, servers/nex SMM2 provenance).
+		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.DataStore = protocols.DSSMM2

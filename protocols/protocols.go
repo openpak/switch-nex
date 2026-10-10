@@ -205,6 +205,7 @@ type Env struct {
 	referee     roundStore
 	ranking     rankingStore
 	r2common    r2CommonStore
+	smm2        smm2Store
 }
 
 // DSMode selects the DataStore behaviour.
@@ -217,7 +218,7 @@ const (
 	DSEmptySuccess         // every method, GetMeta included, answers an empty body
 	DSStub                 // + real data IDs from PostMetaBinary, search ranges
 	DSBalloonErrors        // + title balloon methods answer NotImplemented (SMO)
-	DSSMM2                 // + SMM2 title methods (0x2F-0x31, 0x3C) answer in shapes
+	DSSMM2                 // + SMM2 user profiles and empty Course World lists (smm2.go)
 	DSClubhouse            // account-setup answers: GetPersistenceInfos empties + per-slot NotFound
 )
 

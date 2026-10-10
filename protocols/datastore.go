@@ -10,7 +10,7 @@
 //     answer there kills the client silently), search ranges, empty lists.
 //   - DSBalloonErrors — plus the balloon methods answering Core::NotImplemented
 //     rather than guessing at a wire layout nothing has pinned.
-//   - DSSMM2 — plus the Course World title methods.
+//   - DSSMM2 — plus the Course World title methods (smm2.go).
 //   - DSClubhouse — the account-setup answers, narrower again: no data ids,
 //     because that title never posts.
 //
@@ -25,6 +25,10 @@ import (
 
 func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	switch env.DataStore {
+	case DSSMM2:
+		if body, ok := smm2DataStore(env, c, msg); ok {
+			return body
+		}
 	case DSClubhouse:
 		return clubhouseDataStore(env, msg)
 	case DSEmptySuccess:
@@ -87,36 +91,6 @@ func dataStoreTitleMethods(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 		// ClearBufferQueues, SearchBalloon, FetchMyInfos. NotImplemented until
 		// a capture pins the wire layout (old repo stance, kept).
 		return notImplemented(env, msg)
-
-	case env.DataStore == DSSMM2:
-		switch msg.MethodID {
-		case 0x2F: // RegisterUser -> empty
-			return success(msg, nil)
-		case 0x30: // GetUsers(list<PID>, u32 option) -> (list<UserInfo>, list<result>)
-			r := rmc.NewReader(msg.Body)
-			pids, err := readPIDList(r)
-			if err != nil {
-				return errorResp(msg, rmc.ResultInvalidArgument)
-			}
-			return success(msg, func() []byte {
-				w := rmc.NewWriter()
-				w.EmptyList() // no profiles stored yet — Course World shows the generic Mii
-				w.List(len(pids))
-				for range pids {
-					w.U32(rmc.ResultDataStoreNotFound)
-				}
-				return w.Bytes()
-			}())
-		case 0x31: // SyncUserProfile -> empty
-			return success(msg, nil)
-		case 0x3C: // CanPostCourse -> (bool, u32) — a lone u32 desyncs the client
-			return success(msg, func() []byte {
-				w := rmc.NewWriter()
-				w.Bool(true)
-				w.U32(0)
-				return w.Bytes()
-			}())
-		}
 	}
 	return notImplemented(env, msg)
 }
