@@ -1,5 +1,22 @@
 # Changelog — switch-nex
 
+## 2026-10-10 — v0.3.22: four titles from the multiplayer sweep
+
+- **Mario Golf: Super Rush** private rooms and **Super Mario 3D World + Bowser's Fury**
+  listed rooms: the joiner left exactly 10 s after a clean join (`Unable to enter the
+  room.` / `An error has occurred.`). An explicit join (0x6D.0x27) now sends the recap
+  (`JoinRecapParticipate`): 3001 about the joiner to everyone, then one 3001 per
+  existing participant to the joiner. 3D World also echoed `count=0` (a created room
+  counting nobody, no session key) and gets `FinalizeCreateSession`. Golf keeps
+  `FinalizeParams`: its ranked lobbies were measured working with it.
+- **Mario Tennis Aces** 2306-0116 after login: the empty-list DataStore profile answered
+  PostMetaBinary (0x73.0x15) with a bare u32; it now answers the u64 data id the client
+  reads. Data ids start from the clock, so a restart never reissues one.
+- **Super Mario Bros. 35** matchmaking never completing (host 2/2, joiner 1/1):
+  DeliverMessage (0x1B.0x1) is now a relay, as on the reference: no RMC answer, the
+  message stamped with sender, sender name and reception time and pushed to the
+  recipient principal or every participant of the gathering, the sender included.
+
 ## 2026-10-10 — v0.3.21: a ticketless secure connection binds to its own login or none
 
 A title whose station URL is `prudp` (MK8D, Tennis, Risk of Rain, SoR4, DST and
