@@ -146,3 +146,22 @@ func SMB35IntegerSettings(index uint32) (map[uint16]uint32, uint32) {
 		10: 5, 11: 3, 12: 1, 13: 30, 14: 30, 15: 180, 16: 0,
 	}, 0
 }
+
+// MPSIntegerSettings is Mario Party Superstars' index-0 table: the six keys
+// its v1.1.0 main reads after GetIntegerSettings, at the values it carries
+// built in (initialised data 0x14ab8b4..0x14ab8c8, and hs::Net::
+// ResetRttParameter for keys 0-3). The game parses a real map and looks the
+// keys up: an empty map makes it give up and return to its menu (sweep
+// 2026-10-10), and a missing key aborts the game. Never captured from
+// Nintendo's server, which may have tuned them.
+//
+//	0 RTT in ms above which a peer is dropped after 4 s (below 1: off)
+//	1-3 RTT-icon thresholds for 1, 2 and 3 bars (keep 3 < 2 < 1)
+//	4 seconds to wait for the host when rejoining
+//	5 rejoin enabled (1)
+func MPSIntegerSettings(index uint32) (map[uint16]uint32, uint32) {
+	if index != 0 {
+		return map[uint16]uint32{}, 0
+	}
+	return map[uint16]uint32{0: 1000, 1: 1000, 2: 500, 3: 250, 4: 20, 5: 1}, 0
+}

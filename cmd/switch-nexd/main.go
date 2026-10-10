@@ -59,7 +59,11 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.SanitizeDetailFind = true // FindByGatheringIDDetail strips SessionKey/UserPassword
-		e.IntegerSettings = envIntegerSettings("MPS_INTEGER_SETTINGS")
+		// The game's own six built-in values unless the deploy overrides them.
+		e.IntegerSettings = protocols.MPSIntegerSettings
+		if os.Getenv("MPS_INTEGER_SETTINGS") != "" {
+			e.IntegerSettings = envIntegerSettings("MPS_INTEGER_SETTINGS")
+		}
 		e.Ranking = true
 		e.DataStore = protocols.DSEmptyList
 	}},
