@@ -56,7 +56,7 @@ func newFakeBaas(t *testing.T, pid uint64) *fakeBaas {
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]any{
-			"pid": f.pid, "baas_user_id": "nsa-abc", "nickname": "Player", "country": "GB",
+			"pid": f.pid, "baas_user_id": "nsa-abc", "nickname": "Zorblax", "country": "GB",
 			"account_id": "acct-1",
 		})
 	}))

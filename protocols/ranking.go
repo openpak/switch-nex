@@ -31,6 +31,7 @@ import (
 	"sync"
 
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -145,7 +146,7 @@ func logUploadScore(env *Env, c *prudplite.Connection, body []byte) {
 	if err != nil {
 		return
 	}
-	log.Printf("[%s] ranking: pid=%d upload category=%d score=%d", env.Name, c.PID, category, score)
+	log.Printf("[%s] ranking: pid=%s upload category=%d score=%d", env.Name, redact.Tag(c.PID), category, score)
 }
 
 // commonDataByPIDs answers one entry per requested PID, in the order asked.

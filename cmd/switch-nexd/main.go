@@ -38,6 +38,7 @@ import (
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/protocols"
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -828,7 +829,7 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 			// sharing a public address — a CGNAT range, or one household — so
 			// once logins are enforced the ticket is the only way in.
 			if *requireIdentity {
-				log.Printf("[%s] secure: ticketless CONNECT from %s refused (identity enforced)", env.Name, host)
+				log.Printf("[%s] secure: ticketless CONNECT from %s refused (identity enforced)", env.Name, redact.Tag(host))
 				return 0, false
 			}
 			// Bound to its own login or refused, never "the title's latest
@@ -847,7 +848,7 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 			return pid, true
 		},
 		OnConnect: func(c *prudplite.Connection) {
-			log.Printf("[%s] secure: connected pid=%d cid=%d host=%s", env.Name, c.PID, c.CID, c.Host)
+			log.Printf("[%s] secure: connected pid=%s cid=%d host=%s", env.Name, redact.Tag(c.PID), c.CID, redact.Tag(c.Host))
 		},
 		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 			return protocols.Dispatch(env, c, msg)
@@ -957,7 +958,7 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 			log.Printf("[%s] login refused: no authentication token in the login", env.Name)
 			return 0, rmc.ResultAuthTokenParse, false
 		}
-		log.Printf("[%s] login UNPROVEN (no token): falling back to the name %q", env.Name, username)
+		log.Printf("[%s] login UNPROVEN (no token): falling back to the name", env.Name)
 		pid = pidFor(username)
 		env.SetAppVersion(pid, "")
 		return pid, 0, true
@@ -976,7 +977,7 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 			log.Printf("[%s] login refused: %v", env.Name, err)
 			return 0, loginResultCode(err), false
 		}
-		log.Printf("[%s] login UNPROVEN (%v): falling back to the name %q", env.Name, err, username)
+		log.Printf("[%s] login UNPROVEN (%v): falling back to the name", env.Name, err)
 		pid = pidFor(username)
 		env.SetAppVersion(pid, av)
 		return pid, 0, true
@@ -987,12 +988,12 @@ func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Re
 	// before an update was published) gets NEX's own refusal, which carries
 	// the same update-required dialog on the console (2306-0819).
 	if old, latest := ids.outdated(ai, av); old {
-		log.Printf("[%s] login refused: pid=%d title %s version %s is older than %s (ApplicationVersionIsOld)", env.Name, pid, ai, av, latest)
+		log.Printf("[%s] login refused: pid=%s title %s version %s is older than %s (ApplicationVersionIsOld)", env.Name, redact.Tag(pid), ai, av, latest)
 		return 0, rmc.ResultAppVersionOld, false
 	}
 	env.SetFriends(pid, p.friendPIDs())
 	env.SetAppVersion(pid, av)
-	log.Printf("[%s] login pid=%d nsa=%s nickname=%q friends=%d title=%s version=%s", env.Name, pid, p.BaasUserID, p.Nickname, len(p.Friends), ai, av)
+	log.Printf("[%s] login pid=%s friends=%d title=%s version=%s", env.Name, redact.Tag(pid), len(p.Friends), ai, av)
 	return pid, 0, true
 }
 
@@ -1047,7 +1048,7 @@ func handleLoginEx(ids *identity, recall *recall, env *protocols.Env, targetKey 
 
 	recall.noteLogin(env.Name, c.Host, pid)
 	recall.rememberName(username, pid)
-	log.Printf("[%s] login pid=%d url=%q ticket=%dB", env.Name, pid, url, len(ticket))
+	log.Printf("[%s] login pid=%s url=%q ticket=%dB", env.Name, redact.Tag(pid), url, len(ticket))
 	return rmc.EncodeSuccess(0x0A, msg.CallID, msg.MethodID, body)
 }
 

@@ -1,6 +1,7 @@
 package protocols
 
 import (
+	"github.com/openpak/switch-nex/redact"
 	"log"
 	"strings"
 )
@@ -63,7 +64,7 @@ func (e *Env) sameVersionOpen(pid uint64) []*Session {
 			continue
 		}
 		if !e.versionFits(g, pid) {
-			log.Printf("[%s] matchmake: gid=%d hidden from pid=%d (version %s, theirs %s)", e.Name, g.sess.GID, pid, g.version, e.AppVersion(pid))
+			log.Printf("[%s] matchmake: gid=%d hidden from pid=%s (version %s, theirs %s)", e.Name, g.sess.GID, redact.Tag(pid), g.version, e.AppVersion(pid))
 			continue
 		}
 		out = append(out, g.sess)

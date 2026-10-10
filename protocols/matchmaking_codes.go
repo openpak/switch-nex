@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -100,7 +101,7 @@ func createRoomCode(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 	if code == "" {
 		return errorResp(msg, rmc.ResultSessionVoid)
 	}
-	log.Printf("[%s] room code %s -> gid=%d pid=%d", env.Name, code, gid, c.PID)
+	log.Printf("[%s] room code -> gid=%d pid=%s", env.Name, gid, redact.Tag(c.PID))
 	// The answer is a STRUCTURE — header, then (String code, DateTime) — like
 	// every other compound value on this wire. Sent bare, MK8D 3.0.5 left its
 	// freshly created room 0.2 s after reading it (2026-09-17).
@@ -251,7 +252,7 @@ func createTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		blob[i] = b
 	}
 	t := env.tournaments.create(c.PID, version, blob)
-	log.Printf("[%s] tournament %d created by pid=%d (%d bytes)", env.Name, t.id, c.PID, len(blob))
+	log.Printf("[%s] tournament %d created by pid=%s (%d bytes)", env.Name, t.id, redact.Tag(c.PID), len(blob))
 
 	w := rmc.NewWriter()
 	w.Struct(t.version, t.blob)

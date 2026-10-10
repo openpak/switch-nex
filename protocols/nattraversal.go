@@ -22,6 +22,7 @@ import (
 	"log"
 
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -96,8 +97,8 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 	// LAN address, and the port they pair it with is the one their NAT was seen
 	// to use -- which is not their local port unless the router preserved it
 	// (2026-09-20, Mario Kart 8 Deluxe: race starts, dies ten seconds in).
-	log.Printf("[%s] nat: probe request pid=%d self=%s targets=%v stations=%v",
-		env.Name, c.PID, station, targets, c.Stations())
+	log.Printf("[%s] nat: probe request pid=%s targets=%d stations=%d",
+		env.Name, redact.Tag(c.PID), len(targets), len(c.Stations()))
 
 	params := rmc.NewWriter()
 	params.String(station)
@@ -112,10 +113,10 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 		}
 		req := rmc.EncodeRequest(ProtoNatTraversal, 0x02, env.push.nextCallID(), params.Bytes())
 		if err := peer.SendRMC(req); err != nil {
-			log.Printf("[%s] nat: probe push to pid=%d failed: %v", env.Name, pid, err)
+			log.Printf("[%s] nat: probe push to pid=%s failed: %v", env.Name, redact.Tag(pid), err)
 			continue
 		}
-		log.Printf("[%s] nat: pushed InitiateProbe pid=%d -> pid=%d", env.Name, c.PID, pid)
+		log.Printf("[%s] nat: pushed InitiateProbe pid=%s -> pid=%s", env.Name, redact.Tag(c.PID), redact.Tag(pid))
 	}
 }
 
@@ -190,7 +191,7 @@ func recordNATProperties(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	}
 	class := classifyNAT(mapping, filtering)
 	env.nat.put(c.PID, class)
-	log.Printf("[%s] nat: pid=%d mapping=%d filtering=%d -> %s", env.Name, c.PID, mapping, filtering, class)
+	log.Printf("[%s] nat: pid=%s mapping=%d filtering=%d -> %s", env.Name, redact.Tag(c.PID), mapping, filtering, class)
 }
 
 // stationPID reads the PID parameter out of a station URL string.
@@ -226,5 +227,5 @@ func reportNATResult(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 	if ok {
 		verdict = "ok"
 	}
-	log.Printf("[%s] nat: pid=%d punch to cid=%d %s (rtt=%dms detail=%d)", env.Name, c.PID, cid, verdict, rtt, detail)
+	log.Printf("[%s] nat: pid=%s punch to cid=%d %s (rtt=%dms detail=%d)", env.Name, redact.Tag(c.PID), cid, verdict, rtt, detail)
 }

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -355,7 +356,7 @@ func (i *identity) sweepBans(ep *prudplite.Endpoint) {
 			checked[pid] = banned
 		}
 		if banned {
-			log.Printf("[%s] pid=%d is banned, dropping its connection", ep.Name, pid)
+			log.Printf("[%s] pid=%s is banned, dropping its connection", ep.Name, redact.Tag(pid))
 			c.Drop()
 		}
 	}

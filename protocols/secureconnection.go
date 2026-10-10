@@ -27,6 +27,7 @@ import (
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -120,7 +121,7 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 	}
 
 	c.SetStations([]string{local.String(), public.String()})
-	log.Printf("[%s] register pid=%d cid=%d local=%s public=%s", env.Name, c.PID, c.ID, local, public)
+	log.Printf("[%s] register pid=%s cid=%d", env.Name, redact.Tag(c.PID), c.ID)
 
 	w := rmc.NewWriter()
 	w.U32(rmc.ResultSuccess) // QResult success
@@ -163,7 +164,7 @@ func replaceURL(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 		kept = append(kept, replacement.String())
 	}
 	c.SetStations(kept)
-	log.Printf("[%s] replaceURL pid=%d -> %s (%d station(s))", env.Name, c.PID, replacement, len(kept))
+	log.Printf("[%s] replaceURL pid=%s (%d station(s))", env.Name, redact.Tag(c.PID), len(kept))
 	return success(msg, nil)
 }
 

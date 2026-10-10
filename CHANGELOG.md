@@ -1,5 +1,18 @@
 # Changelog — switch-nex
 
+## 2026-10-10 — v0.3.26: no personal data in logs
+
+- Logs no longer carry pids, NSA ids, nicknames, login names, tokens or client
+  addresses. Where two lines have to be matched, they carry a short per-process tag
+  (`redact.Tag`: keyed HMAC prefix, key random per start, so tags cannot be compared
+  across restarts or reversed).
+- RMC bodies (names, ids, tickets inside) are not logged any more; the `rmc` line keeps
+  sizes only. `NEX_TRACE_BODIES=1` brings the hex back for a local debug run.
+- Room codes, code words, session descriptions and matchmake parameters are logged as
+  presence or length only. Read errors drop the `net.OpError` addresses.
+- `TestLogsCarryNoPersonalData` runs a proven login and a secure session and fails if a
+  known id, name or token reaches the log.
+
 ## 2026-10-10 — v0.3.25: Mario Party's settings, Super Mario Maker 2's profile and Course World
 
 (v0.3.24 carried the same changes; its CI failed on a startup race in `serve`, fixed here: `Endpoint.Listen` runs inline, so a `Close` right after `serve` no longer finds a nil channel.)

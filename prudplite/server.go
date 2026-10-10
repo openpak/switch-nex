@@ -24,12 +24,14 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	switchnex "github.com/openpak/switch-nex"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -328,8 +330,8 @@ func (c *Connection) serve() {
 		if c.State == StateConnected {
 			state = "connected"
 		}
-		log.Printf("[%s] closed %s pid=%d %s carriage=%s age=%s frames=%d calls=%d last=%s saw=%v reason: %s",
-			c.Endpoint.Name, c.Remote, c.PID, state, c.carriage,
+		log.Printf("[%s] closed %s pid=%s %s carriage=%s age=%s frames=%d calls=%d last=%s saw=%v reason: %s",
+			c.Endpoint.Name, redact.Tag(c.Remote), redact.Tag(c.PID), state, c.carriage,
 			time.Since(c.opened).Round(time.Millisecond), c.frames, c.calls, c.lastCall, c.preConnect, reason)
 		c.conn.Close()
 		c.Endpoint.forget(c)
@@ -401,6 +403,11 @@ func describeReadError(err error) string {
 	case errors.Is(err, net.ErrClosed):
 		return "closed by the server"
 	}
+	// A *net.OpError spells both addresses in its text; keep only the cause.
+	var oe *net.OpError
+	if errors.As(err, &oe) && oe.Err != nil {
+		return "read: " + oe.Err.Error()
+	}
 	return "read: " + err.Error()
 }
 
@@ -459,7 +466,7 @@ func (c *Connection) handleConnect(p *Packet) {
 	if c.Endpoint.AccessKey != "" {
 		expected := LitePacketSignature(c.Endpoint.AccessKey, p, c.Signature)
 		if expected == nil || !equalBytes(expected, p.Signature) {
-			log.Printf("prudplite: CONNECT bad signature from %s got=%x want=%x", c.Remote, p.Signature, expected)
+			log.Printf("prudplite: CONNECT bad signature from %s", redact.Tag(c.Remote))
 			c.rejectConnect(p)
 			return
 		}
@@ -467,7 +474,7 @@ func (c *Connection) handleConnect(p *Packet) {
 
 	response, err := c.processConnectPayload(p.Payload)
 	if err != nil {
-		log.Printf("prudplite: CONNECT rejected from %s: %v", c.Remote, err)
+		log.Printf("prudplite: CONNECT rejected from %s: %v", redact.Tag(c.Remote), err)
 		c.rejectConnect(p)
 		return
 	}
@@ -586,7 +593,7 @@ func (c *Connection) handleData(p *Packet) {
 	}
 	msg, err := rmc.DecodeRequest(assembled)
 	if err != nil {
-		log.Printf("prudplite: undecodable RMC from %s (%d bytes): %v", c.Remote, len(assembled), err)
+		log.Printf("prudplite: undecodable RMC from %s (%d bytes): %v", redact.Tag(c.Remote), len(assembled), err)
 		return
 	}
 	c.calls++
@@ -603,27 +610,33 @@ func (c *Connection) handleData(p *Packet) {
 	} else if response == nil {
 		outcome = "NO ANSWER SENT"
 	}
-	// ponytail: matchmaking calls (0x6D) log in full — a session a client
-	// silently rejects can only be diagnosed from every byte it was sent.
-	reqHead, respHead := 96, 48
-	if msg.Protocol == 0x6D {
-		reqHead, respHead = 2048, 2048
+	// Bodies carry names, pids and tickets, so they are never logged by
+	// default: only sizes. NEX_TRACE_BODIES=1 adds the hex for a local debug
+	// run (never set in production).
+	if traceBodies {
+		reqHead, respHead := 96, 48
+		if msg.Protocol == 0x6D {
+			// A session a client silently rejects can only be diagnosed from
+			// every byte it was sent.
+			reqHead, respHead = 2048, 2048
+		}
+		log.Printf("[%s] rmc body pid=%s call=%d req=%x resp=%x", c.Endpoint.Name, redact.Tag(c.PID), msg.CallID,
+			headBytes(msg.Body, reqHead), headBytes(response, respHead))
 	}
-	log.Printf("[%s] rmc pid=%d proto=0x%X method=0x%X call=%d %s req(%dB)=%x resp(%dB)=%x",
-		c.Endpoint.Name, c.PID, msg.Protocol, msg.MethodID, msg.CallID, outcome,
-		len(msg.Body), headBytes(msg.Body, reqHead), len(response), headBytes(response, respHead))
-	if outcome != "ok" && len(msg.Body) > 96 {
-		// The head is enough for a call that worked. One that did not is worth
-		// every byte: the full request is what the fix is written from.
-		log.Printf("[%s] rmc pid=%d call=%d full request: %x", c.Endpoint.Name, c.PID, msg.CallID, msg.Body)
-	}
+	log.Printf("[%s] rmc pid=%s proto=0x%X method=0x%X call=%d %s req=%dB resp=%dB",
+		c.Endpoint.Name, redact.Tag(c.PID), msg.Protocol, msg.MethodID, msg.CallID, outcome,
+		len(msg.Body), len(response))
 	if response == nil {
 		return
 	}
 	if err := c.sendData(response, 0); err != nil {
-		log.Printf("[%s] rmc pid=%d call=%d answer not delivered: %v", c.Endpoint.Name, c.PID, msg.CallID, err)
+		log.Printf("[%s] rmc pid=%s call=%d answer not delivered: %v", c.Endpoint.Name, redact.Tag(c.PID), msg.CallID, err)
 	}
 }
+
+// traceBodies turns on hex dumps of RMC bodies, which carry names and ids. Off
+// in production.
+var traceBodies = os.Getenv("NEX_TRACE_BODIES") == "1"
 
 func headBytes(b []byte, n int) []byte {
 	if len(b) > n {

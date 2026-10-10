@@ -22,6 +22,7 @@ import (
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -141,7 +142,7 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 				sessions = append(sessions, s)
 			}
 		}
-		log.Printf("[%s] matchmake: browse code=%q -> %d session(s)", env.Name, code, len(sessions))
+		log.Printf("[%s] matchmake: browse code=%v -> %d session(s)", env.Name, code != "", len(sessions))
 		return success(msg, sessionList(sessions))
 
 	case 0x04, 0x2A: // BrowseMatchmakeSession[NoHolder](criteria, resultRange)
@@ -279,7 +280,7 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 			// A param shape beyond the session is one this title drew
 			// differently — match without criteria (the v0.2.28 behaviour)
 			// rather than refuse the search outright.
-			log.Printf("[%s] matchmake: unreadable search criteria for pid=%d, matching without", env.Name, c.PID)
+			log.Printf("[%s] matchmake: unreadable search criteria for pid=%s, matching without", env.Name, redact.Tag(c.PID))
 			criteria = nil
 		}
 		return autoMatchmake(env, c, msg, sess, criteria)
@@ -427,7 +428,7 @@ func createSession(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		g.participants[c.PID] = true
 		g.version = env.AppVersion(c.PID)
 	}
-	log.Printf("[%s] matchmake: created gid=%d pid=%d max=%d open=%v version=%q", env.Name, gid, c.PID, sess.MaxParticipants, sess.OpenParticipation, env.AppVersion(c.PID))
+	log.Printf("[%s] matchmake: created gid=%d pid=%s max=%d open=%v version=%q", env.Name, gid, redact.Tag(c.PID), sess.MaxParticipants, sess.OpenParticipation, env.AppVersion(c.PID))
 	// The creator joins its own session, and a join is announced to the owner
 	// — here the same player. MK8D 3.0.5 was observed (2026-09-17) to sit for
 	// exactly 10 s after a successful create, send nothing, open no P2P
@@ -517,7 +518,7 @@ func updateNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 		env.notify(friend, live)
 		pushed++
 	}
-	log.Printf("[%s] notifdata: pid=%d type=%d param1=%d param2=%d pushed to %d online friend(s)", env.Name, c.PID, typ, p1, p2, pushed)
+	log.Printf("[%s] notifdata: pid=%s type=%d param1=%d param2=%d pushed to %d online friend(s)", env.Name, redact.Tag(c.PID), typ, p1, p2, pushed)
 	return success(msg, nil)
 }
 
@@ -558,7 +559,7 @@ func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 	for _, ev := range events {
 		w.Raw(ev.bytes())
 	}
-	log.Printf("[%s] notifdata: pid=%d types=%v -> %d friend entr(y/ies)", env.Name, c.PID, types, len(events))
+	log.Printf("[%s] notifdata: pid=%s types=%v -> %d friend entr(y/ies)", env.Name, redact.Tag(c.PID), types, len(events))
 	resp := success(msg, w.Bytes())
 	for _, ev := range events {
 		live := ev
@@ -608,15 +609,15 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 			continue
 		}
 		if !env.versionFits(g, c.PID) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (version %s, theirs %s)", env.Name, candidate.GID, c.PID, g.version, env.AppVersion(c.PID))
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (version %s, theirs %s)", env.Name, candidate.GID, redact.Tag(c.PID), g.version, env.AppVersion(c.PID))
 			continue
 		}
 		if env.MatchModeAttribute && !modeAttrMatch(g.sess, criteria) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (mode)", env.Name, candidate.GID, c.PID)
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (mode)", env.Name, candidate.GID, redact.Tag(c.PID))
 			continue
 		}
 		if !env.nat.compatibleWith(g, c.PID) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%d (NAT)", env.Name, candidate.GID, c.PID)
+			log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (NAT)", env.Name, candidate.GID, redact.Tag(c.PID))
 			continue
 		}
 		if !g.participants[c.PID] {
@@ -643,7 +644,7 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 				})
 			}
 		}
-		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%d", env.Name, candidate.GID, c.PID)
+		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%s", env.Name, candidate.GID, redact.Tag(c.PID))
 		return success(msg, candidate.bytes())
 	}
 	return createSession(env, c, msg, sess)
@@ -773,9 +774,11 @@ func logSessionTemplate(env *Env, pid uint64, sess *Session) {
 		params = append(params, variantString(k, v))
 	}
 	sort.Strings(params)
-	log.Printf("[%s] matchmake: template pid=%d gameMode=%d attrs=%v appBuf=%x params={%s} desc=%q pw=%v",
-		env.Name, pid, sess.GameMode, sess.Attributes, app,
-		strings.Join(params, " "), sess.Description, sess.UserPassword != "")
+	// Free text a player typed (description, parameters) can be a name: only
+	// its shape is logged.
+	log.Printf("[%s] matchmake: template pid=%s gameMode=%d attrs=%v appBuf=%dB params=%d desc=%dB pw=%v",
+		env.Name, redact.Tag(pid), sess.GameMode, sess.Attributes, len(app),
+		len(params), len(sess.Description), sess.UserPassword != "")
 }
 
 // logSearchCriteria dumps the criteria a search is matched on, one line per
@@ -784,14 +787,14 @@ func logSessionTemplate(env *Env, pid uint64, sess *Session) {
 // room (MK8D's version marker is expected among these attributes).
 func logSearchCriteria(env *Env, pid uint64, criteria []*searchCriteria) {
 	if len(criteria) == 0 {
-		log.Printf("[%s] matchmake: criteria pid=%d none version=%q", env.Name, pid, env.AppVersion(pid))
+		log.Printf("[%s] matchmake: criteria pid=%s none version=%q", env.Name, redact.Tag(pid), env.AppVersion(pid))
 		return
 	}
 	parts := make([]string, 0, len(criteria))
 	for _, c := range criteria {
 		parts = append(parts, fmt.Sprintf("{gameMode=%q attribs=%q}", c.GameMode, c.Attribs))
 	}
-	log.Printf("[%s] matchmake: criteria pid=%d %s version=%q", env.Name, pid, strings.Join(parts, " "), env.AppVersion(pid))
+	log.Printf("[%s] matchmake: criteria pid=%s %s version=%q", env.Name, redact.Tag(pid), strings.Join(parts, " "), env.AppVersion(pid))
 }
 
 // variantString renders one matchmake-param entry for the template log.
@@ -855,7 +858,7 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 	if !g.participants[c.PID] && !env.versionFits(g, c.PID) {
 		// Another version's session does not exist for this player: the same
 		// answer as a gathering that is gone.
-		log.Printf("[%s] matchmake: join gid=%d refused for pid=%d (version %s, theirs %s)", env.Name, gid, c.PID, g.version, env.AppVersion(c.PID))
+		log.Printf("[%s] matchmake: join gid=%d refused for pid=%s (version %s, theirs %s)", env.Name, gid, redact.Tag(c.PID), g.version, env.AppVersion(c.PID))
 		return errorResp(msg, rmc.ResultSessionVoid)
 	}
 	was := g.participants[c.PID]
@@ -905,11 +908,11 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 		if !was {
 			echo.ParticipationCount = g.sess.ParticipationCount - 1
 		}
-		log.Printf("[%s] matchmake: joined gid=%d pid=%d count=%d", env.Name, gid, c.PID, echo.ParticipationCount)
+		log.Printf("[%s] matchmake: joined gid=%d pid=%s count=%d", env.Name, gid, redact.Tag(c.PID), echo.ParticipationCount)
 		return success(msg, echo.bytes())
 	}
 	g.sess.ParticipationCount++
-	log.Printf("[%s] matchmake: joined gid=%d pid=%d", env.Name, gid, c.PID)
+	log.Printf("[%s] matchmake: joined gid=%d pid=%s", env.Name, gid, redact.Tag(c.PID))
 	return success(msg, func() []byte {
 		w := rmc.NewWriter()
 		w.Bool(true)
@@ -952,7 +955,7 @@ func migrateOwnership(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r 
 		Param1:    uint64(gid),
 		Param2:    next,
 	})
-	log.Printf("[%s] matchmake: gid=%d owner %d -> %d", env.Name, gid, c.PID, next)
+	log.Printf("[%s] matchmake: gid=%d owner %s -> %s", env.Name, gid, redact.Tag(c.PID), redact.Tag(next))
 	if boolReply {
 		return boolTrue(msg)
 	}
@@ -1135,7 +1138,7 @@ func updateSessionPart(env *Env, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
 	if flags&0x4000 != 0 {
 		s.CodeWord = codeword // ACNH's Dodo Code
 	}
-	log.Printf("[%s] matchmake: session part gid=%d flags=%#x open=%v codeword=%q", env.Name, gid, flags, s.OpenParticipation, s.CodeWord)
+	log.Printf("[%s] matchmake: session part gid=%d flags=%#x open=%v codeword=%v", env.Name, gid, flags, s.OpenParticipation, s.CodeWord != "")
 	return success(msg, nil)
 }
 

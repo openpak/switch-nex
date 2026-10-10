@@ -18,6 +18,7 @@ import (
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
+	"github.com/openpak/switch-nex/redact"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -107,10 +108,10 @@ func (e *Env) send(pid uint64, event notificationEvent) {
 	}
 	req := rmc.EncodeRequest(ProtoNotification, 0x01, e.push.nextCallID(), event.bytes())
 	if err := conn.SendRMC(req); err != nil {
-		log.Printf("[%s] notify pid=%d type=%d: %v", e.Name, pid, event.Type, err)
+		log.Printf("[%s] notify pid=%s type=%d: %v", e.Name, redact.Tag(pid), event.Type, err)
 		return
 	}
-	log.Printf("[%s] notify pid=%d type=%d gid=%d", e.Name, pid, event.Type, event.Param1)
+	log.Printf("[%s] notify pid=%s type=%d gid=%d", e.Name, redact.Tag(pid), event.Type, event.Param1)
 }
 
 // notifyGathering pushes an event to every participant of a gathering except
