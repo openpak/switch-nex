@@ -1,5 +1,38 @@
 # Changelog — switch-nex
 
+## 2026-10-10 — v0.3.24: Mario Party's settings, Super Mario Maker 2's profile and Course World
+
+- **Mario Party Superstars** logged in, got an empty GetIntegerSettings map and went
+  back to its menu. Its v1.1.0 main parses a real map and looks up keys 0-5 of index 0
+  (an empty map: give up; a missing key: abort). The default is now the game's own
+  built-in table: `0=1000` (peer-drop RTT, ms), `1=1000 2=500 3=250` (RTT-icon
+  thresholds), `4=20` (rejoin host wait, s), `5=1` (rejoin on). `MPS_INTEGER_SETTINGS`
+  still overrides it, and the box sets the same six values.
+- **Super Mario Maker 2**: GetUsers (0x73.0x30) carries a `GetUsersParam` structure and
+  failed its parse on every boot ("Couldn't retrieve uploaded courses", Course World
+  communication error). Now: GetUsers answers UserInfo v3 or NotFound per PID (an empty
+  list is the caller), RegisterUser stores the Mii picker's profile, SyncUserProfile
+  answers `SyncUserProfileResult`, and the Course World hub's lists, endless mode,
+  battle rating and event status answer valid empties. The station is `prudps`, so the
+  CONNECT carries the ticket.
+
+  **Still missing for course sharing** (shapes in kinnay's `datastore_smm2`):
+  - profiles persist only in memory (a restart sends a maker back to the Mii picker);
+  - upload: PreparePostObjectCourse (0x42) and PreparePostRelationObject (0x84,
+    thumbnails and the clear-check replay) need an object store and presigned POSTs,
+    then CompletePostObjectsCourse (0x44);
+  - download: PrepareGetObject (0x19, now NotFound) with real URLs, and
+    GetReqGetInfoHeadersInfo (0x86);
+  - a course table (9-character codes, metadata, stats, CourseInfo with thumbnail
+    relations, 32 slots per maker) behind every search: latest, popular/point
+    ranking, advanced, pick-up, endless, and the Network Play battle pools
+    (SearchCoursesBattleMode 0x4D/0x4E), which an empty catalogue probably leaves
+    unable to start a versus or co-op match;
+  - play-side writes: PostPlayResult*, ratings, death positions, comments, follows,
+    super worlds, events; StartBattleMode/EndBattleMode (0x76/0x77) answers;
+  - methods with no public shape (0x7D, 0x7F, 0x81, 0x82, 0x97, 0x98, 0xA7, 0xA8)
+    still answer NotImplemented; the request bytes are logged if a console calls them.
+
 ## 2026-10-10 — v0.3.23: four titles from the multiplayer sweep
 
 (v0.3.22 carried the same changes; its CI run failed on a racy relay test and published nothing.)
