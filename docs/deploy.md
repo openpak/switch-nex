@@ -190,8 +190,15 @@ TCP service in `traefik/dynamic.yml` carries:
 ```
 
 Order matters: every title must run v0.3.21+ **before** its service gets the header (an
-older switch-nexd reads the header as a broken TLS hello). Verify with a login: the
-`[<title>/auth] closed <addr>` line names the console's public address, not 10.0.0.x.
+older switch-nexd reads the header as a broken TLS hello).
+
+**Live since 2026-10-10, but it does not carry the console's address yet.** Traefik
+itself is a rootless container behind `PublishPort`, and rootless podman's port forwarder
+rewrites every source to the bridge (10.89.x), so the header Traefik writes names
+10.89.x. switch-nexd treats that as "says nothing" and pairs ticketless CONNECTs by title
+(claim once, refuse when ambiguous). The header turns useful the day Traefik sees real
+sources (host network, or a source-preserving forwarder); nothing else changes then.
+Check: `[<title>/auth] closed <addr>` names a public address once that is true.
 
 ## 3. Apply config + restart
 

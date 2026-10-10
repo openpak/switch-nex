@@ -24,6 +24,10 @@ the login is recorded under the console's address and two households never compe
 each other's login. Without the header the listener behaves as before. The bind log
 lines carry no PID or address.
 
+Deployed 2026-10-10 with `proxyProtocol: version 2` on all 22 `nex-*` services. Traefik
+itself only sees rootless podman's 10.89.x forwarder address, so for now the header names
+10.89.x and pairing is by title (claim once, refuse when ambiguous); see docs/deploy.md 2e.
+
 ## 2026-10-09 — v0.3.20: latest version only, and versions never share a match
 
 aauth (nx-baas) already turns an outdated title away with 2124-3001. The login now
