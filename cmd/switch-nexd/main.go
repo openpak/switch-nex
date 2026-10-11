@@ -148,8 +148,28 @@ var titles = []title{
 		e.IntegerSettings = protocols.SMB35IntegerSettings
 	}},
 	{"mario-tennis-aces", 22170, "29f267b9", func(e *protocols.Env) {
+		// Mario Tennis Aces (0100BDE00862A000, update 3.1.1): NEX 4.3.5 with
+		// Pia 5.9.6 (the SDK banners in its main NSO, not the 5.19 the parity
+		// table guessed). The public station stays the 5.19 shape: it is what
+		// the reference served this title, and the punch is measured working.
 		e.Match = protocols.NewMatchmakingStore()
 		e.ForceOpenParticipation = true // sessions arrive closed; two searchers deadlock
+		// The reference this title was measured working against normalises
+		// every session it creates: host counted, a 32-byte session key, the
+		// start time, attributes padded to 6, @SR/@GIR stamped. Without it the
+		// session kept whatever count and key the creating client sent, and a
+		// join only added one to that count: matchmaking, the punch and the Pia
+		// mesh all completed, then both consoles sat on the match loading screen
+		// with no call and no error (2026-10-11, a real Switch and Harbor on
+		// the ROG 3, gid 741123 and 741124, both roles). Every title that
+		// plays peer-to-peer here has this; Tennis was one of five without.
+		e.FinalizeCreateSession = true
+		e.FinalizeParams = true
+		// Friend joins ("join a friend's game") take the explicit-join path:
+		// the full session echoed, and the recap so the joiner learns who is
+		// already there.
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
 		e.Ranking = true
 		e.DataStore = protocols.DSEmptyList
 	}},

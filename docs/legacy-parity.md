@@ -60,7 +60,7 @@ Per-title matchmaking rules measured on the reference and implemented here:
 | ARMS (22140) | MM, MMX, MME, NAT, UT, Ranking, DS 0x73; `prudps`, legacy Pia | **implemented**; DataStore at stub level (see deviations) |
 | Mario Kart 8 Deluxe (22150) | MM, MMX, MME, NAT, UT, Ranking 0x70; Pia 5.19 | **implemented** (live; plus `cmd/mk8d`), incl. room codes and tournaments |
 | Super Mario Bros. 35 (22160) | MM, MMX, MME, UT (17-entry index-0 settings table), Ranking2 0x7A, Referee 0x78, MessageDelivery 0x1B; **no NAT, no Ranking 0x70**; 16-byte source key; legacy Pia | **implemented** behaviour-for-behaviour incl. round store, raw StartRoundParam echo, settings table |
-| Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented** |
+| Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS; NEX 4.3.5 + Pia 5.9.6 (SDK banners, update 3.1.1), served the 5.19 station shape as the reference did | **implemented**; create-time normalisation since v0.3.28 |
 | Animal Crossing: New Horizons (22180) | MM + 0x33/0x2C, MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented**; the one title with find-by-participant serving real results |
 | Luigi's Mansion 3 (22190) | MM, MMX, MME, NAT, UT, Ranking, presence 0x79; legacy Pia | **implemented**: 0x79 stub |
 | Mario Strikers: Battle League (22300) | MM, MMX, MME, NAT, UT, Ranking, DS, plus a bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A; Pia 5.19 | **implemented** incl. the bring-up table (`protocols/strikers.go`) |

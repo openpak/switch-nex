@@ -1,5 +1,22 @@
 # Changelog — switch-nex
 
+## 2026-10-11 — v0.3.28: Mario Tennis Aces sessions get the reference's create-time shape
+
+- **Mario Tennis Aces** online Free Play: matchmaking, the NAT punch (16 ms and 128 ms) and the
+  Pia mesh all completed, the host closed participation, and then both consoles sat on the match
+  loading screen indefinitely with no server call and no error (2026-10-11, a real Switch and
+  Harbor on the ROG 3, both roles, gid 741123 and 741124). Tennis was one of five titles without
+  `FinalizeCreateSession` (with Mario Party Superstars, Super Mario Bros. 35, Strikers and
+  Odyssey), and none of the five has been seen playing peer-to-peer here; every title that does
+  play has it. Its sessions therefore kept the creating client's own count and key, and a join
+  only added one to that count. The reference Tennis was measured working against normalises
+  every session at create: host counted, 32-byte session key, start time, attributes padded to
+  6, `@SR`/`@GIR`. Tennis now gets `FinalizeCreateSession` + `FinalizeParams`, and
+  `JoinEchoSession` + `JoinRecapParticipate` for friend joins.
+- Tennis links NEX 4.3.5 and Pia 5.9.6 (its SDK banners), not Pia 5.19 as docs/legacy-parity.md
+  had it. The public station keeps the 5.19 shape the reference served it; the punch works.
+- Not console-verified at release: the retest is the same Switch + ROG 3 Free Play match.
+
 ## 2026-10-11 — v0.3.27: simultaneous "join random" meets in one room
 
 - Kirby's Dream Buffet: two players pressing join random together ended in two rooms
