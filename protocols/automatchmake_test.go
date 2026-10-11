@@ -2,7 +2,9 @@ package protocols
 
 import (
 	"encoding/hex"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/openpak/switch-nex/rmc"
 )
@@ -123,5 +125,105 @@ func TestAutoMatchmakeJoinerLearnsTheRoom(t *testing.T) {
 	}
 	if len(got[2]) != 2 || !(got[2][0] == 2 && got[2][1] == 1 || got[2][0] == 1 && got[2][1] == 2) {
 		t.Fatalf("joiner heard %v, want itself and the host", got[2])
+	}
+}
+
+// TestSimultaneousSearchesConvergeOnOneRoom: two players press "join random"
+// together in a title whose host opens its room itself a moment after
+// creating it (Kirby's Dream Buffet, 2026-10-11: rooms 37 ms apart). The
+// first search creates; the second waits for it to open and joins it.
+func TestSimultaneousSearchesConvergeOnOneRoom(t *testing.T) {
+	e := NewEnv("kirbys-dream-buffet", "10.0.0.1", 22380)
+	e.Match = NewMatchmakingStore()
+	e.HoldForOpening = 2 * time.Second
+	e.FinalizeCreateSession = true
+
+	var wg sync.WaitGroup
+	for pid := uint64(1); pid <= 2; pid++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			autoMatchmake(e, conn(pid), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 4}, nil)
+		}()
+	}
+	// The host's own OpenParticipation, once its NAT check is done.
+	for deadline := time.Now().Add(time.Second); ; {
+		if all := e.Match.all(); len(all) > 0 {
+			time.Sleep(100 * time.Millisecond)
+			e.Match.setOpen(all[0], true)
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no room created")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	wg.Wait()
+
+	if n := len(e.Match.all()); n != 1 {
+		t.Fatalf("%d rooms, want 1", n)
+	}
+	a, b := e.Match.sessionsOf(1), e.Match.sessionsOf(2)
+	if len(a) != 1 || len(b) != 1 || a[0].GID != b[0].GID {
+		t.Fatalf("players in rooms %v and %v", a, b)
+	}
+	if got := a[0].ParticipationCount; got != 2 {
+		t.Fatalf("participation count %d, want 2", got)
+	}
+}
+
+// TestSearchGivesUpOnARoomThatNeverOpens: the wait is bounded; a host that
+// never opens (NAT failure, quit) does not strand the searcher.
+func TestSearchGivesUpOnARoomThatNeverOpens(t *testing.T) {
+	e := NewEnv("kirbys-dream-buffet", "10.0.0.1", 22380)
+	e.Match = NewMatchmakingStore()
+	e.HoldForOpening = 150 * time.Millisecond
+	autoMatchmake(e, conn(1), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 4}, nil)
+	autoMatchmake(e, conn(2), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 4}, nil)
+	if n := len(e.Match.all()); n != 2 {
+		t.Fatalf("%d rooms, want 2", n)
+	}
+}
+
+// TestHoldOffKeepsClosedRoomsInvisible: titles without HoldForOpening behave
+// as before - a closed room is not joined and not waited for - and a room the
+// title closed on purpose (explicit create) is never waited for either.
+func TestHoldOffKeepsClosedRoomsInvisible(t *testing.T) {
+	e := NewEnv("mario-kart-8-deluxe", "10.0.0.1", 22150)
+	e.Match = NewMatchmakingStore()
+	autoMatchmake(e, conn(1), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 4}, nil)
+	autoMatchmake(e, conn(2), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 4}, nil)
+	if n := len(e.Match.all()); n != 2 {
+		t.Fatalf("%d rooms, want 2", n)
+	}
+
+	e = NewEnv("kirbys-dream-buffet", "10.0.0.1", 22380)
+	e.Match = NewMatchmakingStore()
+	e.HoldForOpening = 5 * time.Second
+	createSession(e, conn(1), request(ProtoMatchmakeExt, 0x06, nil), &Session{MaxParticipants: 4})
+	start := time.Now()
+	autoMatchmake(e, conn(2), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 4}, nil)
+	if time.Since(start) > time.Second || len(e.Match.all()) != 2 {
+		t.Fatalf("waited %s for a room made by an explicit create", time.Since(start))
+	}
+}
+
+// TestManySearchersMakeOneRoom: searches arriving at once on an open-at-create
+// title find-or-create atomically.
+func TestManySearchersMakeOneRoom(t *testing.T) {
+	e := NewEnv("clubhouse-games-51", "10.0.0.1", 22870)
+	e.Match = NewMatchmakingStore()
+	e.ForceOpenParticipation = true
+	var wg sync.WaitGroup
+	for pid := uint64(1); pid <= 8; pid++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			autoMatchmake(e, conn(pid), request(ProtoMatchmakeExt, 0x28, nil), &Session{MaxParticipants: 8}, nil)
+		}()
+	}
+	wg.Wait()
+	if n := len(e.Match.all()); n != 1 {
+		t.Fatalf("%d rooms for 8 simultaneous searchers, want 1", n)
 	}
 }

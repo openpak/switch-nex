@@ -304,6 +304,10 @@ var titles = []title{
 		// A joiner that got the host's room sat 10 s without asking for any
 		// station, then left (EndParticipation): the room had no session key
 		// for it to join with. Clubhouse's create-time normalisation mints one.
+		// Two players searching in that window used to host a room each
+		// (2026-10-11, 37 ms apart); the second search now waits for the first
+		// room to open, up to 4 s, and joins it.
+		e.HoldForOpening = 4 * time.Second
 		e.FinalizeCreateSession = true
 		e.FinalizeParams = true
 		e.Ranking2 = true
@@ -593,7 +597,8 @@ var titles = []title{
 		// shows (451906 at :24, 451907 at :26, neither open yet). Kirby's Dream
 		// Buffet measured the cost of forcing it open anyway: a joiner gets in
 		// before the host's station update and probes a port=1 placeholder
-		// (2618-0502). Stagger the two searches instead.
+		// (2618-0502). The second search waits for the first room to open.
+		e.HoldForOpening = 4 * time.Second
 	}},
 }
 
@@ -624,6 +629,7 @@ func dumpTitles() {
 			{e.JoinEchoSession, "JoinEchoSession"},
 			{e.JoinRecapParticipate, "JoinRecapParticipate"},
 			{e.StrikersInit, "StrikersInit"},
+			{e.HoldForOpening > 0, "HoldForOpening " + e.HoldForOpening.String()},
 			{e.ParticipateDelay > 0, "ParticipateDelay " + e.ParticipateDelay.String()},
 		} {
 			if f.on {

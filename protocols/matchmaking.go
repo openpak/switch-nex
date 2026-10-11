@@ -32,6 +32,10 @@ type gathering struct {
 	participants map[uint64]bool
 	// version is its creator's title version, "" when unknown (appversion.go).
 	version string
+	// created is when the store made it; auto marks a room an auto-match
+	// search created (autoMatchmake), the only kind a later search may wait for.
+	created time.Time
+	auto    bool
 }
 
 // MatchmakingStore holds a title's live sessions. In memory on purpose:
@@ -40,6 +44,9 @@ type MatchmakingStore struct {
 	mu    sync.Mutex
 	next  uint32
 	byGID map[uint32]*gathering
+	// mm makes an auto-match search atomic: find a room or create one, never
+	// both at once for two searchers (autoMatchmake).
+	mm sync.Mutex
 }
 
 // NewMatchmakingStore returns an empty store.
@@ -56,7 +63,7 @@ func (m *MatchmakingStore) create(sess *Session) uint32 {
 	defer m.mu.Unlock()
 	m.next++
 	sess.GID = m.next
-	m.byGID[sess.GID] = &gathering{sess: sess, participants: map[uint64]bool{}}
+	m.byGID[sess.GID] = &gathering{sess: sess, participants: map[uint64]bool{}, created: time.Now()}
 	return sess.GID
 }
 
@@ -87,10 +94,33 @@ func (m *MatchmakingStore) all() []*gathering {
 func (m *MatchmakingStore) open() []*Session {
 	var out []*Session
 	for _, g := range m.all() {
-		if g.sess.OpenParticipation {
+		if m.isOpen(g) {
 			out = append(out, g.sess)
 		}
 	}
+	return out
+}
+
+// isOpen and setOpen read and write a room's participation flag under the
+// store lock: an auto-match search polls it while the host's own
+// OpenParticipation call lands on another connection.
+func (m *MatchmakingStore) isOpen(g *gathering) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return g.sess.OpenParticipation
+}
+
+func (m *MatchmakingStore) setOpen(g *gathering, open bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	g.sess.OpenParticipation = open
+}
+
+// byAge returns every room, oldest first, so searchers that meet the same set
+// of rooms pick the same one.
+func (m *MatchmakingStore) byAge() []*gathering {
+	out := m.all()
+	sort.Slice(out, func(i, j int) bool { return out[i].sess.GID < out[j].sess.GID })
 	return out
 }
 
@@ -114,7 +144,7 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	case 0x01, 0x02: // CloseParticipation / OpenParticipation(gid)
 		if gid, err := r.U32(); err == nil {
 			if g, ok := env.Match.get(gid); ok {
-				g.sess.OpenParticipation = msg.MethodID == 0x02
+				env.Match.setOpen(g, msg.MethodID == 0x02)
 			}
 		}
 		return success(msg, nil)
@@ -203,10 +233,10 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 			return errorResp(msg, rmc.ResultInvalidArgument)
 		}
 		if g, ok := env.Match.get(sess.GID); ok {
-			keep := g.sess.OpenParticipation
+			keep := env.Match.isOpen(g)
 			sess.GID = g.sess.GID
 			g.sess = sess
-			g.sess.OpenParticipation = g.sess.OpenParticipation || keep
+			env.Match.setOpen(g, sess.OpenParticipation || keep)
 		}
 		return success(msg, nil)
 
@@ -415,6 +445,11 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 
 // createSession assigns a GID, registers the creator and echoes the session.
 func createSession(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session) []byte {
+	return createSessionAs(env, c, msg, sess, false)
+}
+
+// createSessionAs is createSession; auto marks a room an auto-match search made.
+func createSessionAs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, auto bool) []byte {
 	sess.OwnerPID = c.PID
 	sess.HostPID = c.PID
 	if env.ForceOpenParticipation {
@@ -427,6 +462,7 @@ func createSession(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 	if g, ok := env.Match.get(gid); ok {
 		g.participants[c.PID] = true
 		g.version = env.AppVersion(c.PID)
+		g.auto = auto
 	}
 	log.Printf("[%s] matchmake: created gid=%d pid=%s max=%d open=%v version=%q", env.Name, gid, redact.Tag(c.PID), sess.MaxParticipants, sess.OpenParticipation, env.AppVersion(c.PID))
 	// The creator joins its own session, and a join is announced to the owner
@@ -595,29 +631,79 @@ func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria) []byte {
 	logSessionTemplate(env, c.PID, sess)
 	logSearchCriteria(env, c.PID, criteria)
-	for _, candidate := range env.Match.open() {
-		g, ok := env.Match.get(candidate.GID)
-		if !ok {
+	deadline := time.Now().Add(env.HoldForOpening)
+	waited := uint32(0)
+	for {
+		// Find-or-create is one step under the store's matchmaking lock: two
+		// searches that arrive in the same millisecond used to both find
+		// nothing and each create a room (Kirby's Dream Buffet, 2026-10-11,
+		// 37 ms apart). The lock is dropped while a search waits.
+		env.Match.mm.Lock()
+		resp, wait := autoMatchmakeStep(env, c, msg, sess, criteria, time.Now().Before(deadline))
+		env.Match.mm.Unlock()
+		if wait == 0 {
+			return resp
+		}
+		if waited != wait {
+			waited = wait
+			log.Printf("[%s] matchmake: pid=%s waits for gid=%d to open", env.Name, redact.Tag(c.PID), wait)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+// fits reports whether the searcher may be seated in g, logging why not.
+// Callers hold the matchmaking lock.
+func (env *Env) fits(g *gathering, c *prudplite.Connection, sess *Session, criteria []*searchCriteria) bool {
+	candidate := g.sess
+	if candidate.MaxParticipants > 0 && candidate.ParticipationCount >= uint32(candidate.MaxParticipants) {
+		return false
+	}
+	// A password room is only for searchers carrying the same password, and a
+	// random search (no password) never lands in one.
+	if candidate.UserPassword != sess.UserPassword {
+		return false
+	}
+	if !env.versionFits(g, c.PID) {
+		log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (version %s, theirs %s)", env.Name, candidate.GID, redact.Tag(c.PID), g.version, env.AppVersion(c.PID))
+		return false
+	}
+	if env.MatchModeAttribute && !modeAttrMatch(g.sess, criteria) {
+		log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (mode)", env.Name, candidate.GID, redact.Tag(c.PID))
+		return false
+	}
+	if !env.nat.compatibleWith(g, c.PID) {
+		log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (NAT)", env.Name, candidate.GID, redact.Tag(c.PID))
+		return false
+	}
+	return true
+}
+
+// autoMatchmakeStep is one find-or-create pass, run under the matchmaking
+// lock. It answers wait=gid, with no response, when the search should wait:
+// a room an earlier search just created fits it but is not open yet (the
+// title's host opens it itself once its NAT check and station update are
+// done, ~2 s). Joining that room now would hand the joiner the host's
+// placeholder station (Kirby, 2618-0502); creating a second room is the
+// two-rooms bug. Waiting for the host's OpenParticipation, at most
+// Env.HoldForOpening from the search's arrival, converges both.
+func autoMatchmakeStep(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria, mayWait bool) (resp []byte, wait uint32) {
+	var pending *gathering
+	for _, g := range env.Match.byAge() {
+		candidate := g.sess
+		if !env.Match.isOpen(g) {
+			// Only a room an auto-match search made, that its host has had no
+			// time to open yet, and that this searcher is not already in.
+			if env.HoldForOpening <= 0 || !g.auto || g.participants[c.PID] ||
+				time.Since(g.created) >= env.HoldForOpening {
+				continue
+			}
+			if pending == nil && env.fits(g, c, sess, criteria) {
+				pending = g
+			}
 			continue
 		}
-		if candidate.MaxParticipants > 0 && candidate.ParticipationCount >= uint32(candidate.MaxParticipants) {
-			continue
-		}
-		// A password room is only for searchers carrying the same password, and a
-		// random search (no password) never lands in one.
-		if candidate.UserPassword != sess.UserPassword {
-			continue
-		}
-		if !env.versionFits(g, c.PID) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (version %s, theirs %s)", env.Name, candidate.GID, redact.Tag(c.PID), g.version, env.AppVersion(c.PID))
-			continue
-		}
-		if env.MatchModeAttribute && !modeAttrMatch(g.sess, criteria) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (mode)", env.Name, candidate.GID, redact.Tag(c.PID))
-			continue
-		}
-		if !env.nat.compatibleWith(g, c.PID) {
-			log.Printf("[%s] matchmake: gid=%d skipped for pid=%s (NAT)", env.Name, candidate.GID, redact.Tag(c.PID))
+		if !env.fits(g, c, sess, criteria) {
 			continue
 		}
 		if !g.participants[c.PID] {
@@ -645,9 +731,12 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 			}
 		}
 		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%s", env.Name, candidate.GID, redact.Tag(c.PID))
-		return success(msg, candidate.bytes())
+		return success(msg, candidate.bytes()), 0
 	}
-	return createSession(env, c, msg, sess)
+	if pending != nil && mayWait {
+		return nil, pending.sess.GID
+	}
+	return createSessionAs(env, c, msg, sess, true), 0
 }
 
 // searchCriteria is one MatchmakeSessionSearchCriteria as far as matching
@@ -1103,7 +1192,7 @@ func updateSessionPart(env *Env, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
 		s.Attributes = attrs
 	}
 	if flags&0x0002 != 0 {
-		s.OpenParticipation = open
+		env.Match.setOpen(g, open)
 	}
 	if flags&0x0004 != 0 {
 		s.ApplicationBuffer = appBuf

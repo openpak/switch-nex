@@ -103,6 +103,14 @@ type Env struct {
 	// — the fix opens every session at create time).
 	ForceOpenParticipation bool
 
+	// HoldForOpening makes an auto-match search wait, up to this long, for a
+	// room an earlier search just created and that is not open yet, instead
+	// of creating a second room beside it. For titles whose host opens its
+	// room itself a couple of seconds after creating it (so ForceOpen cannot
+	// be used: a joiner would get the host's placeholder station); zero keeps
+	// the room invisible to searches until it opens.
+	HoldForOpening time.Duration
+
 	// FindByParticipant serves real results from 0x6D/0x33. Off by default:
 	// the titles that do not use the method start up against an empty list,
 	// and a populated one changes what they do at boot.

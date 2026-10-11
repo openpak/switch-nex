@@ -1,5 +1,20 @@
 # Changelog — switch-nex
 
+## 2026-10-11 — v0.3.27: simultaneous "join random" meets in one room
+
+- Kirby's Dream Buffet: two players pressing join random together ended in two rooms
+  (37 ms apart). The title creates its room closed and opens it itself ~2 s later, and
+  searches only see open rooms, so the second search found nothing and created its own.
+  A search that fits a room an earlier search just created, still closed, now waits for
+  the host's OpenParticipation (`Env.HoldForOpening`, 4 s, Kirby's Dream Buffet and
+  Risk of Rain 2) and joins it once open, so the joiner still gets the host's real station.
+  A room that never opens releases the searcher after 4 s to create its own. Rooms made by
+  an explicit create, and titles without the setting, behave as before.
+- Find-or-create is atomic under the store's matchmaking lock, and searches pick the
+  oldest fitting room first (were: map order), so searches arriving in the same
+  millisecond cannot both create. The participation flag is read and written under the
+  store lock.
+
 ## 2026-10-10 — v0.3.26: no personal data in logs
 
 - Logs no longer carry pids, NSA ids, nicknames, login names, tokens or client
