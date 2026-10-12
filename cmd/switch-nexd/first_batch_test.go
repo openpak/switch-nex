@@ -193,9 +193,18 @@ func TestFirstBatchBrowseAndJoin(t *testing.T) {
 			if resp.IsError {
 				t.Fatalf("join: %#x", resp.ErrorCode)
 			}
-			participants, sessionKey, err := readJoinedSession(resp.Body)
-			if err != nil || participants != 1 || len(sessionKey) != 32 {
-				t.Fatalf("join participants=%d key=%d bytes: %v", participants, len(sessionKey), err)
+			// PICO PARK answers joins with a bare bool while the
+			// shape/presence matrix is bisected on consoles.
+			if tc.name == "pico-park" {
+				joined, err := rmc.NewReader(resp.Body).Bool()
+				if err != nil || !joined {
+					t.Fatalf("join answer=%v err=%v, want true", joined, err)
+				}
+			} else {
+				participants, sessionKey, err := readJoinedSession(resp.Body)
+				if err != nil || participants != 1 || len(sessionKey) != 32 {
+					t.Fatalf("join participants=%d key=%d bytes: %v", participants, len(sessionKey), err)
+				}
 			}
 			resp = joiner.call(ProtoMatchMaking, 0x29, u32le(gid))
 			if resp.IsError {

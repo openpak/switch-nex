@@ -1,6 +1,13 @@
 # Changelog — switch-nex
 
-## 2026-10-12 — v0.3.43: Pico Park silent joins
+## 2026-10-12 — v0.3.44: Pico Park bool reply with silent join
+
+- The shape/presence matrix so far: echo+recap, bool+recap, echo+default and
+  echo+silent all fail identically (RPC accepted, game-side rejection under
+  two seconds, no station fetch). bool+silent is the remaining cell: if the
+  NEX IDL shape is right and the pushes were the poison, this proceeds.
+- First-batch test expects the bare bool for pico-park again. Full suite
+  and vet pass. Awaiting the console verdict.
 
 - PICO PARK seats explicit joiners without pushing anything: neither the
   recap nor the default pairing survived console runs, and the pushes are

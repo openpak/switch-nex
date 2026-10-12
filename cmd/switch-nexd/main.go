@@ -83,23 +83,13 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.FinalizeCreateSession = true
-		// Joins answer the full session, as the rest of the P2P titles do:
-		// the boolean reply (v0.3.36) was accepted at the RPC layer but the
-		// game never followed up — no station fetch, no P2P, "failed to
-		// connect to the lobby" on screen. A bare bool carries no session
-		// key and no stations, so the joiner has nothing to start P2P with;
-		// the echoed pre-join count and key are what it builds its mesh
-		// from. The 3x JoinMatchmakeSessionEx retry that motivated the bool
-		// predates the gid-only participants-URLs fix and may have been the
-		// station fetch failing, not the echo. One clean two-console run
-		// will tell.
-		e.JoinEchoSession = true
+		// Boolean join reply with muted pushes: the shape/presence matrix
+		// so far is echo+recap ✗, bool+recap ✗, echo+default ✗,
+		// echo+silent ✗. bool+silent is the remaining cell — if the NEX IDL
+		// shape (bool) is right and the pushes were the poison, this is
+		// the combination that proceeds. A clean two-console run decides.
 		// Muted join pushes: neither the recap nor the default pairing
-		// survived console runs — every join is accepted at the RPC layer
-		// and rejected game-side in under two seconds with no station fetch
-		// ever following, whatever the reply shape and whatever the pairing.
-		// The pushes themselves are the remaining join-time suspect, so the
-		// joiner is seated silently while a clean two-console run decides.
+		// survived console runs, so the joiner is seated silently.
 		e.JoinMutePushes = true
 	}},
 	{"monopoly", 23090, "65c92799", func(e *protocols.Env) {
