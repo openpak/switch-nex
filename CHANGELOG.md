@@ -11,8 +11,9 @@
   data. Missing gatherings still fail; malformed requests answer InvalidArgument.
 - Response layout follows the public [Match Making protocol, method 21](https://github.com/kinnay/NintendoClients/wiki/Match-Making-Protocol#21-findbysingleid).
   Protocol and TLS integration tests cover live-world lookup, its holder framing,
-  current application data, missing worlds and malformed input. Playing together
-  still requires the Switch/Harbor retest; this fixes the observed lookup failure.
+  current application data, missing worlds and malformed input.
+- **Owner-verified after deployment:** a retail Switch hosts with Harbor joining,
+  and Harbor hosts with the Switch joining; both directions work (2026-10-12).
 
 ## 2026-10-11 — v0.3.28: Mario Tennis Aces sessions get the reference's create-time shape
 
