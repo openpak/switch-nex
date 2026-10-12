@@ -1,5 +1,38 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.38: one lobby at a time
+
+- A console that creates or joins a gathering now leaves every other room it
+  is still seated in. Game-side a console is in one lobby; server-side the old
+  seat survived — a failed join the game never backs out of, a new room hosted
+  while the old one still lists its host — and the abandoned room stayed
+  browsable under a ghost owner (PICO PARK 2026-10-12: gid 870838 outlived its
+  players while both sat in 870839).
+- Seating moves through the shared leave helper, so counts, notifications,
+  ownership and empty-room deletion stay consistent on the move.
+- leave_test.go replays the trace (host leaves, ghost hosts anew, join
+  follows) and the mirrored join path. Full suite, race detector and vet
+  pass.
+
+## Unreleased — Monopoly for Nintendo Switch
+
+- Registered Monopoly for Nintendo Switch (`monopoly`) on 23090/23091/23092
+  using the same-call ID/key pair from the owner's updated client
+  (`2E041D00` / `65c92799` at key load `0x560370`, call `0x560394`,
+  NEX 4.3.1 / Pia 5.9.0). Ticketed `prudps` stations, legacy Pia shape,
+  independent matchmaking, normalized creation, full-session joins and
+  participant recaps; Ranking, Ranking2, MatchmakeReferee and an empty-list
+  DataStore are registered because the binary links those modules.
+  Ubisoft's own HTTPS (`public-ubiservices.ubi.com`) stays out of scope.
+  Profile choices still require a game trace.
+- Added a Traefik routing fragment (`deploy/nex-monopoly.yml`) and
+  per-title provenance notes (`docs/monopoly.md`). The existing quadlet
+  generator picks up the new unit automatically.
+- TLS checks cover both login methods, distinct identities behind one
+  address, legacy station registration, browsing, joining, participant
+  notifications and Ranking2 common-data. These are not retail gameplay
+  results.
+
 ## 2026-10-12 — v0.3.37: leave paths keep the full bookkeeping
 
 - Participate/CancelParticipation (0x15.0x0B/0x0C) only flipped the roster map:

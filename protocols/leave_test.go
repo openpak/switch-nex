@@ -121,3 +121,43 @@ func TestDisconnectEmptiesGathering(t *testing.T) {
 		t.Fatal("gathering survives after every participant disconnected")
 	}
 }
+
+// TestCreateLeavesPreviousRoom replays the PICO PARK 2026-10-12 stuck lobby:
+// the host leaves (ownership migrates to the joiner, whose game had already
+// failed the join), then that joiner hosts a new room. Game-side the joiner
+// is in one lobby; the old room must go with the move instead of surviving
+// under its ghost seat.
+func TestCreateLeavesPreviousRoom(t *testing.T) {
+	env := leaveEnv()
+	old := mustCreate(t, env, 100)
+	mustJoin(t, env, 200, old)
+	Dispatch(env, conn(100), request(ProtoMatchMakingExt, 0x01, u32(old)))
+
+	next := mustCreate(t, env, 200)
+	if next == old {
+		t.Fatal("new room reused the old gathering id")
+	}
+	if _, ok := env.Match.get(old); ok {
+		t.Fatal("old room survives after its last server-side player hosted elsewhere")
+	}
+	g, ok := env.Match.get(next)
+	if !ok || !g.participants[200] || len(g.participants) != 1 {
+		t.Fatalf("new room roster wrong: ok=%v", ok)
+	}
+}
+
+// TestJoinLeavesPreviousRoom is the mirror: joining a room while seated in
+// another leaves the other one behind rather than holding both seats.
+func TestJoinLeavesPreviousRoom(t *testing.T) {
+	env := leaveEnv()
+	lobby := mustCreate(t, env, 100)
+	solo := mustCreate(t, env, 200)
+	mustJoin(t, env, 200, lobby)
+	if _, ok := env.Match.get(solo); ok {
+		t.Fatal("previous solo room survives after its host joined another lobby")
+	}
+	g, ok := env.Match.get(lobby)
+	if !ok || !g.participants[100] || !g.participants[200] {
+		t.Fatal("joined lobby roster wrong")
+	}
+}

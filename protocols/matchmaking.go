@@ -470,6 +470,7 @@ func createSessionAs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, ses
 		g.version = env.AppVersion(c.PID)
 		g.auto = auto
 	}
+	leaveOtherGatherings(env, c.PID, gid)
 	log.Printf("[%s] matchmake: created gid=%d pid=%s max=%d open=%v version=%q", env.Name, gid, redact.Tag(c.PID), sess.MaxParticipants, sess.OpenParticipation, env.AppVersion(c.PID))
 	// The creator joins its own session, and a join is announced to the owner
 	// — here the same player. MK8D 3.0.5 was observed (2026-09-17) to sit for
@@ -960,6 +961,7 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 	if !ok {
 		return errorResp(msg, rmc.ResultSessionVoid)
 	}
+	leaveOtherGatherings(env, c.PID, gid)
 	if !g.participants[c.PID] && !env.versionFits(g, c.PID) {
 		// Another version's session does not exist for this player: the same
 		// answer as a gathering that is gone.
@@ -1027,6 +1029,21 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 		w.Bool(true)
 		return w.Bytes()
 	}())
+}
+
+// leaveOtherGatherings drops pid from every gathering but keep: a console is
+// in one lobby at a time game-side, so seating it here means it left the
+// others there. Without this a console whose game moved on — a failed join it
+// never backs out of server-side, a new room hosted while the old one still
+// seats it — holds the old room open (and its ownership) indefinitely: the
+// old room stays browsable although nobody is in it (PICO PARK 2026-10-12,
+// gid 870838 surviving under a ghost owner while its players sat in 870839).
+func leaveOtherGatherings(env *Env, pid uint64, keep uint32) {
+	for _, other := range env.Match.all() {
+		if other.sess.GID != keep && other.participants[pid] {
+			leaveGathering(env, other.sess.GID, other, pid)
+		}
+	}
 }
 
 // migrateOwnership hands a gathering to another participant. The candidates the
