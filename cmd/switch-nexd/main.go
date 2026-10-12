@@ -169,9 +169,12 @@ var titles = []title{
 		// Pia 5.24.0; the ID/key pair is adjacent-config evidence in the
 		// updated client (ID built at 0x7c7d44/0x7c7d48 and stored at
 		// [sp+0x60], key "1203b5eb" at 0xa615b3 loaded by adrp x1 at
-		// 0x7c7d5c) — weaker than a same-call login pair, so the
-		// derived SNI (g2075e100-lp1) and CONNECT signatures still need
-		// the first boot's trace. Static provenance:
+		// 0x7c7d5c) — weaker than a same-call login pair. The SNI is
+		// DNS-confirmed by the 2026-10-12 retail trace (g2075e100-lp1
+		// dialled with a websocket upgrade) and the key is
+		// CONNECT-verified by external probes; a real game's login
+		// method, station shape and first RPCs still need the first
+		// routed boot. Static provenance:
 		// docs/heroes-of-hammerwatch.md.
 		//
 		// The binary links MatchmakeExtension with NATTraversal and

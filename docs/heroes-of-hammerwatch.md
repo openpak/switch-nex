@@ -78,39 +78,53 @@ are recorded here.
 | --- | ---: | ---: | --- | --- |
 | `heroes-of-hammerwatch` | 23110 | 23111 | 23112 | `g2075e100-lp1.s.n.srv.nintendo.net` |
 
-The block follows the Duck Game block (23100) and was unused in the
-workspace port plan. Routing follows the existing `console` entrypoint,
-passthrough TLS and PROXY v2. The current wildcard NEX certificate covers
-the SNI name.
+**Deployed 2026-10-12 in v0.3.42** (`openpak-switch-heroes-of-hammerwatch`
+quadlet, image `ghcr.io/openpak/switch-nex:latest` = 0.3.42 digest
+`sha256:0545683850846cfefbc8ed70a0042977b7ccaee0f9f0d351416c37efb2614e4e`,
+own recall/state directory, host networking, shared identity
+environment, drain-update managed). The block follows the Duck Game
+block (23100). Routing follows the existing `console` entrypoint,
+passthrough TLS and PROXY v2.
 
-- `deploy/make-quadlets.sh <image-tag> <output-dir>` generates the title's
-  unit with its own recall/state directory, host networking and shared
-  identity environment. Install only the new unit for this title.
-- Merge `deploy/nex-heroes-of-hammerwatch.yml` into the existing Traefik
-  TCP maps; preserve unrelated routers/services and back up the old
-  configuration.
-- Admit secure TCP port **23111** at the provider and before the host's
-  INPUT rejection. Health port **23112** is for the internal
-  status/voice network; do not expose it publicly.
-- Add the health endpoint to the existing voice-gathering URL list and
-  catalogue/server-health configuration. Catalogue state stays out until
-  the relevant flow is game-verified.
-- Use the existing release workflow for the image and follow
-  `docs/deploy.md`. A local registration alone does not install a route or
-  start a production container.
+- `deploy/nex-heroes-of-hammerwatch.yml` merged into the Traefik TCP maps
+  (backup `dynamic.before-hoh-20261012.yml` on the host); exactly one
+  router plus one service added, unrelated maps preserved.
+- Host INPUT accepts secure TCP **23111** (own rule with comment, before
+  the REJECT, persisted to `/etc/iptables/rules.v4`). Health **23112**
+  stays internal-only. Provider ingress already admitted the port:
+  the external probes below reached it.
+- Health `23112` appended to the host `VOICE_GATHERING_URLS`
+  (backup `.env.before-hoh-20261012`); the unit was restarted with it.
+
+Production verification 2026-10-12 (~22:10 UTC):
+
+- SNI route completes TLS against the OpenPak wildcard
+  (`*.s.n.srv.nintendo.net`), not a catch-all per-hostname cert.
+- A synthetic external client over the game's own websocket carriage
+  passes both login methods (2 and 6), ticketed secure connects and
+  registration; the server log shows `login UNPROVEN` for the unsigned
+  probe token, proving the nx-baas identity path is live.
+- The CONNECT handshake accepts the `1203b5eb` access key: the key is
+  now cryptographically confirmed, not just a rodata candidate.
+- Direct secure-port TLS negotiates externally; `/healthz` answers
+  `ok heroes-of-hammerwatch` on host loopback.
+
+Still pending: website voice-gathering URL list and
+catalogue/server-health configuration (catalogue stays out until
+game-verified). Rollback: remove the router/service, stop/remove the
+quadlet, drop the 23111 rule. Routing/environment backups stay on the
+host.
 
 ## Validation and next observations
 
-The TLS test harness covers the independently supplied client access key,
-both login methods, ticketed secure connects for distinct players on one
-address, Register's modern public-station shape, create/browse/join and
-host stations, the explicit-join participant recap, and dispatch through
-the title's own TLS route.
+The TLS test harness covers both login methods, ticketed secure connects
+for distinct players on one address, Register's modern public-station
+shape, create/browse/join and host stations, the explicit-join
+participant recap, and dispatch through the title's own TLS route.
 
-After deployment, enter the game's online menu and record the actual SNI,
-login method, station URL and first RPCs — in particular whether the
-dialled SNI matches `g2075e100-lp1` and whether the CONNECT signature
-verifies against `1203b5eb`. For the first failures distinguish
-routing/signatures, reply parsing, unimplemented calls, session discovery
-and P2P. Finish with host/join in both directions on separate machines
-and a full four-hero run before marking the title playable.
+Now re-enter the game's online menu: the dialled SNI and carriage are
+already known, so watch for the login method the game uses, its station
+URL shape and first RPCs. For the first failures distinguish
+reply parsing, unimplemented calls, session discovery and P2P. Finish
+with host/join in both directions on separate machines and a full
+four-hero run before marking the title playable.
