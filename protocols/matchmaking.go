@@ -1872,13 +1872,16 @@ func readSessionInParam(r *rmc.Reader) (*Session, error) {
 // getParticipantsURLs implements MatchMaking 0x15 method 0x10:
 // GetParticipantsURLs(gid, list<pid>) -> list<RVConnectionData>
 // Each RVConnectionData is a list<String> of station URLs for that participant.
+//
+// Castle Crashers Remastered (2026-10-12, console) calls this with only the
+// gid (4-byte body): no PID list follows. Answering InvalidArgument drops the
+// client with "lost connection to Nintendo Switch Online" right after it
+// creates its room. A missing or unreadable list falls back to every current
+// participant instead of refusing — there is nothing to gain by failing a
+// client that asks for the room it just made.
 func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
 	gid, err := r.U32()
-	if err != nil {
-		return errorResp(msg, rmc.ResultInvalidArgument)
-	}
-	pids, err := readPIDList(r)
 	if err != nil {
 		return errorResp(msg, rmc.ResultInvalidArgument)
 	}
@@ -1888,6 +1891,13 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	}
 	if !g.participants[c.PID] {
 		return errorResp(msg, rmc.ResultPermissionDenied)
+	}
+	pids, err := readPIDList(r)
+	if err != nil || len(pids) == 0 {
+		if err != nil {
+			log.Printf("[%s] participantsURLs: gid=%d pid=%s sent no PID list, answering all %d participant(s)", env.Name, gid, redact.Tag(c.PID), len(g.participants))
+		}
+		pids = participantPIDs(g)
 	}
 
 	w := rmc.NewWriter()

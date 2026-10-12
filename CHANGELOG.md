@@ -1,5 +1,16 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.33: Castle Crashers gid-only participants URLs
+
+- Castle Crashers Remastered calls MatchMaking GetParticipantsURLs (0x15/0x10)
+  with only the gathering ID and no PID list (4-byte body). The server answered
+  Core::InvalidArgument and the console dropped with "lost connection to
+  Nintendo Switch Online" right after creating its room. A missing or empty PID
+  list now answers every current participant's stations instead of refusing.
+- Regression test replays the retail call shape (gid only, req=4B) and fails
+  with 0x1000a without the fix. Full race suite and vet pass. Gameplay
+  verification on console/Harbor remains pending.
+
 ## 2026-10-12 — v0.3.32: first new NEX batch
 
 - Registered Castle Crashers Remastered, Nobody Saves the World and PICO PARK

@@ -74,6 +74,55 @@ func TestFirstBatchSignedLogin(t *testing.T) {
 	}
 }
 
+// Castle Crashers Remastered calls MatchMaking GetParticipantsURLs (0x15/0x10)
+// with only the gathering ID and no PID list (4-byte body). The server
+// answered Core::InvalidArgument and the console dropped with "lost
+// connection to Nintendo Switch Online" right after creating its room
+// (2026-10-12). A gid-only call must answer the participant stations.
+func TestCastleCrashersParticipantsURLsGidOnly(t *testing.T) {
+	authAddr, secureAddr, _ := start(t, "castle-crashers-remastered")
+	key := titleAccessKey(t, "castle-crashers-remastered")
+	host := secureSession(t, authAddr, secureAddr, key, "host")
+	stations := rmc.NewWriter()
+	stations.List(1)
+	stations.String("prudp:/address=192.168.1.20;port=50000;sid=1;natf=0")
+	if resp := host.call(ProtoSecureConnection, 0x01, stations.Bytes()); resp.IsError {
+		t.Fatalf("register: %#x", resp.ErrorCode)
+	}
+	if resp := host.call(ProtoMatchmakeExt, 0x06, sessionHolderBytes(4, 3, 77)); resp.IsError {
+		t.Fatalf("create: %#x", resp.ErrorCode)
+	}
+	resp := host.call(ProtoMatchmakeExt, 0x34, nil)
+	if resp.IsError {
+		t.Fatalf("browse: %#x", resp.ErrorCode)
+	}
+	r := rmc.NewReader(resp.Body)
+	count, err := r.ListHeader()
+	if err != nil || count != 1 {
+		t.Fatalf("browse found %d sessions: %v", count, err)
+	}
+	_, gathering, err := r.Struct()
+	if err != nil {
+		t.Fatalf("browse gathering: %v", err)
+	}
+	gid, err := gathering.U32()
+	if err != nil || gid == 0 {
+		t.Fatalf("browse gathering ID %d: %v", gid, err)
+	}
+	resp = host.call(ProtoMatchMaking, 0x10, u32le(gid))
+	if resp.IsError {
+		t.Fatalf("gid-only participants URLs: %#x", resp.ErrorCode)
+	}
+	r = rmc.NewReader(resp.Body)
+	entries, err := r.ListHeader()
+	if err != nil || entries != 1 {
+		t.Fatalf("participants URL entries=%d: %v", entries, err)
+	}
+	n, err := r.ListHeader()
+	if err != nil || n != 2 {
+		t.Fatalf("host station URLs=%d: %v", n, err)
+	}
+}
 // Castle Crashers links Ranking2; make sure its optional board service is
 // reachable through the title's actual TLS dispatch rather than unregistered.
 func TestCastleCrashersRanking2(t *testing.T) {
