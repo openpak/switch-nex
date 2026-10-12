@@ -1366,8 +1366,29 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 	case 0x10: // GetParticipantsURLs(gid, list<pid>) -> list<RVConnectionData>
 		return getParticipantsURLs(env, c, msg)
 
-	case 0x15: // FindBySingleID(gid) -> GatheringHolder
-		return errorResp(msg, rmc.ResultSessionVoid)
+	case 0x15: // FindBySingleID(gid) -> (bool, GatheringHolder)
+		// Minecraft resolves the world advertised in friend presence through
+		// this method before joining. A permanent SessionVoid here rejected
+		// every listed world, even while its host was still participating.
+		gid, err := r.U32()
+		if err != nil {
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
+		g, ok := env.Match.get(gid)
+		if !ok {
+			return errorResp(msg, rmc.ResultSessionVoid)
+		}
+		sess := g.sess
+		if env.SanitizeDetailFind {
+			sess = scrubbed(sess)
+		}
+		body := sess.bytes()
+		w := rmc.NewWriter()
+		w.Bool(true)
+		w.String("MatchmakeSession")
+		w.U32(uint32(len(body) + 4))
+		w.Buffer(body)
+		return success(msg, w.Bytes())
 
 	case 0x16: // FindByOwner -> list<holder>
 		return success(msg, func() []byte {

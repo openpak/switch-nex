@@ -1,5 +1,19 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.29: Minecraft can resolve a friend's hosted world
+
+- Minecraft: Nintendo Switch Edition discovered a friend's world but selecting
+  it failed with a network error in both hosting directions. The joiner's
+  FindBySingleID (`0x15/0x15`) always received `RendezVous::SessionVoid`
+  (`0x80030073`), even with the host's gathering alive: the handler was an
+  unconditional error stub. It now looks up the gathering and returns a true
+  result plus a length-framed `MatchmakeSession` holder with the current world
+  data. Missing gatherings still fail; malformed requests answer InvalidArgument.
+- Response layout follows the public [Match Making protocol, method 21](https://github.com/kinnay/NintendoClients/wiki/Match-Making-Protocol#21-findbysingleid).
+  Protocol and TLS integration tests cover live-world lookup, its holder framing,
+  current application data, missing worlds and malformed input. Playing together
+  still requires the Switch/Harbor retest; this fixes the observed lookup failure.
+
 ## 2026-10-11 — v0.3.28: Mario Tennis Aces sessions get the reference's create-time shape
 
 - **Mario Tennis Aces** online Free Play: matchmaking, the NAT punch (16 ms and 128 ms) and the
