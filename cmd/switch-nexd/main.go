@@ -83,9 +83,17 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.FinalizeCreateSession = true
-		// The first console trace retried JoinMatchmakeSessionEx three times
-		// and never proceeded to GetParticipantsURLs. The full-session echo
-		// was an unverified assumption; use the standard boolean join reply.
+		// Joins answer the full session, as the rest of the P2P titles do:
+		// the boolean reply (v0.3.36) was accepted at the RPC layer but the
+		// game never followed up — no station fetch, no P2P, "failed to
+		// connect to the lobby" on screen. A bare bool carries no session
+		// key and no stations, so the joiner has nothing to start P2P with;
+		// the echoed pre-join count and key are what it builds its mesh
+		// from. The 3x JoinMatchmakeSessionEx retry that motivated the bool
+		// predates the gid-only participants-URLs fix and may have been the
+		// station fetch failing, not the echo. One clean two-console run
+		// will tell.
+		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
 	}},
 	{"monopoly", 23090, "65c92799", func(e *protocols.Env) {

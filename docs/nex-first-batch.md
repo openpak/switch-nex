@@ -48,11 +48,13 @@ All three start with:
   virtual-socket module without a Pia SDK banner. This is an initial profile
   choice based on the existing bare-NEX path, not a measured requirement.
 - A separate matchmaking store, normalized creation (creator counted,
-  32-byte session key), and participant recaps. Castle Crashers Remastered
-  and Nobody Saves the World currently use full-session join replies; PICO
-  PARK uses the standard boolean reply after its first console trace retried
-  JoinMatchmakeSessionEx three times without requesting participant stations.
-  The PICO PARK reply shape is still awaiting a successful gameplay run.
+  32-byte session key), full-session join replies and participant recaps. PICO
+  PARK briefly used a boolean join reply after its first console trace retried
+  JoinMatchmakeSessionEx three times without requesting participant stations,
+  but four console runs then showed the game accepting the join at the RPC
+  layer and never following up — no station fetch, no P2P — and a bare bool
+  carries no session key or stations for it to start P2P with. It is back on
+  the session echo while a successful gameplay run is still awaited.
 - No forced-open sessions, parameter stamping, extra DataStore service,
   referee relay or title-specific settings without client evidence.
 
@@ -110,9 +112,12 @@ Production verification on 2026-10-12:
   the new health endpoints were checked directly.
 - PICO PARK's first two-player trace (14:30–14:32 UTC) reached create, browse,
   and join successfully, but the joiner retried JoinMatchmakeSessionEx three
-  times and no GetParticipantsURLs call followed. The profile now answers
-  those joins with the standard boolean result; repeated joins no longer
-  increment participation count. This needs a fresh two-console gameplay run.
+  times and no GetParticipantsURLs call followed. Four evening runs then showed
+  joins succeeding at the RPC layer with either reply shape while the game
+  never fetched stations or started P2P ("failed to connect to the lobby"),
+  and abandoned rooms lingering under ghost owners. Leave teardown, one-lobby
+  seating and the session-echo join reply are in; this needs a fresh
+  two-console gameplay run.
 
 Installed quadlets are `openpak-switch-castle-crashers-remastered.container`,
 `openpak-switch-nobody-saves-the-world.container` and

@@ -1,5 +1,19 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.40: Pico Park back on session-echo joins
+
+- PICO PARK's boolean join reply (v0.3.36) was accepted at the RPC layer in
+  four console runs but the game never followed up: no station fetch, no P2P,
+  "failed to connect to the lobby" on screen, and the abandoned seat lingering
+  as a ghost owner. A bare bool carries no session key and no stations, so the
+  joiner has nothing to start P2P with; the 3x retry that motivated the bool
+  predates the gid-only participants-URLs fix and may have been the station
+  fetch failing rather than the echo. Joins answer the full session again, as
+  every other P2P title does.
+- The join regressions cover the echoed session for all three first-batch
+  profiles once more. Full suite and vet pass. Awaiting one clean two-console
+  run: join, station fetch, P2P.
+
 ## 2026-10-12 — v0.3.38: one lobby at a time
 
 - A console that creates or joins a gathering now leaves every other room it

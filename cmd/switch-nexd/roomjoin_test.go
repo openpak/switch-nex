@@ -44,24 +44,17 @@ func TestRoomJoinRecapsTheHost(t *testing.T) {
 			param.StructOf(0, func(w *rmc.Writer) { w.U32(gid) })
 			resp = joiner.call(ProtoMatchmakeExt, 0x27, param.Bytes())
 			if resp.IsError {
-				t.Fatalf("join: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+				t.Fatalf("join: %#x", resp.ErrorCode)
 			}
-			if name == "pico-park" {
-				joined, err := rmc.NewReader(resp.Body).Bool()
-				if err != nil || !joined {
-					t.Fatalf("join answer=%v err=%v, want true", joined, err)
-				}
-			} else {
-				count, sessionKey, err := readJoinedSession(resp.Body)
-				if err != nil {
-					t.Fatalf("join answer: %v", err)
-				}
-				if count != 1 {
-					t.Fatalf("join echoed count=%d, want the pre-join 1 (the host)", count)
-				}
-				if len(sessionKey) == 0 {
-					t.Fatal("join answer carried no session key")
-				}
+			count, sessionKey, err := readJoinedSession(resp.Body)
+			if err != nil {
+				t.Fatalf("join answer: %v", err)
+			}
+			if count != 1 {
+				t.Fatalf("join echoed count=%d, want the pre-join 1 (the host)", count)
+			}
+			if len(sessionKey) == 0 {
+				t.Fatal("join answer carried no session key")
 			}
 
 			// 3D World holds every Participate back 100 ms; collect after it.
