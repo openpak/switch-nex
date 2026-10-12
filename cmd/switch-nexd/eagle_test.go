@@ -8,7 +8,7 @@ import (
 	"github.com/openpak/switch-nex/rmc"
 )
 
-func TestSMB35AutoMatchHandsEachParticipantAnEagleTicket(t *testing.T) {
+func TestSMB35EagleAutoMatchAndRoundReports(t *testing.T) {
 	const name = "super-mario-bros-35"
 	authAddr, secureAddr, svc := start(t, name)
 	relay, err := eagle.NewServer()
@@ -112,6 +112,61 @@ func TestSMB35AutoMatchHandsEachParticipantAnEagleTicket(t *testing.T) {
 		if !found {
 			t.Fatal("a participant did not receive the round-start notification")
 		}
+	}
+
+	// Eliminated players report before the winner. Neither a partial report
+	// nor a final report may remove the shared round before the winner reports.
+	// Exercise both finishing orders and retries over real NEX connections.
+	for order, players := range [][]*client{{joiner, host}, {host, joiner}} {
+		if order > 0 {
+			resp = host.call(0x78, 1, round.Bytes())
+			if resp.IsError {
+				t.Fatalf("next StartRound: %#x", resp.ErrorCode)
+			}
+			roundID, err = rmc.NewReader(resp.Body).U64()
+			if err != nil || roundID == 0 {
+				t.Fatal("no next referee round ID")
+			}
+			id = rmc.NewWriter()
+			id.U64(roundID)
+		}
+		end := rmc.NewWriter()
+		end.StructOf(0, func(w *rmc.Writer) {
+			w.U64(roundID)
+			w.EmptyList() // personal round results
+		})
+		for _, report := range []struct {
+			player *client
+			method uint32
+		}{
+			{players[0], 4}, // partial report
+			{players[0], 3}, // eliminated player's final report
+			{players[1], 3}, // winner's final report
+			{players[0], 3}, // retry
+			{players[1], 5}, // finish without a report
+		} {
+			body := end.Bytes()
+			if report.method == 5 {
+				body = id.Bytes()
+			}
+			resp = report.player.call(0x78, report.method, body)
+			if resp.IsError {
+				t.Fatalf("finishing order %d, report method %d: %#x", order, report.method, resp.ErrorCode)
+			}
+			resp = players[1].call(0x78, 2, id.Bytes())
+			if resp.IsError || string(resp.Body) != string(round.Bytes()) {
+				t.Fatalf("finishing order %d: report removed the shared round", order)
+			}
+		}
+	}
+	missing := rmc.NewWriter()
+	missing.StructOf(0, func(w *rmc.Writer) {
+		w.U64(roundID + 1)
+		w.EmptyList()
+	})
+	resp = host.call(0x78, 3, missing.Bytes())
+	if !resp.IsError || resp.ErrorCode != rmc.ResultRefereeRoundGone {
+		t.Fatal("an unknown round must still return RoundNotFound")
 	}
 }
 

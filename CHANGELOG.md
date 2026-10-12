@@ -1,5 +1,22 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.31: SMB35 accepts the winner's end-of-round report
+
+- The owner confirmed Switch/Harbor gameplay after v0.3.30, but whichever
+  device placed first received `2306-1807` at the end of the round. Production
+  logs show the eliminated player's EndRound succeeded and deleted the shared
+  round; the winner's later EndRound failed with MatchmakeReferee::RoundNotFound
+  (`0x006F0007`). Eagle reports now retain the shared round so all participants,
+  partial reports and retries can complete. The existing one-hour pruning on
+  new round creation limits retention. Other titles keep their lifecycle.
+- TLS NEX regression tests exercise both finishing orders, partial/final/no-report
+  completion, retries, late parameter lookup and genuine unknown-round errors.
+  The test reproduces the failure before the fix.
+- Full-room tests cover 35 authenticated WebSocket players, membership bitmaps
+  and notices, StartMatch broadcast, shared counters and selective updates across
+  byte boundaries. Referee tests accept all 35 players' partial/final/retry
+  reports with the winner last, and verify old rounds still expire.
+
 ## 2026-10-12 — v0.3.30: SMB35 gets its Eagle gameplay relay and handoff
 
 - Super Mario Bros. 35 could match players and relay lobby state but never leave

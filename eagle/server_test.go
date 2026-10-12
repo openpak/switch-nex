@@ -181,6 +181,90 @@ func TestTwoPlayersLoginRouteStartAndShareCounters(t *testing.T) {
 	}
 }
 
+func TestFull35PlayerRoomMembershipRoutingAndCounters(t *testing.T) {
+	s, err := NewServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := httptest.NewServer(s)
+	defer web.Close()
+	defer s.CloseRoom(42)
+	var players []*testClient
+	for pid := uint64(1); pid <= 35; pid++ {
+		token, err := s.Ticket(42, pid)
+		if err != nil {
+			t.Fatalf("admit player %d: %v", pid, err)
+		}
+		player := openClient(t, web.URL, "/42")
+		player.authenticate(token)
+		if binary.BigEndian.Uint32(player.receive(2)[3:]) != 1 {
+			t.Fatalf("player %d login rejected", pid)
+		}
+		player.write([]byte{0, 0xc0, 0})
+		bitmap := player.receive(8)
+		if len(bitmap) != 140 || bitmap[3] != 4 {
+			t.Fatal("missing active-node bitmap")
+		}
+		for _, earlier := range players {
+			if earlier.node == player.node {
+				t.Fatal("players share a node ID")
+			}
+			added := earlier.receive(8)
+			if added[3] != 0 || binary.BigEndian.Uint16(added[4:]) != player.node {
+				t.Fatal("join notice missing or names the wrong player")
+			}
+		}
+		players = append(players, player)
+		for _, member := range players {
+			if bitmap[4+int(member.node)/8]&(1<<uint(7-member.node%8)) == 0 {
+				t.Fatalf("node %d missing from ready bitmap", member.node)
+			}
+		}
+	}
+	if _, err := s.Ticket(42, 36); err == nil {
+		t.Fatal("room admitted more than 35 participants")
+	}
+	players[0].rpc(28, nodeLimit+1, []byte{0xa5})
+	for _, player := range players {
+		if !bytes.Equal(player.receive(28)[11:], []byte{0xa5}) {
+			t.Fatal("StartMatch broadcast did not reach all 35 players")
+		}
+	}
+	inc := make([]byte, 9)
+	inc[0] = 3
+	binary.BigEndian.PutUint64(inc[1:], 1)
+	for i, player := range players {
+		player.rpc(19, 0, inc)
+		if binary.BigEndian.Uint64(player.receive(16)[12:]) != uint64(i+1) {
+			t.Fatal("shared ready counter lost a player's increment")
+		}
+	}
+
+	// Independent bitmap-addressed fixture: 21 header bits, 1024 destination
+	// bits, byte padding, timestamp and payload. Cover byte boundaries above
+	// two players; unselected peers must not receive this RPC.
+	selected := map[uint16]bool{}
+	data := make([]byte, 131+8+2)
+	binary.BigEndian.PutUint32(data, 2<<30|31<<22|777<<11)
+	for _, index := range []int{6, 7, 30, 31, 34} {
+		node := players[index].node
+		selected[node] = true
+		bit := 21 + int(node)
+		data[bit/8] |= 1 << uint(7-bit%8)
+	}
+	copy(data[139:], []byte{0xb1, 0x35})
+	players[0].write(data)
+	for _, player := range players {
+		if selected[player.node] && !bytes.Equal(player.receive(31)[11:], []byte{0xb1, 0x35}) {
+			t.Fatal("bitmap-addressed update was changed or not delivered")
+		}
+		player.rpc(18, 0, []byte{3})
+		if binary.BigEndian.Uint64(player.receive(16)[12:]) != 35 {
+			t.Fatal("counter was not shared by all 35 players or an unselected player received the update")
+		}
+	}
+}
+
 func TestTicketsRejectTamperingExpiryOtherRoomsAndRevokedPlayers(t *testing.T) {
 	s, _ := NewServer()
 	web := httptest.NewServer(s)

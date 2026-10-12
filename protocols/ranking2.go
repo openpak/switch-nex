@@ -509,7 +509,17 @@ func startRound(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.R
 }
 
 func closeRound(env *Env, msg *rmc.RMCMessage, roundID uint64) []byte {
-	if !env.referee.end(roundID) {
+	var exists bool
+	if env.Eagle {
+		// SMB35 reports independently for each player: the winner's EndRound
+		// follows eliminated players' reports. Keep the shared parameters for
+		// later reports, partial reports and retries; start prunes old rounds
+		// after roundLifetime.
+		_, exists = env.referee.get(roundID)
+	} else {
+		exists = env.referee.end(roundID)
+	}
+	if !exists {
 		return errorResp(msg, rmc.ResultRefereeRoundGone)
 	}
 	return success(msg, nil)

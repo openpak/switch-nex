@@ -2,6 +2,7 @@ package protocols
 
 import (
 	"testing"
+	"time"
 
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
@@ -144,7 +145,7 @@ func TestUtilitySettingsCoversSMB35(t *testing.T) {
 	}
 }
 
-// TestRefereeRoundLifecycle exercises SMB35's referee: start refuses
+// TestRefereeRoundLifecycle exercises the non-Eagle referee: start refuses
 // non-participants, echoes its own parameters, and closes.
 func TestRefereeRoundLifecycle(t *testing.T) {
 	env := testEnv()
@@ -213,6 +214,92 @@ func TestRefereeRoundLifecycle(t *testing.T) {
 	_, _, errCode = decodeResponse(resp)
 	if errCode != rmc.ResultRefereeRoundGone {
 		t.Fatalf("want RoundNotFound, got %#x", errCode)
+	}
+}
+
+func TestEagleRefereeAll35PlayersCanReport(t *testing.T) {
+	env := testEnv()
+	env.Eagle, env.MatchmakeReferee = true, true
+	_, body, code := decodeResponse(Dispatch(env, conn(1), request(ProtoMatchmakeExt, 6, sessionHolder(sampleSession()))))
+	if code != 0 {
+		t.Fatalf("create: %#x", code)
+	}
+	session, err := readSession(rmc.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	join := rmc.NewWriter()
+	join.U32(session.GID)
+	join.String("")
+	join.EmptyList()
+	for pid := uint64(2); pid <= 35; pid++ {
+		_, _, code = decodeResponse(Dispatch(env, conn(pid), request(ProtoMatchmakeExt, 7, join.Bytes())))
+		if code != 0 {
+			t.Fatalf("join player %d: %#x", pid, code)
+		}
+	}
+	start := rmc.NewWriter()
+	start.StructOf(0, func(w *rmc.Writer) {
+		w.U32(0)
+		w.U32(session.GID)
+		w.List(35)
+		for pid := uint64(1); pid <= 35; pid++ {
+			w.U64(pid)
+		}
+		w.U8(0)
+		w.U32(0)
+	})
+	_, body, code = decodeResponse(Dispatch(env, conn(1), request(ProtoMatchmakeReferee, 1, start.Bytes())))
+	if code != 0 {
+		t.Fatalf("start: %#x", code)
+	}
+	roundID, err := rmc.NewReader(body).U64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := rmc.NewWriter()
+	id.U64(roundID)
+	// All 34 eliminated players report before player 1, the winner.
+	for pid := uint64(35); pid > 0; pid-- {
+		end := rmc.NewWriter()
+		end.StructOf(0, func(w *rmc.Writer) {
+			w.U64(roundID)
+			w.List(1)
+			w.StructOf(0, func(w *rmc.Writer) {
+				w.U64(pid)
+				w.U32(0) // personal result flag
+				w.U32(0) // win/loss
+				w.U32(0) // rating change
+				w.QBuffer(nil)
+				w.U8(0)  // report summary mode
+				w.U32(0) // event ID
+			})
+		})
+		for _, method := range []uint32{4, 3, 3} { // partial, final, retry
+			_, _, code = decodeResponse(Dispatch(env, conn(pid), request(ProtoMatchmakeReferee, method, end.Bytes())))
+			if code != 0 {
+				t.Fatalf("player %d report %d: %#x", pid, method, code)
+			}
+		}
+		_, body, code = decodeResponse(Dispatch(env, conn(1), request(ProtoMatchmakeReferee, 2, id.Bytes())))
+		if code != 0 || string(body) != string(start.Bytes()) {
+			t.Fatalf("player %d removed the shared round", pid)
+		}
+	}
+
+	// Retention still expires through the existing new-round pruning.
+	env.referee.mu.Lock()
+	old := env.referee.rounds[roundID]
+	old.started = time.Now().Add(-roundLifetime - time.Minute)
+	env.referee.rounds[roundID] = old
+	env.referee.mu.Unlock()
+	_, _, code = decodeResponse(Dispatch(env, conn(1), request(ProtoMatchmakeReferee, 1, start.Bytes())))
+	if code != 0 {
+		t.Fatalf("next start: %#x", code)
+	}
+	_, _, code = decodeResponse(Dispatch(env, conn(1), request(ProtoMatchmakeReferee, 2, id.Bytes())))
+	if code != rmc.ResultRefereeRoundGone {
+		t.Fatalf("expired round was retained: %#x", code)
 	}
 }
 
