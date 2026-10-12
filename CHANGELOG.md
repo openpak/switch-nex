@@ -1,5 +1,54 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.42: Heroes of Hammerwatch initial profile
+
+- Registered Heroes of Hammerwatch — Ultimate Edition
+  (`heroes-of-hammerwatch`) on 23110/23111/23112 with game server
+  `2075E100` and access key `1203b5eb`. The pair is adjacent-config
+  evidence in the updated main (ID built at 0x7c7d44/0x7c7d48, key
+  literal at 0xa615b3); the derived SNI is DNS-confirmed by the
+  2026-10-12 retail trace (`g2075e100-lp1` dialled 21:58:02 UTC,
+  websocket upgrade, catch-all 404 while unrouted), and the game uses
+  the websocket carriage the server already speaks per connection.
+  CONNECT signatures still need the first routed boot. Ticketed
+  `prudps` stations, modern Pia shape (Pia 5.24.0: type 0x0B with Pa),
+  independent matchmaking, normalized creation, full-session joins and
+  participant recaps; only the linked
+  MatchmakeExtension/NATTraversal/SecureConnection set is registered
+  (the Ranking hits are a LAN job name and DDL boilerplate).
+  Provenance and the deployment bundle:
+  `docs/heroes-of-hammerwatch.md`. No version exception needed: the
+  installed v524288 (`00080000`) equals the gated latest.
+- The same image carries the Duck Game scaffold and the Full Metal
+  Furies profile (both still undeployed; their sections below stand).
+- TLS checks cover both login methods, distinct identities behind one
+  address, modern station registration, browsing, joining, participant
+  notifications and the explicit-join recap. These are not retail
+  gameplay results.
+
+## Unreleased — Full Metal Furies initial profile (trace pending)
+
+- Registered Full Metal Furies (`full-metal-furies`) on
+  23120/23121/23122 with game server `2C82EE00` and access key
+  `c093ff57`. The pair is adjacent-config evidence in the available
+  (outdated, content 131072) main — ID built into w8 at 0x2d95c/0x2d960
+  and stored at 0x2d964, key literal at rodata 0x40a9f47 loaded by
+  adrp/add at 0x2d968/0x2d96c — re-verified against the local dump and
+  the same weaker class as heroes-of-hammerwatch, so the derived SNI
+  (`g2c82ee00-lp1`) and CONNECT signatures still need the first boot's
+  trace. Ticketed `prudps` stations, legacy Pia shape (Pia 5.11.3:
+  type 0x03 with no Pa), independent matchmaking, normalized creation,
+  full-session joins and participant recaps; only the linked
+  MatchmakeExtension/NATTraversal/SecureConnection set is registered
+  (the `NEX_R2`/`NEX_RK` banners have no protocol clients behind them;
+  the Ranking hit is a LAN job name). Provenance and the reserved (not
+  deployed) bundle: `docs/full-metal-furies.md`. Re-extract content
+  327680 before deploying.
+- TLS checks cover both login methods, distinct identities behind one
+  address, legacy station registration, browsing, joining, participant
+  notifications and the explicit-join recap. These are not retail
+  gameplay results.
+
 ## 2026-10-12 — v0.3.41: Pico Park default join pairing
 
 - PICO PARK drops the recapped join for the default pairing (3001 about the
@@ -28,6 +77,29 @@
 - The join regressions cover the echoed session for all three first-batch
   profiles once more. Full suite and vet pass. Awaiting one clean two-console
   run: join, station fetch, P2P.
+
+## Unreleased — Duck Game scaffold (trace pending)
+
+- Registered Duck Game (`duck-game`) on 23100/23101/23102 with an
+  intentionally empty access key: the game server ID and key are still
+  unknown (no ASCII/UTF-16 key literal and no same-call login pair in the
+  117 MB updated main; the auth hostname formats `g%08x` at runtime), so
+  CONNECT signatures go unverified and no route, quadlet or catalogue
+  entry exists yet. Ticketed `prudps` stations, legacy Pia shape
+  (Pia 5.12.1), independent matchmaking, normalized creation,
+  full-session joins and participant recaps; only the linked
+  MatchmakeExtension/NATTraversal/SecureConnection set is registered.
+  Provenance and the reserved (not deployed) bundle:   `docs/duck-game.md`.
+- TLS checks cover both login methods, distinct identities behind one
+  address, legacy station registration, browsing, joining, participant
+  notifications and the explicit-join recap. These are not retail
+  gameplay results.
+- Deployed 2026-10-12: the trace recorded console-measured game server
+  `25E42700` (`g25e42700-lp1.s.n.srv.nintendo.net` at 21:12:43 UTC, one
+  second after Duck Game's aauth). Traefik SNI route, `duck-game`
+  container (local arm64 binary mount), host firewall for secure 23101
+  and public login/register probes pass. The access key is still unknown;
+  retail gameplay validation is pending.
 
 ## 2026-10-12 — v0.3.38: one lobby at a time
 

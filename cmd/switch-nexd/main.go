@@ -130,6 +130,111 @@ var titles = []title{
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
 	}},
+	{"duck-game", 23100, "", func(e *protocols.Env) {
+		// Duck Game (0100750001C70000, update 1.0.4 / content 262144).
+		// NEX 4.6.2 with Pia 5.12.1, MM-only module set. Scaffold: the
+		// game server ID and access key are still unknown. The 117 MB
+		// main carries no ASCII key literal, no adrp-x3/movz-w2 login
+		// pair and no key-like UTF-16 string; the auth hostname is
+		// formatted at runtime from g%08x (g%08x-%%.s.n.srv.nintendo.net),
+		// so the ID only exists as an integer constant. Static
+		// provenance: docs/duck-game.md. Empty key is deliberate, as on
+		// risk-of-rain-returns: CONNECT signatures go unverified until
+		// the online-menu trace records the real g<id>-lp1 SNI name and
+		// a logged handshake verifies the key. No route, quadlet or
+		// catalogue entry exists for this title yet.
+		//
+		// The binary links MatchmakeExtension, NATTraversal and
+		// SecureConnection only (no Ranking, Ranking2, Referee or
+		// DataStore), so only the matchmaking set is registered; which
+		// calls the game actually makes is the first boot's
+		// NotImplemented log.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		// The session-lifecycle trio measured on every P2P title that
+		// plays (create-time normalisation, full-session join echo,
+		// participant recap). The echo shape is provisional: a strict
+		// reader rejects the bare boolean with 2306-0116, as
+		// risk-of-rain-returns showed. FinalizeParams stays off:
+		// nothing measured says this title wants @SR/@GIR, and ACNH
+		// breaks with them.
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"heroes-of-hammerwatch", 23110, "1203b5eb", func(e *protocols.Env) {
+		// Heroes of Hammerwatch — Ultimate Edition (0100D2B00BC54000,
+		// content 524288 current, game server 2075E100). NEX 4.6.3 with
+		// Pia 5.24.0; the ID/key pair is adjacent-config evidence in the
+		// updated client (ID built at 0x7c7d44/0x7c7d48 and stored at
+		// [sp+0x60], key "1203b5eb" at 0xa615b3 loaded by adrp x1 at
+		// 0x7c7d5c) — weaker than a same-call login pair, so the
+		// derived SNI (g2075e100-lp1) and CONNECT signatures still need
+		// the first boot's trace. Static provenance:
+		// docs/heroes-of-hammerwatch.md.
+		//
+		// The binary links MatchmakeExtension with NATTraversal and
+		// SecureConnection protocol strings; the Ranking hits are a
+		// LAN/mesh job name and NEX DDL boilerplate, with no Ranking2,
+		// Referee or DataStore — so only the matchmaking set is
+		// registered; which calls the game actually makes is the first
+		// boot's NotImplemented log. The auth hostname formats g%08x
+		// at runtime, so the ID travels as an integer constant.
+		e.StationScheme = "prudps"
+		// Pia 5.24.0 is past the 5.19 cutover, so the modern type=0x0B
+		// shape with Pa is the measured-era choice (Golf measured this
+		// the same way on Pia 5.33.0).
+		e.Pia = protocols.Pia519()
+		e.Match = protocols.NewMatchmakingStore()
+		// The session-lifecycle trio measured on every P2P title that
+		// plays (create-time normalisation, full-session join echo,
+		// participant recap). The echo shape is provisional: a strict
+		// reader rejects the bare boolean with 2306-0116, as
+		// risk-of-rain-returns showed. FinalizeParams stays off:
+		// nothing measured says this title wants @SR/@GIR, and ACNH
+		// breaks with them.
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"full-metal-furies", 23120, "c093ff57", func(e *protocols.Env) {
+		// Full Metal Furies (010079300AD54000, game server 2C82EE00).
+		// NEX 4.5.0 with Pia 5.11.3; the ID/key pair is adjacent-config
+		// evidence in the available (outdated, content 131072) client:
+		// the ID is built into w8 at 0x2d95c (movz #0xee00) / 0x2d960
+		// (movk #0x2c82, lsl #16) and stored to the stack config slot
+		// at 0x2d964, while the key "c093ff57" (rodata 0x40a9f47) is
+		// loaded by adrp x1 at 0x2d968 / add at 0x2d96c — the same
+		// weaker class as heroes-of-hammerwatch, not a same-call login
+		// pair, so the derived SNI (g2c82ee00-lp1) and CONNECT
+		// signatures still need the first boot's trace. Static
+		// provenance: docs/full-metal-furies.md.
+		//
+		// The binary links MatchmakeExtension with NATTraversal and
+		// SecureConnection protocol strings only. The Ranking hits are
+		// the LanMakeHostCandidateRanking LAN/mesh job name, with no
+		// Ranking/Ranking2 client, Referee, DataStore, Utility or
+		// MessageDelivery — so only the matchmaking set is registered;
+		// which calls the game actually makes is the first boot's
+		// NotImplemented log. The auth hostname formats g%08x at
+		// runtime, so the ID travels as an integer constant.
+		e.StationScheme = "prudps"
+		// Pia 5.11.3 predates the 5.19 cutover, so the pre-5.19 legacy
+		// shape (type=3, no Pa) is the measured-era choice.
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		// The session-lifecycle trio measured on every P2P title that
+		// plays (create-time normalisation, full-session join echo,
+		// participant recap). The echo shape is provisional: a strict
+		// reader rejects the bare boolean with 2306-0116, as
+		// risk-of-rain-returns showed. FinalizeParams stays off:
+		// nothing measured says this title wants @SR/@GIR, and ACNH
+		// breaks with them.
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
 		e.Pia = protocols.LegacyPia()

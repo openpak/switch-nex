@@ -1,0 +1,21 @@
+# Merge this router/service into the existing tcp maps in dynamic.yml.
+# The console entrypoint and PROXY v2 match production's Switch NEX routes.
+# Game server 25E42700 is console-measured (nx-baas catch-all SNI
+# 2026-10-12 21:12:43 UTC, one second after Duck Game's aauth); the access
+# key is still unknown, so the title runs with unverified CONNECT
+# signatures until a logged handshake verifies it. See docs/duck-game.md.
+tcp:
+  routers:
+    nex-duck-game:
+      entryPoints: [console]
+      rule: "HostSNI(`g25e42700-lp1.s.n.srv.nintendo.net`)"
+      service: nex-duck-game
+      tls:
+        passthrough: true
+  services:
+    nex-duck-game:
+      loadBalancer:
+        proxyProtocol:
+          version: 2
+        servers:
+          - address: "host.containers.internal:23100"
