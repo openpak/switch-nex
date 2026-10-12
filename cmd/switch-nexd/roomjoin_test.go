@@ -23,6 +23,7 @@ func TestRoomJoinRecapsTheHost(t *testing.T) {
 	for _, name := range []string{
 		"mario-golf-super-rush", "super-mario-3d-world-bowsers-fury",
 		"castle-crashers-remastered", "nobody-saves-the-world", "pico-park",
+		"monopoly",
 	} {
 		t.Run(name, func(t *testing.T) {
 			authAddr, secureAddr, _ := start(t, name)

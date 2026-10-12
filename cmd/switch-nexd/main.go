@@ -88,6 +88,35 @@ var titles = []title{
 		// was an unverified assumption; use the standard boolean join reply.
 		e.JoinRecapParticipate = true
 	}},
+	{"monopoly", 23090, "65c92799", func(e *protocols.Env) {
+		// Monopoly for Nintendo Switch (01007430037F6000, update 1.0.5 /
+		// content 327680, game server 2E041D00). NEX 4.3.1 with Pia 5.9.0;
+		// the ID/key pair is a same-call pairing in the updated client
+		// (key load at 0x560370, call at 0x560394). Static provenance and
+		// deployment: docs/monopoly.md.
+		//
+		// The binary links MatchmakeExtension, Ranking, Ranking2,
+		// MatchmakeReferee, DataStore, NATTraversal and SecureConnection,
+		// so all of them are registered; which calls the game actually
+		// makes is the first boot's NotImplemented log. Ubisoft's own
+		// HTTPS (public-ubiservices.ubi.com: profiles, challenges,
+		// leaderboards, events) is a separate backend and stays out of
+		// scope for this NEX profile.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking = true
+		e.Ranking2 = true
+		e.MatchmakeReferee = true
+		e.DataStore = protocols.DSEmptyList
+		// The session-lifecycle trio measured on every P2P title that
+		// plays (create-time normalisation, full-session join echo,
+		// participant recap). FinalizeParams stays off: nothing measured
+		// says this title wants @SR/@GIR, and ACNH breaks with them.
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
 		e.Pia = protocols.LegacyPia()
