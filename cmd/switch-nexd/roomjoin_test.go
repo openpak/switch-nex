@@ -19,10 +19,13 @@ import (
 // the created session (count=0 in the join echo) until its creation was
 // normalised. The first new NEX profiles use the same join contract; this
 // checks their initial profiles without claiming the games have been run.
+// PICO PARK is not listed: it runs the default pairing while console runs
+// decide between recap and non-recap (every failed console join looks
+// identical with the recap on, whatever the reply shape).
 func TestRoomJoinRecapsTheHost(t *testing.T) {
 	for _, name := range []string{
 		"mario-golf-super-rush", "super-mario-3d-world-bowsers-fury",
-		"castle-crashers-remastered", "nobody-saves-the-world", "pico-park",
+		"castle-crashers-remastered", "nobody-saves-the-world",
 		"monopoly",
 	} {
 		t.Run(name, func(t *testing.T) {

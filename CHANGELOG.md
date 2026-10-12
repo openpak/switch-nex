@@ -1,5 +1,20 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.41: Pico Park default join pairing
+
+- PICO PARK drops the recapped join for the default pairing (3001 about the
+  joiner to the room, 122000 to the joiner). The recap was applied from the
+  pattern, never console-measured — and it is the one join-time element
+  constant across every failed console run: with either reply shape the join
+  is accepted at the RPC layer and rejected game-side in under two seconds,
+  with no station fetch ever following. Static RE of the updated client
+  (0x6D call sites, notification dispatcher range, NEX spec reply shapes)
+  constrained everything else; the pairing is what a clean two-console run
+  now decides.
+- TestRoomJoinRecapsTheHost no longer lists pico-park; the first-batch
+  browse/join regression still covers its echoed session. Full suite and vet
+  pass.
+
 ## 2026-10-12 — v0.3.40: Pico Park back on session-echo joins
 
 - PICO PARK's boolean join reply (v0.3.36) was accepted at the RPC layer in

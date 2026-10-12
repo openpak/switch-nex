@@ -94,7 +94,12 @@ var titles = []title{
 		// station fetch failing, not the echo. One clean two-console run
 		// will tell.
 		e.JoinEchoSession = true
-		e.JoinRecapParticipate = true
+		// No JoinRecapParticipate: the recap was applied to PICO PARK from
+		// the pattern, never console-measured — and every failed console
+		// join looks identical with either reply shape, so the recap itself
+		// is the remaining constant. Pico gets the default pairing (3001
+		// about the joiner to the room, 122000 to the joiner) while a clean
+		// two-console run decides.
 	}},
 	{"monopoly", 23090, "65c92799", func(e *protocols.Env) {
 		// Monopoly for Nintendo Switch (01007430037F6000, update 1.0.5 /
