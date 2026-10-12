@@ -161,6 +161,12 @@ type Env struct {
 	// they were measured working with.
 	JoinRecapParticipate bool
 
+	// JoinMutePushes seats the joiner without any notification at all: no
+	// recap, no default pairing. Diagnostic only — PICO PARK rejects every
+	// join in under two seconds with either reply shape and either pairing,
+	// so the pushes themselves are the remaining join-time suspect.
+	JoinMutePushes bool
+
 	// ParticipateDelay holds back every Participate (3001) push by this long.
 	// Super Mario 3D World + Bowser's Fury was measured working on the
 	// reference with a 100 ms delay (ExternalReference/super-mario-3d-world).

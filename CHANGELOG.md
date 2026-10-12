@@ -1,5 +1,17 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.43: Pico Park silent joins
+
+- PICO PARK seats explicit joiners without pushing anything: neither the
+  recap nor the default pairing survived console runs, and the pushes are
+  the last join-time element never isolated — every failure looks identical
+  (RPC accepted, game-side rejection in under two seconds, no station fetch
+  ever) across both reply shapes and both pairings. If the joiner proceeds
+  now, the pushes were the poison and the pairing gets bisected next; if it
+  fails identically, pushes are innocent and the reply content is next.
+- New `JoinMutePushes` Env flag with a regression test; `-dump` lists it.
+  Full suite and vet pass.
+
 ## 2026-10-12 — v0.3.42: Heroes of Hammerwatch initial profile
 
 - Registered Heroes of Hammerwatch — Ultimate Edition

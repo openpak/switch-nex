@@ -146,6 +146,25 @@ func TestCreateLeavesPreviousRoom(t *testing.T) {
 	}
 }
 
+// TestJoinMutePushesIsSilent pins the diagnostic pairing: the joiner is
+// seated and counted, the answer is unchanged, but nothing is pushed.
+func TestJoinMutePushesIsSilent(t *testing.T) {
+	env := leaveEnv()
+	env.JoinMutePushes = true
+	var pushed []notificationEvent
+	env.sent = func(pid uint64, ev notificationEvent) { pushed = append(pushed, ev) }
+	gid := mustCreate(t, env, 100)
+	pushed = nil
+	mustJoin(t, env, 200, gid)
+	if len(pushed) != 0 {
+		t.Fatalf("muted join pushed %d notification(s)", len(pushed))
+	}
+	g, ok := env.Match.get(gid)
+	if !ok || !g.participants[200] || g.sess.ParticipationCount != 2 {
+		t.Fatal("muted join did not seat the joiner")
+	}
+}
+
 // TestJoinLeavesPreviousRoom is the mirror: joining a room while seated in
 // another leaves the other one behind rather than holding both seats.
 func TestJoinLeavesPreviousRoom(t *testing.T) {

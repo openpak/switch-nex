@@ -94,12 +94,13 @@ var titles = []title{
 		// station fetch failing, not the echo. One clean two-console run
 		// will tell.
 		e.JoinEchoSession = true
-		// No JoinRecapParticipate: the recap was applied to PICO PARK from
-		// the pattern, never console-measured — and every failed console
-		// join looks identical with either reply shape, so the recap itself
-		// is the remaining constant. Pico gets the default pairing (3001
-		// about the joiner to the room, 122000 to the joiner) while a clean
-		// two-console run decides.
+		// Muted join pushes: neither the recap nor the default pairing
+		// survived console runs — every join is accepted at the RPC layer
+		// and rejected game-side in under two seconds with no station fetch
+		// ever following, whatever the reply shape and whatever the pairing.
+		// The pushes themselves are the remaining join-time suspect, so the
+		// joiner is seated silently while a clean two-console run decides.
+		e.JoinMutePushes = true
 	}},
 	{"monopoly", 23090, "65c92799", func(e *protocols.Env) {
 		// Monopoly for Nintendo Switch (01007430037F6000, update 1.0.5 /
@@ -832,6 +833,7 @@ func dumpTitles() {
 			{e.MatchModeAttribute, "MatchModeAttribute"},
 			{e.JoinEchoSession, "JoinEchoSession"},
 			{e.JoinRecapParticipate, "JoinRecapParticipate"},
+			{e.JoinMutePushes, "JoinMutePushes"},
 			{e.StrikersInit, "StrikersInit"},
 			{e.HoldForOpening > 0, "HoldForOpening " + e.HoldForOpening.String()},
 			{e.ParticipateDelay > 0, "ParticipateDelay " + e.ParticipateDelay.String()},

@@ -970,7 +970,10 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 	}
 	was := g.participants[c.PID]
 	g.participants[c.PID] = true
-	if !was && env.JoinRecapParticipate {
+	if !was && env.JoinMutePushes {
+		// Muted: the seat is taken silently. Diagnostic only (see the
+		// flag): whether the pushes themselves break this title's join.
+	} else if !was && env.JoinRecapParticipate {
 		// The reference's measured pair: announce the joiner to everyone,
 		// joiner included, then recap each existing participant to the
 		// joiner. Pushed before the RMC answer, as measured.
@@ -991,7 +994,7 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 				Param1: uint64(gid), Param2: pid, Param3: count,
 			})
 		}
-	} else if !was {
+	} else if !was && !env.JoinMutePushes {
 		// The pairing unblock: everyone already in the session is waiting on
 		// this event, not on a poll.
 		env.notifyGathering(gid, c.PID, notificationEvent{
