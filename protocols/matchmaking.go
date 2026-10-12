@@ -936,6 +936,13 @@ func (e *Env) Disconnected(pid uint64) {
 			Param2:    pid,
 		})
 		migrateIfHostLeft(e, g.sess.GID, g, pid)
+		if len(g.participants) == 0 {
+			if _, ok := e.Match.get(g.sess.GID); ok {
+				e.codes.forget(g.sess.GID)
+				e.deleteGathering(g.sess.GID)
+				log.Printf("[%s] matchmake: gid=%d deleted (last participant disconnected)", e.Name, g.sess.GID)
+			}
+		}
 	}
 }
 
@@ -1086,8 +1093,56 @@ func migrateIfHostLeft(env *Env, gid uint32, g *gathering, leaving uint64) {
 	})
 }
 
-// firstOtherParticipant picks the next owner: the first named candidate who is
-// really in the session, else any other participant.
+// leaveGathering drops pid from a gathering with the same bookkeeping as an
+// explicit leave: the participant is removed, the count follows, the rest are
+// told, and ownership moves — or the gathering goes when nobody is left. It
+// reports whether the gathering was deleted.
+//
+// Participate/CancelParticipation (0x15.0x0B/0x0C) used to skip all of this
+// and only flip the map entry: a Cancel left the count up with nobody told
+// and ownership never moving, while a Participate added an uncounted seat —
+// so rooms stayed browsable after everyone had gone and counts drifted from
+// the roster. EndParticipation and Disconnected share this helper so every
+// leave path keeps the same contract.
+func leaveGathering(env *Env, gid uint32, g *gathering, pid uint64) (deleted bool) {
+	if !g.participants[pid] {
+		return false
+	}
+	delete(g.participants, pid)
+	env.eagleDepart(gid, pid)
+	if g.sess.ParticipationCount > 0 {
+		g.sess.ParticipationCount--
+	}
+	env.notifyGathering(gid, pid, notificationEvent{
+		SourcePID: pid,
+		Type:      NotifyEndParticipation,
+		Param1:    uint64(gid),
+		Param2:    pid,
+	})
+	if len(g.participants) == 0 {
+		env.codes.forget(gid)
+		env.deleteGathering(gid)
+		log.Printf("[%s] matchmake: gid=%d deleted (last participant left)", env.Name, gid)
+		return true
+	}
+	migrateIfHostLeft(env, gid, g, pid)
+	// A leave that skipped the old bookkeeping could leave the owner pointing
+	// at someone no longer in the room; repair it while there is still
+	// someone to hand to.
+	if _, ok := g.participants[g.sess.OwnerPID]; !ok {
+		if next := firstOtherParticipant(g, 0, nil); next != 0 {
+			g.sess.OwnerPID = next
+			g.sess.HostPID = next
+			env.notifyGathering(gid, 0, notificationEvent{
+				SourcePID: pid,
+				Type:      NotifyOwnershipChanged,
+				Param1:    uint64(gid),
+				Param2:    next,
+			})
+		}
+	}
+	return false
+}
 func firstOtherParticipant(g *gathering, except uint64, candidates []uint64) uint64 {
 	for _, pid := range candidates {
 		if pid != except && g.participants[pid] {
@@ -1332,11 +1387,19 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		if gid, err := r.U32(); err == nil {
 			if g, ok := env.Match.get(gid); ok {
 				if msg.MethodID == 0x0B {
-					g.participants[c.PID] = true
-					env.eagleHandoff(gid, c.PID)
+					if !g.participants[c.PID] {
+						g.participants[c.PID] = true
+						g.sess.ParticipationCount++
+						env.eagleHandoff(gid, c.PID)
+						env.notifyGathering(gid, c.PID, notificationEvent{
+							SourcePID: c.PID,
+							Type:      NotifyParticipate,
+							Param1:    uint64(gid),
+							Param2:    c.PID,
+						})
+					}
 				} else {
-					delete(g.participants, c.PID)
-					env.eagleDepart(gid, c.PID)
+					leaveGathering(env, gid, g, c.PID)
 				}
 			}
 		}
@@ -1513,18 +1576,7 @@ func matchMakingExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 	case 0x01: // EndParticipation(gid, string) -> bool
 		if gid, err := r.U32(); err == nil {
 			if g, ok := env.Match.get(gid); ok {
-				delete(g.participants, c.PID)
-				env.eagleDepart(gid, c.PID)
-				if g.sess.ParticipationCount > 0 {
-					g.sess.ParticipationCount--
-				}
-				env.notifyGathering(gid, c.PID, notificationEvent{
-					SourcePID: c.PID,
-					Type:      NotifyEndParticipation,
-					Param1:    uint64(gid),
-					Param2:    c.PID,
-				})
-				migrateIfHostLeft(env, gid, g, c.PID)
+				leaveGathering(env, gid, g, c.PID)
 			}
 		}
 		return boolTrue(msg)

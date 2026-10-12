@@ -1,6 +1,23 @@
 # Changelog — switch-nex
 
-## 2026-10-12 — v0.3.36: Pico Park boolean join reply
+## 2026-10-12 — v0.3.37: leave paths keep the full bookkeeping
+
+- Participate/CancelParticipation (0x15.0x0B/0x0C) only flipped the roster map:
+  Cancel left the count up with nobody told and ownership never moving, while
+  Participate added an uncounted seat. Both now share the EndParticipation
+  bookkeeping (count, notify, ownership migration, delete-when-empty), and a
+  duplicate leave is a no-op instead of a second decrement.
+- EndParticipation and connection teardown delete the gathering once the last
+  participant is gone, whatever path they left by; ownership pointing at an
+  already-departed player is repaired while someone remains to hand to.
+- Console-observed on PICO PARK (gid 870055 stayed browsable after its host
+  left): the host's exit migrated ownership to a joiner whose game had already
+  failed the join, so the room outlived everyone actually in it. Rooms now tear
+  down reliably when the last server-side participant leaves; a failed join
+  that never leaves server-side still holds its seat until that console
+  disconnects.
+- New leave_test.go pins the Cancel-then-EndParticipation exit sequence and
+  the all-disconnected teardown. Full race suite and vet pass.
 
 - Pico Park's first console trace showed JoinMatchmakeSessionEx succeeding at
   the RPC layer but being retried three times, with no subsequent request for
