@@ -16,6 +16,10 @@
   and notices, StartMatch broadcast, shared counters and selective updates across
   byte boundaries. Referee tests accept all 35 players' partial/final/retry
   reports with the winner last, and verify old rounds still expire.
+- Deployed 09:10 UTC. The running image matches the published `0.3.31` digest;
+  NEX and CA-verified Eagle health pass. The public two-client NEX/Eagle probe
+  accepts both 81-byte EndRound reports in both finishing orders and retains
+  the shared parameters. Retail end-of-round confirmation remains pending.
 
 ## 2026-10-12 — v0.3.30: SMB35 gets its Eagle gameplay relay and handoff
 

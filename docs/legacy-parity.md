@@ -108,8 +108,11 @@ Pretendo's Monster Hunter XX server.
    handoffs, a TLS/WebSocket gameplay listener, shared counters and opaque game
    RPC routing. The 2026-10-12 Switch/Harbor test before this release reached the
    same lobby but waited after the countdown because that service was missing.
-   Deployment and a live two-client protocol probe passed; the real-client
-   gameplay retest remains pending. The earlier report
+   Deployment and a live two-client protocol probe passed; the owner confirmed
+   retail Switch/Harbor gameplay. The winner's subsequent `2306-1807` was caused
+   by deleting the shared round on the eliminated player's EndRound; v0.3.31
+   retains it for independent reports. Full 35-player relay and referee tests
+   pass. The end-of-round retail retest remains pending. The earlier report
    of a handoff ignored by another title did not establish that SMB35 could
    play without its documented relay.
    See [the current investigation](../next-session/super-mario-bros-35.md).

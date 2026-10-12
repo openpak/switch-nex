@@ -25,6 +25,13 @@ answers ping/pong and the 32 shared counter RPCs, and forwards opaque SMB35 game
 RPCs to their named recipients. It does not run a copy of the game. NEX departure
 revokes admission; a destroyed gathering closes all its relay connections.
 
+Each room admits up to 35 players. Full-room tests cover authenticated node
+membership, match-start broadcast, shared counters and bitmap-addressed game
+updates. The Eagle referee retains shared round parameters for every player's
+end report, including the winner reporting last; new rounds prune entries older
+than one hour. Switch/Harbor gameplay is owner-confirmed; the v0.3.31 reporting
+fix still needs the owner's end-of-round retest.
+
 Admission tickets expire after three hours; membership can be revoked immediately.
 Rooms, participants, token fragments, packet sizes and
 send queues are bounded. A slow peer is disconnected without blocking a room.
