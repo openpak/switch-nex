@@ -17,9 +17,13 @@ import (
 // about the joiner to each participant, the joiner included, then one 3001 per
 // participant already there, to the joiner. 3D World also counted nobody in
 // the created session (count=0 in the join echo) until its creation was
-// normalised.
+// normalised. The first new NEX profiles use the same join contract; this
+// checks their initial profiles without claiming the games have been run.
 func TestRoomJoinRecapsTheHost(t *testing.T) {
-	for _, name := range []string{"mario-golf-super-rush", "super-mario-3d-world-bowsers-fury"} {
+	for _, name := range []string{
+		"mario-golf-super-rush", "super-mario-3d-world-bowsers-fury",
+		"castle-crashers-remastered", "nobody-saves-the-world", "pico-park",
+	} {
 		t.Run(name, func(t *testing.T) {
 			authAddr, secureAddr, _ := start(t, name)
 			key := titleAccessKey(t, name)

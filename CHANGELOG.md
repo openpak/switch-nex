@@ -1,5 +1,18 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.32: first new NEX batch
+
+- Registered Castle Crashers Remastered, Nobody Saves the World and PICO PARK
+  on 23060/23070/23080 using ID/key pairs traced in the owner's updated clients.
+  Each gets ticketed secure stations, independent matchmaking, normalized
+  creation, full-session joins and participant recaps. Castle Crashers also
+  gets Ranking2. Profile choices still require a game trace.
+- Added a Traefik routing fragment and per-title deployment/provenance notes.
+  The existing quadlet generator picks up the three new units automatically.
+- TLS checks cover both login methods, distinct identities behind one address,
+  station registration, browsing, joining, participant notifications and
+  Castle Crashers' Ranking2 endpoint. These are not retail gameplay results.
+
 ## 2026-10-12 — v0.3.31: SMB35 accepts the winner's end-of-round report
 
 - The owner confirmed Switch/Harbor gameplay after v0.3.30, but whichever

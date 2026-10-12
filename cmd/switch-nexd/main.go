@@ -55,6 +55,37 @@ type title struct {
 }
 
 var titles = []title{
+	{"castle-crashers-remastered", 23060, "effc17b3", func(e *protocols.Env) {
+		// NEX 4.6.3 MM/R2/VS; ID/key from the client's login call.
+		// The initial matchmaking profile still needs a retail-game trace.
+		// Static provenance and deployment: docs/nex-first-batch.md.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia() // bare NEX virtual sockets; no Pia SDK
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+		e.Ranking2 = true
+	}},
+	{"nobody-saves-the-world", 23070, "5a8be9a0", func(e *protocols.Env) {
+		// NEX 4.6.6 MM/VS; same-call ID/key pair, docs/nex-first-batch.md.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"pico-park", 23080, "c02db590", func(e *protocols.Env) {
+		// NEX 4.6.2 MM/VS; ID/key share the client's login config.
+		// docs/nex-first-batch.md records the instruction addresses.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
 		e.Pia = protocols.LegacyPia()
