@@ -63,8 +63,8 @@ func (p *pusher) connection(pid uint64) (*prudplite.Connection, bool) {
 func (p *pusher) nextCallID() uint32 { return 0xFFFE0000 + p.callID.Add(1) }
 
 // notificationEvent is the ProcessNotificationEvent payload: structure version
-// 0, all-u64 parameters, no map parameter. The map and u32 variants of this
-// structure are rejected outright by the Switch.
+// 0, all-u64 parameters, no map parameter. Pia titles use this shape; Eagle's
+// map-bearing revision-1 handoff is encoded separately (eagle.go).
 type notificationEvent struct {
 	SourcePID uint64
 	Type      uint32

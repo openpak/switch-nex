@@ -144,6 +144,7 @@ var titles = []title{
 		e.Ranking2 = true
 		e.MatchmakeReferee = true
 		e.MessageDelivery = true
+		e.Eagle = true
 		e.SourceKeyBytes = 16 // 16-byte source key attested for this title
 		e.IntegerSettings = protocols.SMB35IntegerSettings
 	}},
@@ -772,6 +773,9 @@ func main() {
 			continue
 		}
 		svc := newService(t, *stationAddress, recall, ids)
+		if err := configureEagle(svc.env, tlsCfg); err != nil {
+			log.Fatalf("[%s] eagle setup: %v", t.name, err)
+		}
 		voice.add(svc.env)
 		// healthz is bound whatever happens to the game ports: a title whose
 		// listener failed answers 503 there, which says more than a refused

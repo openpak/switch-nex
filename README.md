@@ -53,6 +53,14 @@ like this lineage, but a raw PRUDP/UDP secure stage and a kerberos v0 ticket,
 neither of which this lineage provides — and it shares its NEX code, and its
 access key, with Pretendo's Monster Hunter XX server, which is on nex-go.
 
+## SMB35 gameplay
+
+Super Mario Bros. 35 additionally uses the [Eagle gameplay relay](eagle/README.md)
+on TLS/WebSocket port 22163. Its lobby issues authenticated player-specific
+handoffs when `SMB35_EAGLE_URL` is configured. The relay handles node membership,
+shared counters and game-packet routing in the same process as the title's NEX
+server. The generated SMB35 quadlet enables it; other titles do not.
+
 ## Bans
 
 An account banned in the OpenPak admin is refused at login with `RendezVous::AccountDisabled`

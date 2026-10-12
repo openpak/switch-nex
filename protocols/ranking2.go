@@ -486,15 +486,21 @@ func startRound(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.R
 	log.Printf("[%s] referee: round %d started gid=%d pids=%d", env.Name, roundID, gid, len(pids))
 
 	for _, pid := range pids {
-		if pid == c.PID {
+		if pid == c.PID && !env.Eagle {
 			continue
 		}
-		env.notify(pid, notificationEvent{
+		event := notificationEvent{
 			SourcePID: c.PID,
 			Type:      NotifyRefereeRoundStarted,
 			Param1:    uint64(gid),
 			Param2:    roundID,
-		})
+		}
+		if env.Eagle {
+			// SMB35's referee consumer looks up the round in Param1. This is
+			// the Eagle variant, including the host's own notification.
+			event.Param1, event.Param2 = roundID, 0
+		}
+		env.notify(pid, event)
 	}
 
 	w := rmc.NewWriter()

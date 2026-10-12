@@ -12,7 +12,8 @@ ARG TARGETOS TARGETARCH
 # treats that stamp as the answer to "what is running in production?".
 RUN apk add --no-cache git
 WORKDIR /src
-# No go.sum and no dependency layer to cache: the module has zero external deps.
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -o /out/switch-nexd ./cmd/switch-nexd
@@ -25,4 +26,5 @@ FROM alpine:3.20
 LABEL org.opencontainers.image.source=https://github.com/openpak/switch-nex
 WORKDIR /app
 COPY --from=build /out/switch-nexd /app/switch-nexd
+COPY licenses/websocket-ISC.txt /usr/share/licenses/switch-nex/websocket-ISC.txt
 ENTRYPOINT ["/app/switch-nexd"]

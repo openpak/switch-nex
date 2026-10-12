@@ -458,6 +458,12 @@ func createSessionAs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, ses
 	if env.FinalizeCreateSession {
 		finalizeCreatedSession(env, sess)
 	}
+	if env.Eagle {
+		// Eagle has no Pia session key to normalize, but its lobby must count
+		// the creating participant before the next auto-match joins.
+		sess.ParticipationCount = 1
+		sess.StartedTime = switchnex.NowDateTime()
+	}
 	gid := env.Match.create(sess)
 	if g, ok := env.Match.get(gid); ok {
 		g.participants[c.PID] = true
@@ -478,6 +484,7 @@ func createSessionAs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, ses
 		Param2:    c.PID,
 		Param3:    1, // participants joining with this call
 	})
+	env.eagleHandoff(gid, c.PID)
 	return success(msg, sess.bytes())
 }
 
@@ -731,6 +738,7 @@ func autoMatchmakeStep(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, s
 			}
 		}
 		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%s", env.Name, candidate.GID, redact.Tag(c.PID))
+		env.eagleHandoff(candidate.GID, c.PID)
 		return success(msg, candidate.bytes()), 0
 	}
 	if pending != nil && mayWait {
@@ -917,6 +925,7 @@ func (e *Env) Disconnected(pid uint64) {
 			continue
 		}
 		delete(g.participants, pid)
+		e.eagleDepart(g.sess.GID, pid)
 		if g.sess.ParticipationCount > 0 {
 			g.sess.ParticipationCount--
 		}
@@ -998,10 +1007,12 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 			echo.ParticipationCount = g.sess.ParticipationCount - 1
 		}
 		log.Printf("[%s] matchmake: joined gid=%d pid=%s count=%d", env.Name, gid, redact.Tag(c.PID), echo.ParticipationCount)
+		env.eagleHandoff(gid, c.PID)
 		return success(msg, echo.bytes())
 	}
 	g.sess.ParticipationCount++
 	log.Printf("[%s] matchmake: joined gid=%d pid=%s", env.Name, gid, redact.Tag(c.PID))
+	env.eagleHandoff(gid, c.PID)
 	return success(msg, func() []byte {
 		w := rmc.NewWriter()
 		w.Bool(true)
@@ -1030,7 +1041,7 @@ func migrateOwnership(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r 
 	next := firstOtherParticipant(g, c.PID, candidates)
 	if next == 0 {
 		env.codes.forget(gid)
-		env.Match.delete(gid)
+		env.deleteGathering(gid)
 		if boolReply {
 			return boolTrue(msg)
 		}
@@ -1060,7 +1071,7 @@ func migrateIfHostLeft(env *Env, gid uint32, g *gathering, leaving uint64) {
 	next := firstOtherParticipant(g, leaving, nil)
 	if next == 0 {
 		env.codes.forget(gid)
-		env.Match.delete(gid)
+		env.deleteGathering(gid)
 		return
 	}
 	g.sess.OwnerPID = next
@@ -1298,7 +1309,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 				Param1:    uint64(gid),
 			})
 			env.codes.forget(gid)
-			env.Match.delete(gid)
+			env.deleteGathering(gid)
 		}
 		return boolTrue(msg)
 
@@ -1306,7 +1317,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		if n, err := r.ListHeader(); err == nil {
 			for i := uint32(0); i < n; i++ {
 				if gid, err := r.U32(); err == nil {
-					env.Match.delete(gid)
+					env.deleteGathering(gid)
 				}
 			}
 		}
@@ -1320,8 +1331,10 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 			if g, ok := env.Match.get(gid); ok {
 				if msg.MethodID == 0x0B {
 					g.participants[c.PID] = true
+					env.eagleHandoff(gid, c.PID)
 				} else {
 					delete(g.participants, c.PID)
+					env.eagleDepart(gid, c.PID)
 				}
 			}
 		}
@@ -1355,7 +1368,11 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 			for _, pid := range pids {
 				n := rmc.NewWriter()
 				n.U64(pid)
-				n.String("")
+				name := ""
+				if env.Eagle {
+					name = strconv.FormatUint(pid, 10)
+				}
+				n.String(name)
 				n.String("")
 				n.U32(1)
 				w.Struct(1, n.Bytes())
@@ -1428,7 +1445,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 				Param1:    uint64(gid),
 			})
 			env.codes.forget(gid)
-			env.Match.delete(gid)
+			env.deleteGathering(gid)
 		}
 		return boolTrue(msg)
 
@@ -1495,6 +1512,7 @@ func matchMakingExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 		if gid, err := r.U32(); err == nil {
 			if g, ok := env.Match.get(gid); ok {
 				delete(g.participants, c.PID)
+				env.eagleDepart(gid, c.PID)
 				if g.sess.ParticipationCount > 0 {
 					g.sess.ParticipationCount--
 				}

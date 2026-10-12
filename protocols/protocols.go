@@ -199,6 +199,13 @@ type Env struct {
 	MatchmakeReferee bool // SMB35
 	MessageDelivery  bool // SMB35
 	Presence         bool // LM3 0x79
+	Eagle            bool // SMB35 lobby/referee variant; gameplay travels through Eagle
+
+	// Eagle hooks are installed only when the SMB35 gameplay listener is up.
+	// Ticket returns a relay URL and a per-player token for a real participant.
+	EagleTicket func(gid uint32, pid uint64) (url, token string, err error)
+	EagleLeave  func(gid uint32, pid uint64)
+	EagleClose  func(gid uint32)
 
 	// StrikersInit serves Mario Strikers' bring-up table on the five protocols
 	// its Pia interrogates at startup (see strikers.go).

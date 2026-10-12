@@ -1,0 +1,35 @@
+# SMB35 Eagle gameplay relay
+
+`switch-nexd` serves this on a separate TLS/WebSocket port when SMB35 has
+`SMB35_EAGLE_URL` set. The default listener is `:22163` (override with
+`SMB35_EAGLE_LISTEN`). Its URL must be an absolute `wss://` URL reachable by the
+console. The room's gathering ID is appended as the path. The existing NEX leaf
+certificate covers the SMB35 hostname and production IP; no new console patch,
+DNS entry or signing key is needed.
+
+The generated SMB35 quadlet configures:
+
+```ini
+Environment=SMB35_EAGLE_LISTEN=:22163
+Environment=SMB35_EAGLE_URL=wss://g21f12900-lp1.s.n.srv.nintendo.net:22163
+```
+
+Admit TCP 22163 in the host firewall, before its REJECT, and persist the rule.
+Include 22163 in the quadlet's `openpak-ports` marker so drain updates also see
+active gameplay connections. `GET /healthz` on that TLS port returns
+`ok eagle smb35`. The ordinary NEX health port remains 22162.
+
+NEX creates the room and issues individual signed tickets at create/join. Clients
+perform Eagle v2 login and announce readiness. The relay announces node membership,
+answers ping/pong and the 32 shared counter RPCs, and forwards opaque SMB35 game
+RPCs to their named recipients. It does not run a copy of the game. NEX departure
+revokes admission; a destroyed gathering closes all its relay connections.
+
+Admission tickets expire after three hours; membership can be revoked immediately.
+Rooms, participants, token fragments, packet sizes and
+send queues are bounded. A slow peer is disconnected without blocking a room.
+Logs omit tokens, principals, names, client addresses and game payloads.
+
+The relay currently supports SMB35's Eagle v2.0.4 over WebSocket/TLS only; it does
+not claim support for Tetris 99's earlier protocol, PAC-MAN 99, F-Zero 99, KCP or
+plain TCP. Wire sources and test limits are in [provenance.md](provenance.md).

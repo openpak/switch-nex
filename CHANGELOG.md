@@ -1,5 +1,26 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.30: SMB35 gets its Eagle gameplay relay and handoff
+
+- Super Mario Bros. 35 could match players and relay lobby state but never leave
+  the countdown: the Eagle gameplay listener and its handoff were absent.
+  The title now sends each participant a revision-1 notification with the room's
+  relay URL and a signed, player-specific ticket. A separate TLS/WebSocket
+  listener on 22163 shares the NEX gathering's lifetime and admission state.
+- Eagle v2.0.4 login, fragmented tickets, readiness and node notices, ping/pong,
+  addressed and broadcast game RPC routing, and the 32 shared counter RPCs are
+  implemented. Departures revoke admission; gathering destruction closes the
+  relay room. Session counts include the creator, detailed participants carry
+  their protocol names, and the Eagle referee names the round ID in its start
+  notification to all participants, including the initiator.
+- Two-client WebSocket tests cover login, shared counters, JoinMatch/StartMatch
+  and game-packet forwarding, room isolation, forged/expired/wrong-room tickets,
+  revocation and cleanup. TLS NEX tests cover per-player handoffs, session counts
+  and the referee notification. The full suite passes with the race detector;
+  retail Switch/Harbor gameplay still needs the owner's retest.
+- Protocol and license sources: [Eagle provenance](eagle/provenance.md).
+  `github.com/coder/websocket` v1.8.15 is pinned with its ISC notice in the image.
+
 ## 2026-10-12 — v0.3.29: Minecraft can resolve a friend's hosted world
 
 - Minecraft: Nintendo Switch Edition discovered a friend's world but selecting

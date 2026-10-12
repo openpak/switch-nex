@@ -18,12 +18,19 @@ n=0
 # Each registry entry opens `{"<title>", <base>, "<access key>", func(...)`.
 grep -oE '^	\{"[a-z0-9-]+", [0-9]+' "$SRC" | tr -d '\t{"' | while IFS=, read -r title base; do
   base="$(echo "$base" | tr -d ' ')"
+  ports="$base $((base+1)) $((base+2))"
+  eagle_env=""
+  if [ "$title" = "super-mario-bros-35" ]; then
+    ports="$ports 22163"
+    eagle_env="Environment=SMB35_EAGLE_LISTEN=:22163
+Environment=SMB35_EAGLE_URL=wss://g21f12900-lp1.s.n.srv.nintendo.net:22163"
+  fi
   cat > "$OUT/openpak-switch-$title.container" <<EOF
 [Unit]
 Description=OpenPak Switch NEX title $title (switch-nex, ports $base/$((base+1))/$((base+2)))
 # Read by deploy/drain-update.sh to find the ports it must see idle. Machine
 # readable on purpose: the Description above is prose and may be reworded.
-# openpak-ports=$base $((base+1)) $((base+2))
+# openpak-ports=$ports
 
 [Container]
 ContainerName=switch-$title
@@ -42,6 +49,7 @@ Exec=-only $title -cert /certs/nex.pem -key /certs/nex.key -station-address 145.
 # NX_INTERNAL_KEY comes from the shared .env, never a copy in the quadlet.
 EnvironmentFile=%h/openpak/deploy/.env
 Environment=NX_INTERNAL_URL=http://127.0.0.1:20070
+$eagle_env
 # No AutoUpdate=registry: podman-auto-update restarts a title the moment a new
 # :latest lands, players in it or not. openpak-switch-drain-update.timer does
 # the same job but waits for the title to be empty first. docs/deploy.md 2d.

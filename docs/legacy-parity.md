@@ -104,11 +104,13 @@ Pretendo's Monster Hunter XX server.
    disconnect (3007), end-participation (3008), ownership (4000), gathering
    teardown (109000), host change (110000), referee round-started (116000) and
    added-to-gathering (122000) are all pushed, as is the NAT `InitiateProbe`
-   relay. **SMB35 gameplay is blocked:** the Eagle handoff (200000) is not sent
-   and no Eagle relay is implemented or deployed. The 2026-10-12 Switch/Harbor
-   test reaches the same lobby and relays messages, then waits after the
-   countdown. The earlier report of a handoff being ignored by another title
-   did not establish that SMB35 could play without its documented relay.
+   relay. **SMB35 Eagle is implemented in v0.3.30:** authenticated revision-1
+   handoffs, a TLS/WebSocket gameplay listener, shared counters and opaque game
+   RPC routing. The 2026-10-12 Switch/Harbor test before this release reached the
+   same lobby but waited after the countdown because that service was missing.
+   Deployment and the real-client retest are in progress. The earlier report
+   of a handoff ignored by another title did not establish that SMB35 could
+   play without its documented relay.
    See [the current investigation](../next-session/super-mario-bros-35.md).
 3. **SMB35 listener shape**: the reference used a single listener with the
    secure stage on stream 2 (a nex-go limitation workaround). Here the secure
