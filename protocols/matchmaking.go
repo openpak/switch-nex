@@ -1010,7 +1010,9 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 		env.eagleHandoff(gid, c.PID)
 		return success(msg, echo.bytes())
 	}
-	g.sess.ParticipationCount++
+	if !was {
+		g.sess.ParticipationCount++
+	}
 	log.Printf("[%s] matchmake: joined gid=%d pid=%s", env.Name, gid, redact.Tag(c.PID))
 	env.eagleHandoff(gid, c.PID)
 	return success(msg, func() []byte {

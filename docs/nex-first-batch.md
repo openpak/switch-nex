@@ -48,9 +48,11 @@ All three start with:
   virtual-socket module without a Pia SDK banner. This is an initial profile
   choice based on the existing bare-NEX path, not a measured requirement.
 - A separate matchmaking store, normalized creation (creator counted,
-  32-byte session key), full-session join replies and participant recaps.
-  These reuse the fixes measured on other OpenPak NEX titles; their exact
-  applicability to each new game remains to be validated.
+  32-byte session key), and participant recaps. Castle Crashers Remastered
+  and Nobody Saves the World currently use full-session join replies; PICO
+  PARK uses the standard boolean reply after its first console trace retried
+  JoinMatchmakeSessionEx three times without requesting participant stations.
+  The PICO PARK reply shape is still awaiting a successful gameplay run.
 - No forced-open sessions, parameter stamping, extra DataStore service,
   referee relay or title-specific settings without client evidence.
 
@@ -106,6 +108,11 @@ Production verification on 2026-10-12:
 - Catalogue entries are `alpha` / `NEX`, with gameplay verification pending.
   The website's existing hard-coded server-health display map is unchanged;
   the new health endpoints were checked directly.
+- PICO PARK's first two-player trace (14:30–14:32 UTC) reached create, browse,
+  and join successfully, but the joiner retried JoinMatchmakeSessionEx three
+  times and no GetParticipantsURLs call followed. The profile now answers
+  those joins with the standard boolean result; repeated joins no longer
+  increment participation count. This needs a fresh two-console gameplay run.
 
 Installed quadlets are `openpak-switch-castle-crashers-remastered.container`,
 `openpak-switch-nobody-saves-the-world.container` and

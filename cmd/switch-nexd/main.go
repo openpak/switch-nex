@@ -83,7 +83,9 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.FinalizeCreateSession = true
-		e.JoinEchoSession = true
+		// The first console trace retried JoinMatchmakeSessionEx three times
+		// and never proceeded to GetParticipantsURLs. The full-session echo
+		// was an unverified assumption; use the standard boolean join reply.
 		e.JoinRecapParticipate = true
 	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {

@@ -1,5 +1,15 @@
 # Changelog — switch-nex
 
+## 2026-10-12 — v0.3.34: Pico Park boolean join reply
+
+- Pico Park's first console trace showed JoinMatchmakeSessionEx succeeding at
+  the RPC layer but being retried three times, with no subsequent request for
+  participant stations. Its full-session join reply was an unverified profile
+  assumption; Pico Park now gets the standard boolean result while keeping its
+  participant recap notifications.
+- Repeated explicit joins no longer inflate participation count. A fresh
+  two-console gameplay run is still needed to confirm the handoff.
+
 ## 2026-10-12 — v0.3.33: Castle Crashers gid-only participants URLs
 
 - Castle Crashers Remastered calls MatchMaking GetParticipantsURLs (0x15/0x10)
