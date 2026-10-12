@@ -20,6 +20,9 @@
   retail Switch/Harbor gameplay still needs the owner's retest.
 - Protocol and license sources: [Eagle provenance](eagle/provenance.md).
   `github.com/coder/websocket` v1.8.15 is pinned with its ISC notice in the image.
+- Deployed 08:46 UTC; CA-verified external health and a live synthetic two-client
+  NEX-to-Eagle probe pass (handoffs, relay login/readiness, shared counters and
+  StartMatch broadcast). Retail-game acceptance still requires the owner's test.
 
 ## 2026-10-12 — v0.3.29: Minecraft can resolve a friend's hosted world
 
