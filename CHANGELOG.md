@@ -1,6 +1,6 @@
 # Changelog — switch-nex
 
-## 2026-10-12 — v0.3.35: Pico Park boolean join reply
+## 2026-10-12 — v0.3.36: Pico Park boolean join reply
 
 - Pico Park's first console trace showed JoinMatchmakeSessionEx succeeding at
   the RPC layer but being retried three times, with no subsequent request for
@@ -11,6 +11,8 @@
   two-console gameplay run is still needed to confirm the handoff.
 - The explicit-join regression now checks Pico Park's boolean reply while
   continuing to verify the participant recap notifications.
+- The browse/join regression checks the boolean result and continues through
+  participant station lookup.
 
 ## 2026-10-12 — v0.3.33: Castle Crashers gid-only participants URLs
 
