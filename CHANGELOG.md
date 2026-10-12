@@ -12,6 +12,11 @@
 - TLS checks cover both login methods, distinct identities behind one address,
   station registration, browsing, joining, participant notifications and
   Castle Crashers' Ranking2 endpoint. These are not retail gameplay results.
+- Deployed: all three new quadlets active on the published 0.3.32 image; auth
+  SNI routes and host firewall installed. External CA-verified probes pass both
+  login methods, ticketed secure connects and Register, plus Castle Crashers'
+  Ranking2 call. Internal health checks pass; voice URLs are loaded and catalogue
+  state is alpha/NEX. Actual game-client acceptance remains pending.
 
 ## 2026-10-12 — v0.3.31: SMB35 accepts the winner's end-of-round report
 

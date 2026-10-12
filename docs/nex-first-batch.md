@@ -5,6 +5,12 @@ in `cmd/switch-nexd`. They share the existing transport, account resolution,
 matchmaking and NAT/notification handlers. No new proprietary backend is introduced.
 These are initial profiles for client testing, not gameplay-verified support.
 
+**Deployed 2026-10-12, v0.3.32.** All three generated per-title quadlets are
+installed and active. The running image matches the published release digest
+`sha256:aea0fcfc35565b18d9bb9115aa04adca7752d89cd0edb0df8c8653739655937d`.
+The [release workflow](https://github.com/openpak/switch-nex/actions/runs/38256450958)
+passed tests/vet and published both architectures.
+
 ## Client facts and provenance
 
 The source is the owner's updated client executable extracted during the
@@ -82,6 +88,31 @@ wildcard NEX certificate covers all three SNI names.
   start a production container.
 
 ## Validation and next observations
+
+Production verification on 2026-10-12:
+
+- Auth routes for all three SNI names accept the title's signed PRUDPLite
+  handshake on public port 443.
+- Public secure ports 23061/23071/23081 are reachable and pass TLS certificate
+  verification against the OpenPak CA. Existing provider ingress already admits
+  them; only the host's secure-port ACCEPT rule needed adding.
+- A synthetic external client exercises both login methods, decrypts the
+  returned ticket, presents it to each public secure listener and successfully
+  registers distinct players behind one address. These probes use unproven
+  synthetic login names, not real console BAAS tokens. Castle Crashers'
+  Ranking2 common-data call also passes externally.
+- Each health endpoint returns 200 locally and from the website container's
+  network. The website has loaded the three appended voice-gathering URLs.
+- Catalogue entries are `alpha` / `NEX`, with gameplay verification pending.
+  The website's existing hard-coded server-health display map is unchanged;
+  the new health endpoints were checked directly.
+
+Installed quadlets are `openpak-switch-castle-crashers-remastered.container`,
+`openpak-switch-nobody-saves-the-world.container` and
+`openpak-switch-pico-park.container` under the host's user unit directory.
+Each has a separate state/recall directory and participates in the existing
+idle-aware release updater. Routing/environment backups stay on the host;
+raw probe artifacts remain in `scratch/nex-first-batch-20261012/`.
 
 The TLS test harness covers independently supplied client access keys, both
 login methods, ticketed secure connects for distinct players on one address,
