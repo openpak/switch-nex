@@ -193,18 +193,12 @@ func TestFirstBatchBrowseAndJoin(t *testing.T) {
 			if resp.IsError {
 				t.Fatalf("join: %#x", resp.ErrorCode)
 			}
-			// PICO PARK answers joins with a bare bool while the
-			// shape/presence matrix is bisected on consoles.
-			if tc.name == "pico-park" {
-				joined, err := rmc.NewReader(resp.Body).Bool()
-				if err != nil || !joined {
-					t.Fatalf("join answer=%v err=%v, want true", joined, err)
-				}
-			} else {
-				participants, sessionKey, err := readJoinedSession(resp.Body)
-				if err != nil || participants != 1 || len(sessionKey) != 32 {
-					t.Fatalf("join participants=%d key=%d bytes: %v", participants, len(sessionKey), err)
-				}
+			// PICO PARK's 0x27 path echoes the session like the other
+			// profiles (its console joins through 0x1E, which answers
+			// the session key).
+			participants, sessionKey, err := readJoinedSession(resp.Body)
+			if err != nil || participants != 1 || len(sessionKey) != 32 {
+				t.Fatalf("join participants=%d key=%d bytes: %v", participants, len(sessionKey), err)
 			}
 			resp = joiner.call(ProtoMatchMaking, 0x29, u32le(gid))
 			if resp.IsError {
@@ -219,10 +213,62 @@ func TestFirstBatchBrowseAndJoin(t *testing.T) {
 			if err != nil || switchnex.Parse(lan).Get("address") != "192.168.1.20" {
 				t.Fatalf("host LAN station %q: %v", lan, err)
 			}
-			public, err := r.String()
-			if err != nil || switchnex.Parse(public).Get("PID") != itoa(host.pid) {
-				t.Fatalf("host public station %q: %v", public, err)
-			}
-		})
+		public, err := r.String()
+		if err != nil || switchnex.Parse(public).Get("PID") != itoa(host.pid) {
+			t.Fatalf("host public station %q: %v", public, err)
+		}
+	})
+	}
+}
+
+// TestPicoParkJoinExAnswersSessionKey covers the path the console actually
+// takes: PICO PARK joins with 0x1E JoinMatchmakeSessionEx, whose IDL reply
+// is the session key as a Buffer — the shape every previous profile got
+// wrong (bare bool, full session), each rejected game-side in under two
+// seconds with no follow-up.
+func TestPicoParkJoinExAnswersSessionKey(t *testing.T) {
+	authAddr, secureAddr, _ := start(t, "pico-park")
+	key := titleAccessKey(t, "pico-park")
+	host := secureSession(t, authAddr, secureAddr, key, "host")
+	joiner := secureSession(t, authAddr, secureAddr, key, "joiner")
+	stations := rmc.NewWriter()
+	stations.List(1)
+	stations.String("prudp:/address=192.168.1.20;port=50000;sid=1;natf=0")
+	if resp := host.call(ProtoSecureConnection, 0x01, stations.Bytes()); resp.IsError {
+		t.Fatalf("register: %#x", resp.ErrorCode)
+	}
+	resp := host.call(ProtoMatchmakeExt, 0x06, sessionHolderBytes(8, 3, 77))
+	if resp.IsError {
+		t.Fatalf("create: %#x", resp.ErrorCode)
+	}
+	createdCount, createdKey, err := readJoinedSession(resp.Body)
+	if err != nil || createdCount != 1 || len(createdKey) != 32 {
+		t.Fatalf("created count=%d key=%d bytes: %v", createdCount, len(createdKey), err)
+	}
+	resp = joiner.call(ProtoMatchmakeExt, 0x34, nil)
+	if resp.IsError {
+		t.Fatalf("browse: %#x", resp.ErrorCode)
+	}
+	r := rmc.NewReader(resp.Body)
+	count, err := r.ListHeader()
+	if err != nil || count != 1 {
+		t.Fatalf("browse found %d sessions: %v", count, err)
+	}
+	_, gathering, err := r.Struct()
+	if err != nil {
+		t.Fatalf("browse gathering: %v", err)
+	}
+	gid, err := gathering.U32()
+	if err != nil || gid == 0 {
+		t.Fatalf("browse gathering ID %d: %v", gid, err)
+	}
+	// The Ex join takes the bare gathering id.
+	resp = joiner.call(ProtoMatchmakeExt, 0x1E, u32le(gid))
+	if resp.IsError {
+		t.Fatalf("join: %#x", resp.ErrorCode)
+	}
+	answer, err := rmc.NewReader(resp.Body).Buffer()
+	if err != nil || len(answer) != 32 || string(answer) != string(createdKey) {
+		t.Fatalf("join key=%d bytes, want the 32-byte session key: %v", len(answer), err)
 	}
 }

@@ -1,6 +1,20 @@
 # Changelog — switch-nex
 
-## 2026-10-12 — v0.3.44: Pico Park bool reply with silent join
+## 2026-10-12 — v0.3.45: joins answer per the NEX IDL
+
+- The plain (0x07) and Ex (0x1E) joins answer the session key as a Buffer.
+  The NEX IDL reads both replies as session_key (NintendoClients'
+  IDL-generated matchmaking client); only the 0x27 WithParam join takes the
+  full session. PICO PARK joins with 0x1E, which explains every failed run:
+  the bare bool has no length prefix to read a buffer from and the session
+  parses as a garbage length — both rejected game-side in under two seconds
+  with no follow-up, whatever the notification pairing. This is the first
+  profile change that predicts a *different* console behavior rather than
+  another identical failure.
+- Clubhouse join test now pins the key buffer for 0x07/0x1E; new
+  end-to-end pico test walks create/browse/0x1E and checks the returned
+  key equals the created session key. Full suite and vet pass. Awaiting
+  the console verdict: station fetch and P2P should follow the join.
 
 - The shape/presence matrix so far: echo+recap, bool+recap, echo+default and
   echo+silent all fail identically (RPC accepted, game-side rejection under

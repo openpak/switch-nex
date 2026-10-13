@@ -87,10 +87,10 @@ func TestClubhouseCreateNormalisation(t *testing.T) {
 	}
 }
 
-// TestClubhouseJoinEcho pins the join shape: the answer carries the full
-// session and the participation count as it was BEFORE the joiner entered —
-// the client builds its P2P mesh from that number.
-func TestClubhouseJoinEcho(t *testing.T) {
+// TestClubhouseJoinKeyBuffer pins the plain/Ex join shape: the answer is the
+// session key as a Buffer (NEX IDL), not a bool and not a session. The
+// WithParam join (0x27) is the one that echoes the session.
+func TestClubhouseJoinKeyBuffer(t *testing.T) {
 	env := clubhouseEnv()
 	resp := Dispatch(env, conn(100), request(ProtoMatchmakeExt, 0x06, sessionHolder(clubhouseSession())))
 	_, body, errCode := decodeResponse(resp)
@@ -101,40 +101,26 @@ func TestClubhouseJoinEcho(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create body: %v", err)
 	}
+	if len(created.SessionKey) != 32 {
+		t.Fatalf("created session key=%d bytes", len(created.SessionKey))
+	}
 
-	// A new joiner hears count=1 (the host only), while the store moves to 2.
-	resp = Dispatch(env, conn(200), request(ProtoMatchmakeExt, 0x07, u32(created.GID)))
-	ok, body, errCode := decodeResponse(resp)
-	if errCode != 0 || !ok {
-		t.Fatalf("join failed: %#v", resp)
-	}
-	echoed, err := readSession(rmc.NewReader(body))
-	if err != nil {
-		t.Fatalf("join body is not a session: %v", err)
-	}
-	if echoed.ParticipationCount != 1 {
-		t.Fatalf("echoed count: %d (want the pre-join 1)", echoed.ParticipationCount)
+	// The plain and Ex joins answer the session key as a Buffer (NEX IDL),
+	// while the store moves to 2.
+	for _, method := range []uint32{0x07, 0x1E} {
+		resp = Dispatch(env, conn(200), request(ProtoMatchmakeExt, method, u32(created.GID)))
+		ok, body, errCode := decodeResponse(resp)
+		if errCode != 0 || !ok {
+			t.Fatalf("join 0x%x failed: %#v", method, resp)
+		}
+		key, err := rmc.NewReader(body).Buffer()
+		if err != nil || len(key) != 32 || string(key) != string(created.SessionKey) {
+			t.Fatalf("join 0x%x key=%d bytes, want the session key: %v", method, len(key), err)
+		}
 	}
 	g, ok := env.Match.get(created.GID)
 	if !ok || g.sess.ParticipationCount != 2 || !g.participants[200] {
 		t.Fatalf("store after join: count=%d joined=%v", g.sess.ParticipationCount, g.participants[200])
-	}
-
-	// A repeat call from the same participant echoes the current count.
-	resp = Dispatch(env, conn(200), request(ProtoMatchmakeExt, 0x1E, u32(created.GID)))
-	ok, body, errCode = decodeResponse(resp)
-	if errCode != 0 || !ok {
-		t.Fatalf("rejoin failed: %#v", resp)
-	}
-	echoed, err = readSession(rmc.NewReader(body))
-	if err != nil {
-		t.Fatalf("rejoin body: %v", err)
-	}
-	if echoed.ParticipationCount != 2 {
-		t.Fatalf("rejoin echoed count: %d", echoed.ParticipationCount)
-	}
-	if g.sess.ParticipationCount != 2 {
-		t.Fatalf("store count moved on rejoin: %d", g.sess.ParticipationCount)
 	}
 }
 

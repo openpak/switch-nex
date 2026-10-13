@@ -112,12 +112,14 @@ Production verification on 2026-10-12:
   the new health endpoints were checked directly.
 - PICO PARK's first two-player trace (14:30–14:32 UTC) reached create, browse,
   and join successfully, but the joiner retried JoinMatchmakeSessionEx three
-  times and no GetParticipantsURLs call followed. Four evening runs then showed
-  joins succeeding at the RPC layer with either reply shape while the game
-  never fetched stations or started P2P ("failed to connect to the lobby"),
-  and abandoned rooms lingering under ghost owners. Leave teardown, one-lobby
-  seating and the session-echo join reply are in; this needs a fresh
-  two-console gameplay run.
+  times and no GetParticipantsURLs call followed. The cause, found by reading
+  the NEX IDL against every failed run: 0x1E answers the session key as a
+  Buffer, and both previous shapes (bare bool, full session) are unparseable
+  as one — hence the instant game-side rejection with no follow-up. Joins
+  now answer per-method (key buffer for 0x07/0x1E, session for 0x27).
+  Abandoned rooms lingered under ghost owners until the leave teardown,
+  one-lobby seating and silent joins landed. This needs a fresh two-console
+  gameplay run: join, station fetch, P2P.
 
 Installed quadlets are `openpak-switch-castle-crashers-remastered.container`,
 `openpak-switch-nobody-saves-the-world.container` and

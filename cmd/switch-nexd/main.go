@@ -83,13 +83,16 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.FinalizeCreateSession = true
-		// Boolean join reply with muted pushes: the shape/presence matrix
-		// so far is echo+recap ✗, bool+recap ✗, echo+default ✗,
-		// echo+silent ✗. bool+silent is the remaining cell — if the NEX IDL
-		// shape (bool) is right and the pushes were the poison, this is
-		// the combination that proceeds. A clean two-console run decides.
-		// Muted join pushes: neither the recap nor the default pairing
-		// survived console runs, so the joiner is seated silently.
+		// The console joins with 0x1E JoinMatchmakeSessionEx, whose IDL
+		// reply is the session key as a Buffer: every previous shape (bare
+		// bool, full session, either notification pairing, silence) was
+		// rejected game-side in under two seconds with no follow-up, which
+		// is exactly what a strict client does with an unparseable reply.
+		// 0x27 WithParam joins genuinely take the session (Golf's private
+		// rooms), so the echo stays for that path.
+		e.JoinEchoSession = true
+		// Muted join pushes while the reply shape is under test: the pushes
+		// are seated silently until a clean two-console run decides.
 		e.JoinMutePushes = true
 	}},
 	{"monopoly", 23090, "65c92799", func(e *protocols.Env) {

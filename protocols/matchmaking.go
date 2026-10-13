@@ -1010,6 +1010,25 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 			Param2:    c.PID,
 		})
 	}
+	if msg.MethodID == 0x07 || msg.MethodID == 0x1E {
+		// The plain and Ex joins answer with the session key as a Buffer —
+		// not a bool and not a session. The NEX IDL reads both replies as
+		// session_key (checked against NintendoClients' IDL-generated
+		// matchmaking client), and PICO PARK joins with 0x1E and rejects
+		// both of the other shapes game-side in under two seconds with no
+		// follow-up. The 0x27 WithParam join below genuinely takes the
+		// session, as Golf's private rooms show.
+		if !was {
+			g.sess.ParticipationCount++
+		}
+		log.Printf("[%s] matchmake: joined gid=%d pid=%s key=%dB", env.Name, gid, redact.Tag(c.PID), len(g.sess.SessionKey))
+		env.eagleHandoff(gid, c.PID)
+		return success(msg, func() []byte {
+			w := rmc.NewWriter()
+			w.Buffer(g.sess.SessionKey)
+			return w.Bytes()
+		}())
+	}
 	if env.JoinEchoSession {
 		if !was {
 			g.sess.ParticipationCount++
