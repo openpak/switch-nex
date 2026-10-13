@@ -149,13 +149,8 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		}
 		return success(msg, nil)
 
-	case 0x03: // AutoMatchmakePostpone(GatheringHolder session, string msg, list<URL>)
-		// The pre-param path carries no search criteria: match anything.
-		sess, err := readSessionFromHolder(r)
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		return autoMatchmake(env, c, msg, sess, nil)
+	case 0x03: // AutoMatchmakePostpone
+		return handleAutoMatchmake(env, c, msg, false)
 
 	case 0x34: // BrowseMatchmakeSessionNoHolderNoResultRange(criteria) -> list<session>
 		// ACNH's Dodo-code lookup (console-measured 2026-09-22, code
@@ -293,27 +288,8 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		}
 		return joinByGID(env, c, msg, r)
 
-	case 0x28: // AutoMatchmakeWithParamPostpone(param, list<URL>)
-		// Param: AutoMatchmakeParam — the source session, then the search
-		// criteria the room has to satisfy. The criteria (not the source
-		// session) name the lobby: GameMode plus the non-empty attribute
-		// strings, exactly as the reference matches them.
-		if _, _, err := r.StructHeader(); err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		sess, err := readSession(r)
-		if err != nil {
-			return errorResp(msg, rmc.ResultInvalidArgument)
-		}
-		criteria, err := readSearchCriteriaList(r)
-		if err != nil {
-			// A param shape beyond the session is one this title drew
-			// differently — match without criteria (the v0.2.28 behaviour)
-			// rather than refuse the search outright.
-			log.Printf("[%s] matchmake: unreadable search criteria for pid=%s, matching without", env.Name, redact.Tag(c.PID))
-			criteria = nil
-		}
-		return autoMatchmake(env, c, msg, sess, criteria)
+	case 0x28: // AutoMatchmakeWithParamPostpone
+		return handleAutoMatchmake(env, c, msg, false)
 
 	case 0x29: // FindMatchmakeSessionByGatheringIDDetail(gid) -> session
 		gid, err := r.U32()
@@ -365,8 +341,12 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 		if !ok {
 			return errorResp(msg, rmc.ResultSessionVoid)
 		}
-		// A read by id scrubs the key and the password: holding the id is not
-		// the same as being in the session.
+		// A current participant needs the same key after a host handoff.
+		// ARMS refreshes this session at match end. Merely holding the ID
+		// still does not grant outsiders the key or password.
+		if g.participants[c.PID] {
+			return success(msg, g.sess.bytes())
+		}
 		return success(msg, scrubbed(g.sess).bytes())
 
 	case 0x32: // FindMatchmakeSessionByOwner(gid?, u32 resultRange) -> list<session>
@@ -452,6 +432,8 @@ func createSession(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 func createSessionAs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, auto bool) []byte {
 	sess.OwnerPID = c.PID
 	sess.HostPID = c.PID
+	// The server registers the creator below, regardless of the template count.
+	sess.ParticipationCount = 1
 	if env.ForceOpenParticipation {
 		sess.OpenParticipation = true
 	}
@@ -636,9 +618,39 @@ func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 // apart. v0.2.29 matched on the session attributes instead — which vary per
 // search inside one mode — and separated everything; v0.2.30 reverted to
 // password+NAT while the criteria were decoded.
+// Dispatched searches release the title lock between steps so the host can
+// register stations and open its room while another player waits for it.
+func handleAutoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, dispatched bool) []byte {
+	r := rmc.NewReader(msg.Body)
+	var sess *Session
+	var criteria []*searchCriteria
+	var err error
+	if msg.MethodID == 0x03 {
+		sess, err = readSessionFromHolder(r)
+	} else {
+		if _, _, err = r.StructHeader(); err == nil {
+			sess, err = readSession(r)
+		}
+		if err == nil {
+			criteria, err = readSearchCriteriaList(r)
+			if err != nil {
+				log.Printf("[%s] matchmake: unreadable search criteria for pid=%s, matching without", env.Name, redact.Tag(c.PID))
+				criteria, err = nil, nil
+			}
+		}
+	}
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	return autoMatchmakeWithDispatchLock(env, c, msg, sess, criteria, dispatched)
+}
+
 func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria) []byte {
+	return autoMatchmakeWithDispatchLock(env, c, msg, sess, criteria, false)
+}
+
+func autoMatchmakeWithDispatchLock(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess *Session, criteria []*searchCriteria, dispatched bool) []byte {
 	logSessionTemplate(env, c.PID, sess)
-	logSearchCriteria(env, c.PID, criteria)
 	deadline := time.Now().Add(env.HoldForOpening)
 	waited := uint32(0)
 	for {
@@ -646,9 +658,22 @@ func autoMatchmake(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, sess 
 		// searches that arrive in the same millisecond used to both find
 		// nothing and each create a room (Kirby's Dream Buffet, 2026-10-11,
 		// 37 ms apart). The lock is dropped while a search waits.
+		if dispatched {
+			env.mu.Lock()
+			if err := env.ensureStationLease(c); err != nil {
+				env.mu.Unlock()
+				return errorResp(msg, rmc.ResultServiceUnavailable)
+			}
+		}
+		if waited == 0 {
+			logSearchCriteria(env, c.PID, criteria)
+		}
 		env.Match.mm.Lock()
 		resp, wait := autoMatchmakeStep(env, c, msg, sess, criteria, time.Now().Before(deadline))
 		env.Match.mm.Unlock()
+		if dispatched {
+			env.mu.Unlock()
+		}
 		if wait == 0 {
 			return resp
 		}
@@ -739,6 +764,7 @@ func autoMatchmakeStep(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, s
 			}
 		}
 		log.Printf("[%s] matchmake: auto-joined gid=%d pid=%s", env.Name, candidate.GID, redact.Tag(c.PID))
+		env.ensurePairRelays(candidate.GID, c.PID)
 		env.eagleHandoff(candidate.GID, c.PID)
 		return success(msg, candidate.bytes()), 0
 	}
@@ -925,6 +951,7 @@ func (e *Env) Disconnected(pid uint64) {
 		if !g.participants[pid] {
 			continue
 		}
+		e.dropPairRelays(g.sess.GID, pid)
 		delete(g.participants, pid)
 		e.eagleDepart(g.sess.GID, pid)
 		if g.sess.ParticipationCount > 0 {
@@ -970,6 +997,9 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 	}
 	was := g.participants[c.PID]
 	g.participants[c.PID] = true
+	if !was {
+		env.ensurePairRelays(gid, c.PID)
+	}
 	if !was && env.JoinMutePushes {
 		// Muted: the seat is taken silently. Diagnostic only (see the
 		// flag): whether the pushes themselves break this title's join.
@@ -1147,6 +1177,7 @@ func leaveGathering(env *Env, gid uint32, g *gathering, pid uint64) (deleted boo
 	if !g.participants[pid] {
 		return false
 	}
+	env.dropPairRelays(gid, pid)
 	delete(g.participants, pid)
 	env.eagleDepart(gid, pid)
 	if g.sess.ParticipationCount > 0 {
@@ -1429,6 +1460,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 					if !g.participants[c.PID] {
 						g.participants[c.PID] = true
 						g.sess.ParticipationCount++
+						env.ensurePairRelays(gid, c.PID)
 						env.eagleHandoff(gid, c.PID)
 						env.notifyGathering(gid, c.PID, notificationEvent{
 							SourcePID: c.PID,
@@ -1598,7 +1630,15 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 		if !connected {
 			return emptyList(msg)
 		}
-		return success(msg, stationURLListWithHostWait(peer))
+		diagStations(env, c.PID, "session-urls", peer.Stations())
+		if err := env.ensureStationLease(peer); err != nil {
+			return errorResp(msg, rmc.ResultServiceUnavailable)
+		}
+		raw := stationURLListWithHostWait(peer)
+		if relay := env.relayStationFor(gid, c.PID, g.sess.HostPID); relay != "" {
+			raw = appendStationURL(raw, relay)
+		}
+		return success(msg, raw)
 
 	default:
 		return notImplemented(env, msg)
@@ -1979,7 +2019,10 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	if !g.participants[c.PID] {
 		return errorResp(msg, rmc.ResultPermissionDenied)
 	}
-	stations := gatheringStationURLs(env, g)
+	stations, err := gatheringStationURLs(env, g, c.PID)
+	if err != nil {
+		return errorResp(msg, rmc.ResultServiceUnavailable)
+	}
 	w := rmc.NewWriter()
 	w.List(len(stations))
 	for _, station := range stations {
@@ -1990,17 +2033,27 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 
 // gatheringStationURLs preserves all candidates as one flat list. A missing
 // or disconnected participant contributes no candidates, not a nested empty list.
-func gatheringStationURLs(env *Env, g *gathering) []string {
+// With relay use enabled, each other participant's bound pair-relay station is
+// appended for self, so the caller probes the relay alongside direct paths.
+func gatheringStationURLs(env *Env, g *gathering, self uint64) ([]string, error) {
 	if g == nil {
-		return nil
+		return nil, nil
 	}
 	var stations []string
 	for _, pid := range participantPIDs(g) {
 		if peer, connected := env.push.connection(pid); connected {
+			if err := env.ensureStationLease(peer); err != nil {
+				return nil, err
+			}
 			stations = append(stations, peer.Stations()...)
+			if self != 0 && pid != self {
+				if relay := env.relayStationFor(g.sess.GID, self, pid); relay != "" {
+					stations = append(stations, relay)
+				}
+			}
 		}
 	}
-	return stations
+	return stations, nil
 }
 
 // getParticipantsURLsExt implements MatchMakingExt 0x32 method 0x04:
@@ -2027,7 +2080,12 @@ func getParticipantsURLsExt(env *Env, msg *rmc.RMCMessage) []byte {
 	w.List(len(gids))
 	for _, gid := range gids {
 		g, _ := env.Match.get(gid)
-		stations := gatheringStationURLs(env, g)
+		// No caller principal on this path: direct stations only, no
+		// relay injection (relay stations are per-caller pairs).
+		stations, err := gatheringStationURLs(env, g, 0)
+		if err != nil {
+			return errorResp(msg, rmc.ResultServiceUnavailable)
+		}
 		entry := rmc.NewWriter()
 		entry.U32(gid)
 		entry.List(len(stations))

@@ -255,6 +255,8 @@ func TestUnprovenLoginFallsBackUntilEnforced(t *testing.T) {
 // While everyone is an unproven name that costs nothing; with real accounts it
 // hands a stranger behind the same public address somebody else's session.
 func TestEnforcingClosesTheTicketlessRecallPath(t *testing.T) {
+	*allowTicketless = true
+	t.Cleanup(func() { *allowTicketless = false })
 	baas := newFakeBaas(t, 0x5150)
 	ids := newIdentity(baas.URL, "k")
 	authAddr, secureAddr, _ := startWith(t, "mario-kart-8-deluxe", ids)

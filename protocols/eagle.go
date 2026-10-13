@@ -56,6 +56,7 @@ func (e *Env) eagleDepart(gid uint32, pid uint64) {
 }
 
 func (e *Env) deleteGathering(gid uint32) {
+	e.dropGatheringRelays(gid)
 	e.Match.delete(gid)
 	if e.EagleClose != nil {
 		e.EagleClose(gid)

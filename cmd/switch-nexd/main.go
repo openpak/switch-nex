@@ -26,6 +26,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/openpak/switch-nex/internal/connectivity"
 	"log"
 	"net"
 	"net/http"
@@ -132,11 +133,10 @@ var titles = []title{
 		// pair and no key-like UTF-16 string; the auth hostname is
 		// formatted at runtime from g%08x (g%08x-%%.s.n.srv.nintendo.net),
 		// so the ID only exists as an integer constant. Static
-		// provenance: docs/duck-game.md. Empty key is deliberate, as on
-		// risk-of-rain-returns: CONNECT signatures go unverified until
-		// the online-menu trace records the real g<id>-lp1 SNI name and
-		// a logged handshake verifies the key. No route, quadlet or
-		// catalogue entry exists for this title yet.
+		// provenance: docs/duck-game.md. The game server ID is
+		// console-measured (`25E42700`, traced 2026-10-12) and routed;
+		// the access key is still unknown, so CONNECT signatures go
+		// unverified until a logged handshake verifies it.
 		//
 		// The binary links MatchmakeExtension, NATTraversal and
 		// SecureConnection only (no Ranking, Ranking2, Referee or
@@ -156,6 +156,12 @@ var titles = []title{
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
+		// First NEX title on the shared pair-relay leg (see
+		// protocols/relay.go): direct mesh fails on the measured paths
+		// while signalling is healthy, so pairs also get a relay
+		// candidate. Direct stations flow untouched; relay failures
+		// degrade to direct-only.
+		e.UseRelay = true
 	}},
 	{"heroes-of-hammerwatch", 23110, "1203b5eb", func(e *protocols.Env) {
 		// Heroes of Hammerwatch — Ultimate Edition (0100D2B00BC54000,
@@ -204,8 +210,10 @@ var titles = []title{
 		// at 0x2d964, while the key "c093ff57" (rodata 0x40a9f47) is
 		// loaded by adrp x1 at 0x2d968 / add at 0x2d96c — the same
 		// weaker class as heroes-of-hammerwatch, not a same-call login
-		// pair, so the derived SNI (g2c82ee00-lp1) and CONNECT
-		// signatures still need the first boot's trace. Static
+		// pair. Console-measured 2026-10-13: Harbor and Switch logged
+		// in proved (title 010079300AD54000, version 00050000) on the
+		// derived SNI with no CONNECT failure, created/joined gid
+		// 914033 and punched through (rtt=102ms). Static
 		// provenance: docs/full-metal-furies.md.
 		//
 		// The binary links MatchmakeExtension with NATTraversal and
@@ -233,6 +241,8 @@ var titles = []title{
 		e.JoinRecapParticipate = true
 	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
+		// Simultaneous searches must wait for the first host to publish its NAT station.
+		e.HoldForOpening = 8 * time.Second
 		e.StationScheme = "prudps"
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
@@ -301,6 +311,10 @@ var titles = []title{
 		e.JoinRecapParticipate = true
 	}},
 	{"mario-kart-8-deluxe", 22150, "09c1c475", func(e *protocols.Env) {
+		// SecureStream is selected by the station scheme. Advertising prudp
+		// while requiring tickets made the retail client send empty CONNECT
+		// (production canary, 2026-10-13), before endpoint registration.
+		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		// A created session goes back occupied by its host, keyed and
 		// timestamped: a session with no key and nobody in it is not one a
@@ -524,6 +538,10 @@ var titles = []title{
 		e.FinalizeCreateSession = true
 		e.FinalizeParams = true
 		e.JoinEchoSession = true
+		// Friend lobbies use explicit join: recap the existing host to the
+		// joiner. Without it the join succeeds but closes after ten seconds
+		// before any peer-URL request (owner capture, 2026-10-13).
+		e.JoinRecapParticipate = true
 	}},
 	{"risk-of-rain", 22890, "61b8f3a6", func(e *protocols.Env) {
 		// Risk of Rain (0100AAA00ACBE800, game server 29C91300, nnSdk 4.5.0).
@@ -865,6 +883,7 @@ var (
 	identityURL     = flag.String("identity-url", "", "nx-baas internal base URL; empty disables account resolution and every login is accepted on its unproven name")
 	identityKey     = flag.String("identity-key", "", "shared key for the nx-baas internal API (X-Internal-Key)")
 	requireIdentity = flag.Bool("require-identity", false, "refuse logins whose token cannot be proven, instead of falling back to the name")
+	allowTicketless = flag.Bool("allow-ticketless-recall", false, "legacy development only: allow ambiguous-by-address ticketless login recall; never enable with proven identities")
 	dump            = flag.Bool("dump", false, "print every served title's resolved configuration and exit")
 	loginExStruct   = flag.Bool("loginex-structured", false, "answer TicketGranting method 2 with the ValidateAndRequestTicketResult structure instead of the flat layout (see docs/login-shape-conflict.md)")
 )
@@ -902,6 +921,13 @@ func main() {
 		return
 	}
 	log.SetFlags(log.LstdFlags | log.LUTC)
+	connectivityClient, err := connectivity.FromEnvironment()
+	if err != nil {
+		log.Fatal("invalid shared connectivity configuration")
+	}
+	if connectivityClient != nil {
+		log.Print("shared connectivity enabled for Switch NEX endpoint leases")
+	}
 
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
 	if err != nil {
@@ -951,6 +977,7 @@ func main() {
 			continue
 		}
 		svc := newService(t, *stationAddress, recall, ids)
+		svc.env.Connectivity = connectivityClient
 		if err := configureEagle(svc.env, tlsCfg); err != nil {
 			log.Fatalf("[%s] eagle setup: %v", t.name, err)
 		}
@@ -1009,6 +1036,11 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 	if *loginExStruct {
 		env.LoginExStructured = true
 	}
+	// Requiring ticket proof also requires advertising SecureStream. Keep
+	// this invariant for every title, including profiles defaulting to prudp.
+	if !*allowTicketless {
+		env.StationScheme = "prudps"
+	}
 	targetKey := switchnex.DeriveKey([]byte(securePassword), env.SecurePID)
 
 	s := &service{env: env, targetKey: targetKey, base: t.base, ids: ids}
@@ -1021,11 +1053,12 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 		},
 	}
 	s.secure = &prudplite.Endpoint{
-		Name:        t.name + "/secure",
-		StreamID:    1,
-		IsSecure:    true,
-		AccessKey:   t.accessKey,
-		KerberosKey: targetKey,
+		Name:          t.name + "/secure",
+		StreamID:      1,
+		IsSecure:      true,
+		AccessKey:     t.accessKey,
+		KerberosKey:   targetKey,
+		RequireTicket: !*allowTicketless,
 		RecallPID: func(host string) (uint64, bool) {
 			// A ticketless CONNECT inherits the PID of the one login it can
 			// belong to. That is leniency, not authentication: the Lite
@@ -1056,13 +1089,14 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 			return pid, true
 		},
 		OnConnect: func(c *prudplite.Connection) {
-			log.Printf("[%s] secure: connected pid=%s cid=%d host=%s", env.Name, redact.Tag(c.PID), c.CID, redact.Tag(c.Host))
+			log.Printf("[%s] secure: connected pid=%s cid=%d host=%s ticket=%t", env.Name, redact.Tag(c.PID), c.CID, redact.Tag(c.Host), len(c.SessionKey) > 0)
 		},
 		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 			return protocols.Dispatch(env, c, msg)
 		},
 		OnDisconnect: func(c *prudplite.Connection) {
 			env.Disconnected(c.PID)
+			env.ReleaseConnectivity(c)
 		},
 	}
 	// The secure endpoint is also the path the server originates on:

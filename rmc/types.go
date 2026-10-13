@@ -345,6 +345,7 @@ func (w *Writer) WriteVariant(v Variant) {
 const (
 	ResultSuccess            uint32 = 0x00010001 // Core::Unknown — the observed success marker
 	ResultNotImplemented     uint32 = 0x00010002 // Core::NotImplemented
+	ResultServiceUnavailable uint32 = 0x0005001B // Transport::ServiceUnavailable (NintendoClients public error dictionary)
 	ResultInvalidArgument    uint32 = 0x0001000A // Core::InvalidArgument
 	ResultAccessDenied       uint32 = 0x00010006 // Core::AccessDenied
 	ResultAccountDisabled    uint32 = 0x00030067 // RendezVous::AccountDisabled — the account is banned

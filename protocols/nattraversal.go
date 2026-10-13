@@ -99,6 +99,8 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 	// (2026-09-20, Mario Kart 8 Deluxe: race starts, dies ten seconds in).
 	log.Printf("[%s] nat: probe request pid=%s targets=%d stations=%d",
 		env.Name, redact.Tag(c.PID), len(targets), len(c.Stations()))
+	diagStations(env, c.PID, "probe-targets", targets)
+	diagStations(env, c.PID, "probe-self", []string{station})
 
 	params := rmc.NewWriter()
 	params.String(station)

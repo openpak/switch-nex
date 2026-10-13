@@ -105,6 +105,14 @@ func TestProcessConnectTicketlessNoRecall(t *testing.T) {
 	}
 }
 
+func TestRequiredTicketNeverCallsIPRecall(t *testing.T) {
+	called := false
+	c := &Connection{Host: "203.0.113.10", Endpoint: &Endpoint{IsSecure: true, RequireTicket: true, KerberosKey: testTargetKey, RecallPID: func(string) (uint64, bool) { called = true; return 4242, true }}}
+	if _, err := c.processConnectPayload(nil); err == nil || called || c.PID != 0 {
+		t.Fatal("mandatory ticket bypassed through IP recall")
+	}
+}
+
 // End-to-end RMC round trip through the new framing.
 func TestRMCThroughFraming(t *testing.T) {
 	req := rmc.EncodeRequest(0x0A, 0x02, 99, []byte{0x01, 0x02})

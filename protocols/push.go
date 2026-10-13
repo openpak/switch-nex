@@ -171,6 +171,22 @@ func (n *natStore) compatibleWith(g *gathering, pid uint64) bool {
 // nowDateTime is the current UTC time as a packed NEX DateTime.
 func nowDateTime() uint64 { return switchnex.NowDateTime() }
 
+// TEMP-DIAG-DUCK (remove after the mesh-debug capture): log the raw
+// address:port pairs a duck-game client advertises or is handed, so the next
+// retail attempt shows exactly what each side punches at. Bounded to this
+// title; revert once captured.
+func diagStations(env *Env, pid uint64, what string, stations []string) {
+	if env.Name != "duck-game" {
+		return
+	}
+	addrs := make([]string, 0, len(stations))
+	for _, s := range stations {
+		u := switchnex.Parse(s)
+		addrs = append(addrs, u.Get("address")+":"+strconv.FormatUint(u.GetInt("port"), 10))
+	}
+	log.Printf("[duck-game] diag %s pid=%s stations=%q", what, redact.Tag(pid), addrs)
+}
+
 // parseStationPID reads the PID parameter out of a station URL string, or 0.
 func parseStationPID(station string) uint64 {
 	i := strings.Index(station, ":/")

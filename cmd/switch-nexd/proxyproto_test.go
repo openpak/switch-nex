@@ -114,6 +114,8 @@ func TestTwoConcurrentLoginsFromOneAddress(t *testing.T) {
 // With the console's address on the login, two households logging in in the
 // same second each get their own PID on a ticketless CONNECT.
 func TestConcurrentLoginsFromTwoAddressesPairByAddress(t *testing.T) {
+	*allowTicketless = true
+	t.Cleanup(func() { *allowTicketless = false })
 	authAddr, secureAddr, svc := start(t, mk8d)
 	key := titleAccessKey(t, mk8d)
 	binds := recordBinds(svc)
@@ -139,6 +141,8 @@ func TestConcurrentLoginsFromTwoAddressesPairByAddress(t *testing.T) {
 // One console at a time, through Traefik as it is today (no header), still
 // works: the ticketless CONNECT takes the one login waiting for it.
 func TestTicketlessConnectWithoutProxyHeaderStillPairs(t *testing.T) {
+	*allowTicketless = true
+	t.Cleanup(func() { *allowTicketless = false })
 	authAddr, secureAddr, svc := start(t, mk8d)
 	key := titleAccessKey(t, mk8d)
 	binds := recordBinds(svc)
@@ -148,6 +152,22 @@ func TestTicketlessConnectWithoutProxyHeaderStillPairs(t *testing.T) {
 	if !dialAs(t, secureAddr, key, "").connectTicketless() {
 		t.Fatal("a lone login's ticketless CONNECT was refused")
 	}
+	waitFor(t, func() bool { return len(binds()[a.pid]) == 1 })
+}
+
+func TestDefaultRequiresTicketEvenForOnePendingLogin(t *testing.T) {
+	*allowTicketless = false
+	authAddr, secureAddr, svc := start(t, mk8d)
+	key := titleAccessKey(t, mk8d)
+	binds := recordBinds(svc)
+	a := dialAs(t, authAddr, key, "203.0.113.7")
+	a.login(randomName("player"), false)
+	if dialAs(t, secureAddr, key, "203.0.113.7").connectTicketless() {
+		t.Fatal("empty CONNECT inherited an IP-correlated identity")
+	}
+	s := dialAs(t, secureAddr, key, "203.0.113.7")
+	s.pid, s.ticket, s.sessionKey = a.pid, a.ticket, a.sessionKey
+	s.handshake(s.secureConnectPayload(1))
 	waitFor(t, func() bool { return len(binds()[a.pid]) == 1 })
 }
 

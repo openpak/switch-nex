@@ -121,13 +121,15 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		public.Remove("Pa")
 	}
 
-	c.SetStations([]string{local.String(), public.String()})
+	if err := env.commitStations(c, []string{local.String(), public.String()}); err != nil {
+		return errorResp(msg, rmc.ResultServiceUnavailable)
+	}
 	log.Printf("[%s] register pid=%s cid=%d", env.Name, redact.Tag(c.PID), c.ID)
 
 	w := rmc.NewWriter()
 	w.U32(rmc.ResultSuccess) // QResult success
 	w.U32(c.ID)              // the connection id the client calls itself
-	w.String(public.String())
+	w.String(c.Stations()[1])
 	return success(msg, w.Bytes())
 }
 
@@ -164,8 +166,11 @@ func replaceURL(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	if !replaced {
 		kept = append(kept, replacement.String())
 	}
-	c.SetStations(kept)
+	if err := env.commitStations(c, kept); err != nil {
+		return errorResp(msg, rmc.ResultServiceUnavailable)
+	}
 	log.Printf("[%s] replaceURL pid=%s (%d station(s))", env.Name, redact.Tag(c.PID), len(kept))
+	diagStations(env, c.PID, "replaceURL", kept)
 	return success(msg, nil)
 }
 

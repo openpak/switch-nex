@@ -10,6 +10,7 @@ package protocols
 
 import (
 	"fmt"
+	"github.com/openpak/switch-nex/internal/connectivity"
 	"log"
 	"sort"
 	"sync"
@@ -42,7 +43,17 @@ const (
 // Env is one title's serving environment: identity of the server on the wire
 // plus the title's state and behaviour hooks. One Env per title.
 type Env struct {
-	Name string
+	Name               string
+	Connectivity       *connectivity.Client
+	connectivityLeases map[uint32]connectivity.Participant
+
+	// UseRelay opts a title into native pair relays through the shared
+	// connectivity service (see relay.go). Opt-in per title: whether a
+	// stock client probes and uses an injected relay station is
+	// client-measured, so a relay that nobody uses must not change
+	// direct-only behaviour anywhere else.
+	UseRelay   bool
+	relayLinks map[uint32]map[string]*pairRelay
 
 	// mu serialises the title's secure stage: every Dispatch and every
 	// Disconnected. Gatherings are shared between connections and their
@@ -312,8 +323,19 @@ func (e *Env) SecureStationURL() string {
 // Unknown protocols answer Core::NotImplemented and are logged — the game
 // tells us the backlog.
 func Dispatch(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	if env.Match != nil && msg.Protocol == ProtoMatchmakeExt && (msg.MethodID == 0x03 || msg.MethodID == 0x28) {
+		return handleAutoMatchmake(env, c, msg, true)
+	}
 	env.mu.Lock()
 	defer env.mu.Unlock()
+	// Lease refresh is skipped for calls that replace the candidate set, so a
+	// route update never renews an obsolete mapping first.
+	updatesStations := msg.Protocol == ProtoSecureConnection && (msg.MethodID == 1 || msg.MethodID == 4 || msg.MethodID == 7)
+	if !updatesStations {
+		if err := env.ensureStationLease(c); err != nil {
+			return errorResp(msg, rmc.ResultServiceUnavailable)
+		}
+	}
 	h, ok := handlersFor(env)[msg.Protocol]
 	if !ok {
 		log.Printf("[%s] secure unimplemented proto=0x%X method=0x%X (%dB)", env.Name, msg.Protocol, msg.MethodID, len(msg.Body))

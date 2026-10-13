@@ -27,6 +27,7 @@ func TestRoomJoinRecapsTheHost(t *testing.T) {
 		"mario-golf-super-rush", "super-mario-3d-world-bowsers-fury",
 		"castle-crashers-remastered", "nobody-saves-the-world",
 		"monopoly", "duck-game", "full-metal-furies", "heroes-of-hammerwatch",
+		"clubhouse-games-51",
 	} {
 		t.Run(name, func(t *testing.T) {
 			authAddr, secureAddr, _ := start(t, name)

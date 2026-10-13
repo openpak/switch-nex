@@ -48,6 +48,9 @@ type Endpoint struct {
 	// KerberosKey is the secure server account's derived key; it decrypts
 	// the ticket inside a secure CONNECT payload. Required when IsSecure.
 	KerberosKey []byte
+	// RequireTicket refuses empty secure CONNECTs before any by-IP recall.
+	// The daemon enables this by default; explicit legacy tests may opt out.
+	RequireTicket bool
 	// RecallPID resolves a ticketless secure CONNECT to a login PID by
 	// client IP. Returning false drops the connection.
 	RecallPID    func(host string) (uint64, bool)
@@ -121,6 +124,9 @@ func (e *Endpoint) acceptLoop() {
 	for {
 		conn, err := e.ln.Accept()
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			select {
 			case <-e.quit:
 				return
@@ -518,6 +524,9 @@ func (c *Connection) processConnectPayload(payload []byte) ([]byte, error) {
 		return nil, nil
 	}
 	if len(payload) == 0 {
+		if c.Endpoint.RequireTicket {
+			return nil, fmt.Errorf("secure CONNECT requires a session ticket")
+		}
 		if c.Endpoint.RecallPID == nil {
 			return nil, fmt.Errorf("ticketless CONNECT without a recall hook")
 		}
