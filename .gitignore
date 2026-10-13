@@ -4,3 +4,6 @@
 # Build with the command in docs/deploy.md §1 and attach the result to a release.
 switch-nexd-arm64
 mk8d-arm64
+
+# Local build outputs and probe binaries
+bin/
