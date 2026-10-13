@@ -1,12 +1,99 @@
-# Duck Game — 2026-10-12 (scaffold, trace pending)
+# Duck Game — relay investigation, gameplay unverified
 
 Duck Game (`0100750001C70000`, update 1.0.4 / content 262144) is registered
 in `cmd/switch-nexd` as `duck-game`. It shares the existing transport,
-account resolution, matchmaking and NAT/notification handlers. No new
-proprietary backend is introduced. This is a local-only scaffold for client
-testing, not gameplay-verified support: the game server ID and access key
-are still unknown, so no route, quadlet, certificate name or catalogue
-entry exists yet.
+account resolution, matchmaking and NAT/notification handlers. It has a
+production route and per-title quadlet, but gameplay remains unverified.
+The access key is unknown; the current profile deliberately uses an empty key.
+
+## 2026-10-13: independently verified relay infrastructure
+
+- Checked workspace/subrepo status and recent history before edits. The workspace
+  root is not a Git repository; switch-nex contains concurrent uncommitted
+  household/connectivity work. That work was retained.
+- Production connectivity actually used rootless bridge networking and published
+  UDP ports 22900–22979. Migrated it to `Network=host`, removed port publishing,
+  and moved all 18 NPLN API URLs to `http://host.containers.internal:20150`.
+  NPLN remains on `openpak.network`; coturn and title binaries were unchanged.
+- The host alias resolves to `10.0.0.249`. The API now listens on IPv4
+  `0.0.0.0:20150`; existing host INPUT rules admit loopback/local host routes
+  and reject other traffic to this port. An external HTTP probe timed out.
+  Do not add a public API firewall permit.
+- Added and persisted an explicit non-loopback INPUT rejection for TCP 20150,
+  ahead of other firewall rules. All 18 actual-container authenticated ICE
+  probes passed again afterward. Live service-issued Pia-shaped TURN allocation,
+  channel binding and bidirectional relay also passed after the migration.
+- All 18 titles were TCP-idle before migration. Each passed health, exact binary
+  hash, and authenticated participant registration / ICE allocation / release
+  using its actual mounted token from its actual container network namespace.
+  This checks infrastructure, not 18 retail game sessions.
+- Exact backups and journal:
+  `~/openpak/deploy/connectivity/releases/20261013-npln/host-network-20261013T155605Z/`.
+  The original NPLN rollout manifest's candidate hashes were updated so its
+  existing guarded per-title rollback still works. An initial attempt rolled
+  back before any NPLN restart because `:U` token ownership prevented host-side
+  reads; the successful attempt reads tokens inside their owning containers.
+- External two-socket proof passed: STUN observations from coturn matched
+  independent nonce-tagged packet captures **at the allocated relay destination**.
+  After those exact observations were registered and bound, both directions
+  delivered the correct payload with the relay as source. A third unbound socket
+  was dropped. Namespace counters: 48 forwarded bytes, 3 drops (two inactive
+  observation packets plus the third-source packet). Probe leases/socket released.
+  Reproducible operator tool: `servers/connectivity/tools/probe_host_relay.py`.
+- Full `GOWORK=off go test -race ./...` and `go vet ./...` passed in connectivity,
+  Switch NEX and NPLN before the retail probe candidate was built.
+
+### Remaining native-client blocker
+
+The current Switch NEX relay adapter selects LAN/reported-public candidates for
+BindRelay. The real shared service correctly rejects these: only an `observed`
+candidate with `destination` equal to that exact relay qualifies. The Switch NEX
+candidate type does not yet carry `destination`, and no native Pia verifier
+exists. The previous TLS relay test uses a permissive fake service; it proves
+station-list plumbing, **not a valid real-service bind or gameplay**.
+
+For a bounded Duck-only observation, `SWITCH_NEX_RELAY_PROBE_ONLY=1` advertises an
+allocated **inactive** relay station without calling BindRelay. It cannot forward
+traffic. Direct stations are retained and allocations release on leave/teardown.
+This operator canary is not production relay support and must be removed after
+the measurement. Other titles cannot enter this mode.
+
+Probe-only retail candidate deployed 2026-10-13 16:04:29 UTC, SHA-256
+`cb18ce9e5f929b563a4d2a420fc8fa6436873e2226bfba7cf2eedbb5a03bbbfe`.
+The parallel connectivity agent had replaced the old experimental mount with
+`releases/20261013-switch-duck-game/switch-nexd` (hash
+`fc3099bfbd61ea2800f1558a475854e03c93f5ad8fe68dac639b32166988f5e4`).
+The first canary deployment guard refused the obsolete mount; the next backed
+up and preserved the newer deployment instead of restoring historical binaries.
+Exact quadlet backup:
+`~/.config/containers/systemd/openpak-switch-duck-game.container.before-probe-only-20261013T160429Z`.
+Retail packet capture: `/tmp/duck-relay-retail-20261013.pcap` on production.
+No TEMP-DIAG station-address logger was deployed by this session.
+The first 180-second capture contained zero packets and no retail clients
+connected during that window; this is **not** evidence that Pia ignored a station.
+A bounded rotating capture (`/tmp/duck-relay-retail-live.pcap0`, up to two 2 MB
+files, 15-minute timeout) was started at 16:07 UTC while awaiting the owner's
+Switch-host / Harbor-join run. No retail result is recorded yet.
+
+After the run, restore the exact newer quadlet backup above if the live quadlet
+still mounts `switch-nexd-arm64-probe-only` and sets the probe environment flag,
+then reload user systemd and restart `openpak-switch-duck-game.service` while
+the title is idle. Preserve any subsequent operator changes. Do not restore the
+historical `.before-diag` binary over the newer connectivity deployment.
+
+Two local Atmosphere reports (`/tmp/duck-crash-1018.log` and
+`/tmp/duck-crash-1131.log`) contain a User Break with `nn::util::CompressZlib` on
+the main-thread stack. They establish the abort location, not that a failed mesh,
+WiFi delay, CGNAT, or server response caused it. Claims in the previous handoff
+about six reports, timing and causality have not been independently reproduced.
+
+Protocol research leads, still requiring retail capture: Pia 5.11–5.17 uses
+header version 3; the encrypted messages use a matchmaking session key. See
+[Pia packet format](https://github.com/kinnay/NintendoClients/wiki/Pia-Protocol),
+[station request](https://github.com/kinnay/NintendoClients/wiki/Station-Protocol)
+and [native NAT probe format](https://github.com/kinnay/NintendoClients/wiki/NAT-Traversal-Protocol-%28Pia%29).
+Do not promote an unencrypted claimed PID/RVCID, guessed LAN port, or observation
+from another STUN destination into a verified relay mapping.
 
 ## Client facts and provenance
 

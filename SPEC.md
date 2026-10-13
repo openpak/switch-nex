@@ -1,5 +1,13 @@
 # SPEC — verified protocol facts (Switch NEX, MK8D 3.0.5 / NEX 4.0.0)
 
+> **Current Switch client (2026-10-13): Harbor**, at
+> `~/REPOS/Openpak/emulators/harbor`. Harbor is an independent
+> OpenPak project based on Eden. Citron, Ryujinx (desktop and Android), and
+> the former OpenPak Eden checkouts have been removed. References to those
+> forks below record historical evidence only: do not run their commands,
+> reinstall them, or select them for current work. Use Harbor's README and
+> current handoff for builds and testing; old results do not establish Harbor parity.
+
 Every fact below was verified on OpenPak's own wire captures (server-side packet dumps,
 2026-09-14, MK8D 3.0.5 connecting to quilted-waffle). Sources: our own server logs, our
 own packet captures. Public documentation (Kinnay's NEX pages) used as cross-reference.
@@ -91,7 +99,11 @@ String SourceKey                   (64 = hex of the 32-byte source key)
 - Secure station URL handed to MK8D (verified accepted shape):
   `prudp:/PID=2;sid=1;stream=10;type=2;address=<IP>;port=<secure port>;CID=1`
 - `address` may be a raw IP; the console dials it without DNS.
-- Scheme `prudp` with a TLS listener is what the working reference uses.
+- The earlier accepted `prudp` URL does not establish ticket authentication:
+  on 2026-10-13 a real MK8D client authenticated, then sent an empty secure
+  CONNECT and was rejected by mandatory-ticket policy. The revised canary
+  advertises `prudps` to select SecureStream; physical-client confirmation is
+  pending. Do not infer ticket carriage from TLS or ACK flags alone.
 
 ## Post-login (observed)
 

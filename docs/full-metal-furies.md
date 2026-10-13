@@ -123,6 +123,32 @@ configuration (catalogue stays out until game-verified), and the release
 cut that replaces the binary mount. A local registration plus a healthy
 listener does not establish playability.
 
+## Console verification — 2026-10-13 (Harbor ↔ Switch, owner-played)
+
+- **Owner confirmation:** "game was played between harbor and switch."
+- **Host evidence:** two proved consoles logged in (title
+  `010079300AD54000`, version `00050000` — the current update, content
+  327680 — no `UNPROVEN` fallback) and held ticketed secure sessions
+  at 10:00:37/10:00:46 UTC over the websocket carriage, method 0x6.
+  The SNI (`g2c82ee00-lp1`) and CONNECT key (`c093ff57`) are now
+  console-measured: both logins passed signature verification with no
+  `bad signature` line. Host created gid `914033` (`max=4 open=true`)
+  at 10:00:51; an earlier browse found 0 sessions and the post-create
+  browse found 1.
+- **Join evidence:** joiner browsed, joined gid `914033` at 10:01:02
+  (`count=1`, full-session echo with key), fetched host stations
+  (`0x15/0x29`), both sides ran `replaceURL`, and NAT probe requests
+  crossed in both directions with `InitiateProbe` pushes each way;
+  the punch succeeded (`rtt=102ms`). Session-part updates
+  (`0x6D/0xB`) followed through 10:01:33. No RPC error or
+  unimplemented call appeared in the inspected host/join/NAT window.
+- **Teardown:** host closed its connection at 10:02:33; the joiner
+  received the leave notifications (3007/4000) and idled out at
+  10:04:33. Clean lifecycle, no ghost session.
+- **Still unverified:** a sustained full co-op run to results and
+  leave/rejoin. The pair's static provenance (adjacent-config,
+  outdated dump) is now superseded by this trace.
+
 ## Validation and next observations
 
 Local validation 2026-10-12: the full `GOWORK=off go test -race ./...`

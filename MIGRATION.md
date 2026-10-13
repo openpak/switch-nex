@@ -1,5 +1,13 @@
 # Migrating Switch NEX titles from `servers/nex` to `switch-nex`
 
+> **Current Switch client (2026-10-13): Harbor**, at
+> `~/REPOS/Openpak/emulators/harbor`. Harbor is an independent
+> OpenPak project based on Eden. Citron, Ryujinx (desktop and Android), and
+> the former OpenPak Eden checkouts have been removed. References to those
+> forks below record historical evidence only: do not run their commands,
+> reinstall them, or select them for current work. Use Harbor's README and
+> current handoff for builds and testing; old results do not establish Harbor parity.
+
 **Deployed 2026-09-16** on quilted-waffle: `openpak-switch-nexd.service`
 (container `switch-nexd`) serves all 14 titles below; auth via Traefik SNI.
 Since 2026-09-17 the container runs `Network=host` (backends

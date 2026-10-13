@@ -1,5 +1,24 @@
 # Changelog — switch-nex
 
+> **Current Switch client (2026-10-13): Harbor**, at
+> `~/REPOS/Openpak/emulators/harbor`. Harbor is an independent
+> OpenPak project based on Eden. Citron, Ryujinx (desktop and Android), and
+> the former OpenPak Eden checkouts have been removed. References to those
+> forks below record historical evidence only: do not run their commands,
+> reinstall them, or select them for current work. Use Harbor's README and
+> current handoff for builds and testing; old results do not establish Harbor parity.
+
+## Unreleased — Duck relay investigation
+
+- Resolve shared relay source rewriting through production host networking;
+  migrate and reverify all 18 NPLN API paths without changing coturn or binaries.
+  External exact-destination/STUN mapping checks prove bidirectional UDP
+  forwarding and reject an unbound third source.
+- Add a Duck-only operator probe mode that advertises an inactive relay socket
+  without binding reported addresses. Retail relay use and crash resolution
+  remain unverified; the existing permissive TLS fake is not real-service proof.
+  Evidence and rollback locations are recorded in docs/duck-game.md.
+
 ## Unreleased — shared participant endpoint replies
 
 - MatchMaking 0x15/0x10 now accepts a gathering ID and returns a flat
@@ -78,28 +97,29 @@
   notifications and the explicit-join recap. These are not retail
   gameplay results.
 
-## Unreleased — Full Metal Furies initial profile (trace pending)
+## Unreleased — Full Metal Furies initial profile (console-verified)
 
 - Registered Full Metal Furies (`full-metal-furies`) on
   23120/23121/23122 with game server `2C82EE00` and access key
-  `c093ff57`. The pair is adjacent-config evidence in the available
+  `c093ff57`. The pair was adjacent-config evidence in the available
   (outdated, content 131072) main — ID built into w8 at 0x2d95c/0x2d960
   and stored at 0x2d964, key literal at rodata 0x40a9f47 loaded by
-  adrp/add at 0x2d968/0x2d96c — re-verified against the local dump and
-  the same weaker class as heroes-of-hammerwatch, so the derived SNI
-  (`g2c82ee00-lp1`) and CONNECT signatures still need the first boot's
-  trace. Ticketed `prudps` stations, legacy Pia shape (Pia 5.11.3:
+  adrp/add at 0x2d968/0x2d96c — and is now console-measured (below).
+  Ticketed `prudps` stations, legacy Pia shape (Pia 5.11.3:
   type 0x03 with no Pa), independent matchmaking, normalized creation,
   full-session joins and participant recaps; only the linked
   MatchmakeExtension/NATTraversal/SecureConnection set is registered
   (the `NEX_R2`/`NEX_RK` banners have no protocol clients behind them;
-  the Ranking hit is a LAN job name). Provenance and the reserved (not
-  deployed) bundle: `docs/full-metal-furies.md`. Re-extract content
-  327680 before deploying.
-- TLS checks cover both login methods, distinct identities behind one
-  address, legacy station registration, browsing, joining, participant
-  notifications and the explicit-join recap. These are not retail
-  gameplay results.
+  the Ranking hit is a LAN job name). Provenance and deployment:
+  `docs/full-metal-furies.md`. Deployed 2026-10-12 ~22:15 UTC as
+  `openpak-switch-full-metal-furies` (local arm64 binary mount,
+  Traefik SNI `g2c82ee00-lp1`, secure TCP 23121 admitted and
+  persisted).
+- Console-verified 2026-10-13: Harbor and Switch logged in proved
+  (title `010079300AD54000`, version `00050000`), created/joined gid
+  914033 and completed the NAT punch (`rtt=102ms`); the owner played
+  the game between the two, with a clean leave/idle teardown. A
+  sustained full co-op run and leave/rejoin are still unverified.
 
 ## 2026-10-12 — v0.3.41: Pico Park default join pairing
 

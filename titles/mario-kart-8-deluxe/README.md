@@ -1,5 +1,13 @@
 # Mario Kart 8 Deluxe — switch-nex live
 
+> **Current Switch client (2026-10-13): Harbor**, at
+> `~/REPOS/Openpak/emulators/harbor`. Harbor is an independent
+> OpenPak project based on Eden. Citron, Ryujinx (desktop and Android), and
+> the former OpenPak Eden checkouts have been removed. References to those
+> forks below record historical evidence only: do not run their commands,
+> reinstall them, or select them for current work. Use Harbor's README and
+> current handoff for builds and testing; old results do not establish Harbor parity.
+
 Plays online: four full races console ↔ Ryujinx, 2026-09-20, on switch-nexd
 v0.2.21. `live` in the catalogue (row id 4).
 
