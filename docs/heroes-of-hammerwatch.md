@@ -147,6 +147,16 @@ read — all 200) and the second player joined over NEX:
   last look. Whether the two heroes are in the same dungeon together
   is the owner's eyes-only confirmation.
 
+## Co-op confirmed, skies differ — 2026-10-13
+
+Owner-confirmed: both heroes move in real time in one shared world —
+online co-op works. The only divergence is ambient time-of-day (night
+on the host, day on the joiner) with both device clocks identical
+(13/10/2026 09:13 on each) and the server session healthy throughout.
+Time-of-day is per-client and cosmetic; nothing the matchmaking server
+sends drives it. Catalogue can move off research/alpha whenever the
+playability claim is wanted.
+
 ## Validation and next observations
 
 The TLS test harness covers both login methods, ticketed secure connects
