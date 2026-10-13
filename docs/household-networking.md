@@ -17,7 +17,9 @@ representation changes from string to integer or back.
 
 MatchMaking 0x15/0x10 takes a gathering ID and returns a flat list of station
 URLs. The previous per-participant nested lists could not be parsed by a
-standard NEX client. Both LAN and public candidates remain in the response.
+standard NEX client. Both LAN and public candidates remain in the response. The extended
+0x32/0x04 method accepts a list of 32-bit gathering IDs and returns
+GatheringURLs structures containing each ID and its flat endpoint list.
 Specification: [NintendoClients MatchMaking protocol](https://nintendoclients.readthedocs.io/en/latest/reference/nex/matchmaking/).
 
 ## Evidence and validation
@@ -63,6 +65,6 @@ one public IP: unrelated households can share a carrier-grade NAT address.
 Other backend families need the same acceptance cases against their own
 protocols; this patch changes the shared Switch NEX stack.
 
-The related 0x32/0x04 handler has a separate IDL mismatch (its parameters are
-currently read as participant IDs instead of gathering IDs). It was not called
-in this trace and is an outstanding shared protocol audit item.
+The related 0x32/0x04 IDL mismatch is also corrected locally and covered by
+the three TLS regressions. It was not called in the retail trace; the current
+live candidate predates that additional correction.

@@ -1646,7 +1646,7 @@ func matchMakingExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 			return w.Bytes()
 		}())
 
-	case 0x04: // GetParticipantsURLs -> list<RVConnectionData>
+	case 0x04: // GetParticipantsURLs(list<gid>) -> list<GatheringURLs>
 		return getParticipantsURLsExt(env, msg)
 
 	case 0x05: // GetGatheringRelations(gid, pid, option) -> map<u32, list<u32>>
@@ -1979,12 +1979,7 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	if !g.participants[c.PID] {
 		return errorResp(msg, rmc.ResultPermissionDenied)
 	}
-	var stations []string
-	for _, pid := range participantPIDs(g) {
-		if peer, connected := env.push.connection(pid); connected {
-			stations = append(stations, peer.Stations()...)
-		}
-	}
+	stations := gatheringStationURLs(env, g)
 	w := rmc.NewWriter()
 	w.List(len(stations))
 	for _, station := range stations {
@@ -1993,28 +1988,53 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	return success(msg, w.Bytes())
 }
 
+// gatheringStationURLs preserves all candidates as one flat list. A missing
+// or disconnected participant contributes no candidates, not a nested empty list.
+func gatheringStationURLs(env *Env, g *gathering) []string {
+	if g == nil {
+		return nil
+	}
+	var stations []string
+	for _, pid := range participantPIDs(g) {
+		if peer, connected := env.push.connection(pid); connected {
+			stations = append(stations, peer.Stations()...)
+		}
+	}
+	return stations
+}
+
 // getParticipantsURLsExt implements MatchMakingExt 0x32 method 0x04:
-// GetParticipantsURLs(list<pid>) -> list<RVConnectionData>
+// GetParticipantsURLs(list<u32 gid>) -> list<GatheringURLs>.
+// GatheringURLs is a structure containing the gathering ID and a flat URL list.
 func getParticipantsURLsExt(env *Env, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
-	pids, err := readPIDList(r)
-	if err != nil {
+	n, err := r.ListHeader()
+	if err != nil || n > 4096 {
 		return errorResp(msg, rmc.ResultInvalidArgument)
 	}
-
+	gids := make([]uint32, 0, n)
+	for range n {
+		gid, err := r.U32()
+		if err != nil {
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
+		gids = append(gids, gid)
+	}
+	if r.Remaining() != 0 {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
 	w := rmc.NewWriter()
-	w.List(len(pids))
-	for _, pid := range pids {
-		peer, connected := env.push.connection(pid)
-		if !connected {
-			w.EmptyList()
-			continue
+	w.List(len(gids))
+	for _, gid := range gids {
+		g, _ := env.Match.get(gid)
+		stations := gatheringStationURLs(env, g)
+		entry := rmc.NewWriter()
+		entry.U32(gid)
+		entry.List(len(stations))
+		for _, station := range stations {
+			entry.String(station)
 		}
-		stations := peer.Stations()
-		w.List(len(stations))
-		for _, s := range stations {
-			w.String(s)
-		}
+		w.Struct(0, entry.Bytes())
 	}
 	return success(msg, w.Bytes())
 }

@@ -5,6 +5,8 @@
 - MatchMaking 0x15/0x10 now accepts a gathering ID and returns a flat
   list of StationURL strings, as specified by the NEX IDL. The old nested
   lists were not RVConnectionData and were unparseable by a standard client.
+- MatchMakingExt 0x32/0x04 now accepts 32-bit gathering IDs and returns
+  GatheringURLs structures instead of interpreting inputs as player IDs.
 - Initial public station fallback preserves the reported game port instead
   of substituting the unrelated TLS/TCP source port. Client-reported public
   mappings and per-console LAN endpoints remain intact.

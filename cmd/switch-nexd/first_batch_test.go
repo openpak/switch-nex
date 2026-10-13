@@ -140,12 +140,14 @@ func testHouseholdParticipantsURLs(t *testing.T, name string) {
 	}
 	local := map[uint64]string{}
 	counts := map[uint64]int{}
+	flat := map[string]int{}
 	for range entries {
 		raw, err := r.String()
 		if err != nil {
 			t.Fatalf("flat participant station %q: %v", raw, err)
 		}
 		station := switchnex.Parse(raw)
+		flat[raw]++
 		pid := station.GetInt("PID")
 		if pid != host.pid && pid != peer.pid {
 			t.Fatalf("unexpected participant: %q", raw)
@@ -163,6 +165,52 @@ func testHouseholdParticipantsURLs(t *testing.T, name string) {
 	}
 	if counts[host.pid] != 2 || counts[peer.pid] != 2 || local[host.pid] != "192.168.1.20" || local[peer.pid] != "192.168.1.21" {
 		t.Fatalf("household endpoints mixed: counts=%v local=%v", counts, local)
+	}
+	// The extended method takes 32-bit gathering IDs, not 64-bit player
+	// IDs, and frames each gathering's flat list as GatheringURLs.
+	ext := rmc.NewWriter()
+	ext.List(2)
+	ext.U32(gid)
+	ext.U32(0) // no such gathering: an empty candidate list
+	resp = peer.call(0x32, 0x04, ext.Bytes())
+	if resp.IsError {
+		t.Fatalf("extended participant URLs: %#x", resp.ErrorCode)
+	}
+	r = rmc.NewReader(resp.Body)
+	n, err := r.ListHeader()
+	if err != nil || n != 2 {
+		t.Fatalf("extended gatherings=%d: %v", n, err)
+	}
+	for i := range n {
+		_, entry, err := r.Struct()
+		if err != nil {
+			t.Fatalf("GatheringURLs structure: %v", err)
+		}
+		gotGID, err := entry.U32()
+		wantGID, wantURLs := gid, uint32(4)
+		if i == 1 {
+			wantGID, wantURLs = 0, 0
+		}
+		if err != nil || gotGID != wantGID {
+			t.Fatalf("extended gathering ID=%d want %d: %v", gotGID, wantGID, err)
+		}
+		urls, err := entry.ListHeader()
+		if err != nil || urls != wantURLs {
+			t.Fatalf("extended URLs=%d want %d: %v", urls, wantURLs, err)
+		}
+		for range urls {
+			raw, err := entry.String()
+			if err != nil || flat[raw] != 1 {
+				t.Fatalf("extended endpoint differs from flat reply %q: %v", raw, err)
+			}
+			delete(flat, raw)
+		}
+		if entry.Remaining() != 0 {
+			t.Fatal("trailing GatheringURLs data")
+		}
+	}
+	if r.Remaining() != 0 || len(flat) != 0 {
+		t.Fatal("extended reply did not contain exactly the flat endpoints")
 	}
 }
 
