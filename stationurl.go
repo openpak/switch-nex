@@ -143,7 +143,7 @@ func NewScheme(scheme, address string, port uint16) *URL {
 }
 
 func (u *URL) Set(k, v string) {
-	if _, ok := u.Params[k]; !ok {
+	if !u.Has(k) {
 		u.order = append(u.order, k)
 	}
 	u.Params[k] = v
@@ -151,7 +151,7 @@ func (u *URL) Set(k, v string) {
 }
 
 func (u *URL) SetInt(k string, v uint64) {
-	if _, ok := u.IntVals[k]; !ok {
+	if !u.Has(k) {
 		u.order = append(u.order, k)
 	}
 	u.IntVals[k] = v

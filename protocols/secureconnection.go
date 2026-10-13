@@ -94,9 +94,10 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		if c.Host != "" {
 			public.Set("address", c.Host)
 		}
-		if c.Remote != nil {
-			public.SetInt("port", uint64(c.Remote.Port))
-		}
+		// The rendezvous carriage is TLS/TCP. Its source port is unrelated
+		// to the peer's UDP game socket, even behind the same NAT. Retain
+		// the reported game port until the client supplies its observed
+		// public mapping through ReplaceURL; the LAN endpoint stays intact.
 	}
 
 	for _, u := range []*switchnex.URL{local, public} {

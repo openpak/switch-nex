@@ -1,5 +1,22 @@
 # Changelog — switch-nex
 
+## Unreleased — shared participant endpoint replies
+
+- MatchMaking 0x15/0x10 now accepts a gathering ID and returns a flat
+  list of StationURL strings, as specified by the NEX IDL. The old nested
+  lists were not RVConnectionData and were unparseable by a standard client.
+- Initial public station fallback preserves the reported game port instead
+  of substituting the unrelated TLS/TCP source port. Client-reported public
+  mappings and per-console LAN endpoints remain intact.
+- StationURL updates retain one dictionary entry when switching between
+  string and integer representations; parsed fields no longer duplicate.
+- Regression coverage exercises station identity/ports across all 29 title
+  profiles and reads flat two-console endpoint replies over real TLS for
+  Castle Crashers, Nobody Saves the World and PICO PARK.
+- Real-game household acceptance remains pending. This change does not
+  establish external UDP mappings or implement a relay.
+
+
 ## 2026-10-12 — v0.3.45: joins answer per the NEX IDL
 
 - The plain (0x07) and Ex (0x1E) joins answer the session key as a Buffer.

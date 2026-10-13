@@ -79,9 +79,15 @@ func TestFirstBatchSignedLogin(t *testing.T) {
 // answered Core::InvalidArgument and the console dropped with "lost
 // connection to Nintendo Switch Online" right after creating its room
 // (2026-10-12). A gid-only call must answer the participant stations.
-func TestCastleCrashersParticipantsURLsGidOnly(t *testing.T) {
-	authAddr, secureAddr, _ := start(t, "castle-crashers-remastered")
-	key := titleAccessKey(t, "castle-crashers-remastered")
+func TestFirstBatchParticipantsURLsGidOnly(t *testing.T) {
+	for _, name := range []string{"castle-crashers-remastered", "nobody-saves-the-world", "pico-park"} {
+		t.Run(name, func(t *testing.T) { testHouseholdParticipantsURLs(t, name) })
+	}
+}
+
+func testHouseholdParticipantsURLs(t *testing.T, name string) {
+	authAddr, secureAddr, _ := start(t, name)
+	key := titleAccessKey(t, name)
 	host := secureSession(t, authAddr, secureAddr, key, "host")
 	stations := rmc.NewWriter()
 	stations.List(1)
@@ -109,20 +115,57 @@ func TestCastleCrashersParticipantsURLsGidOnly(t *testing.T) {
 	if err != nil || gid == 0 {
 		t.Fatalf("browse gathering ID %d: %v", gid, err)
 	}
-	resp = host.call(ProtoMatchMaking, 0x10, u32le(gid))
+	// Two LAN addresses behind one uplink, deliberately sharing a game port.
+	peer := secureSession(t, authAddr, secureAddr, key, "peer")
+	stations = rmc.NewWriter()
+	stations.List(1)
+	stations.String("prudp:/address=192.168.1.21;port=50000;sid=1;natf=0")
+	if resp := peer.call(ProtoSecureConnection, 0x01, stations.Bytes()); resp.IsError {
+		t.Fatalf("peer register: %#x", resp.ErrorCode)
+	}
+	participation := rmc.NewWriter()
+	participation.U32(gid)
+	participation.String("")
+	if resp := peer.call(ProtoMatchMaking, 0x0B, participation.Bytes()); resp.IsError {
+		t.Fatalf("peer participate: %#x", resp.ErrorCode)
+	}
+	resp = peer.call(ProtoMatchMaking, 0x10, u32le(gid))
 	if resp.IsError {
 		t.Fatalf("gid-only participants URLs: %#x", resp.ErrorCode)
 	}
 	r = rmc.NewReader(resp.Body)
 	entries, err := r.ListHeader()
-	if err != nil || entries != 1 {
+	if err != nil || entries != 4 {
 		t.Fatalf("participants URL entries=%d: %v", entries, err)
 	}
-	n, err := r.ListHeader()
-	if err != nil || n != 2 {
-		t.Fatalf("host station URLs=%d: %v", n, err)
+	local := map[uint64]string{}
+	counts := map[uint64]int{}
+	for range entries {
+		raw, err := r.String()
+		if err != nil {
+			t.Fatalf("flat participant station %q: %v", raw, err)
+		}
+		station := switchnex.Parse(raw)
+		pid := station.GetInt("PID")
+		if pid != host.pid && pid != peer.pid {
+			t.Fatalf("unexpected participant: %q", raw)
+		}
+		counts[pid]++
+		if station.GetInt("port") != 50000 {
+			t.Fatalf("lost game port: %q", raw)
+		}
+		if station.Get("address") == "192.168.1.20" || station.Get("address") == "192.168.1.21" {
+			local[pid] = station.Get("address")
+		}
+	}
+	if r.Remaining() != 0 {
+		t.Fatalf("trailing participant URL data: %d bytes", r.Remaining())
+	}
+	if counts[host.pid] != 2 || counts[peer.pid] != 2 || local[host.pid] != "192.168.1.20" || local[peer.pid] != "192.168.1.21" {
+		t.Fatalf("household endpoints mixed: counts=%v local=%v", counts, local)
 	}
 }
+
 // Castle Crashers links Ranking2; make sure its optional board service is
 // reachable through the title's actual TLS dispatch rather than unregistered.
 func TestCastleCrashersRanking2(t *testing.T) {
@@ -213,11 +256,11 @@ func TestFirstBatchBrowseAndJoin(t *testing.T) {
 			if err != nil || switchnex.Parse(lan).Get("address") != "192.168.1.20" {
 				t.Fatalf("host LAN station %q: %v", lan, err)
 			}
-		public, err := r.String()
-		if err != nil || switchnex.Parse(public).Get("PID") != itoa(host.pid) {
-			t.Fatalf("host public station %q: %v", public, err)
-		}
-	})
+			public, err := r.String()
+			if err != nil || switchnex.Parse(public).Get("PID") != itoa(host.pid) {
+				t.Fatalf("host public station %q: %v", public, err)
+			}
+		})
 	}
 }
 

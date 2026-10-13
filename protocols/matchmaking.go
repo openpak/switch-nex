@@ -1484,7 +1484,7 @@ func matchMakingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) 
 			return w.Bytes()
 		}())
 
-	case 0x10: // GetParticipantsURLs(gid, list<pid>) -> list<RVConnectionData>
+	case 0x10: // GetParticipantsURLs(gid) -> list<StationURL>
 		return getParticipantsURLs(env, c, msg)
 
 	case 0x15: // FindBySingleID(gid) -> (bool, GatheringHolder)
@@ -1963,19 +1963,13 @@ func readSessionInParam(r *rmc.Reader) (*Session, error) {
 }
 
 // getParticipantsURLs implements MatchMaking 0x15 method 0x10:
-// GetParticipantsURLs(gid, list<pid>) -> list<RVConnectionData>
-// Each RVConnectionData is a list<String> of station URLs for that participant.
-//
-// Castle Crashers Remastered (2026-10-12, console) calls this with only the
-// gid (4-byte body): no PID list follows. Answering InvalidArgument drops the
-// client with "lost connection to Nintendo Switch Online" right after it
-// creates its room. A missing or unreadable list falls back to every current
-// participant instead of refusing — there is nothing to gain by failing a
-// client that asks for the room it just made.
+// GetParticipantsURLs(gid) -> list<StationURL>. The list is flat: a nested
+// per-participant list makes the client read its count as a string length and
+// reject the endpoints before starting a peer connection.
 func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
 	gid, err := r.U32()
-	if err != nil {
+	if err != nil || r.Remaining() != 0 {
 		return errorResp(msg, rmc.ResultInvalidArgument)
 	}
 	g, ok := env.Match.get(gid)
@@ -1985,27 +1979,16 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	if !g.participants[c.PID] {
 		return errorResp(msg, rmc.ResultPermissionDenied)
 	}
-	pids, err := readPIDList(r)
-	if err != nil || len(pids) == 0 {
-		if err != nil {
-			log.Printf("[%s] participantsURLs: gid=%d pid=%s sent no PID list, answering all %d participant(s)", env.Name, gid, redact.Tag(c.PID), len(g.participants))
+	var stations []string
+	for _, pid := range participantPIDs(g) {
+		if peer, connected := env.push.connection(pid); connected {
+			stations = append(stations, peer.Stations()...)
 		}
-		pids = participantPIDs(g)
 	}
-
 	w := rmc.NewWriter()
-	w.List(len(pids))
-	for _, pid := range pids {
-		peer, connected := env.push.connection(pid)
-		if !connected {
-			w.EmptyList()
-			continue
-		}
-		stations := peer.Stations()
-		w.List(len(stations))
-		for _, s := range stations {
-			w.String(s)
-		}
+	w.List(len(stations))
+	for _, station := range stations {
+		w.String(station)
 	}
 	return success(msg, w.Bytes())
 }
