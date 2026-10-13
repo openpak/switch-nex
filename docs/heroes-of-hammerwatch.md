@@ -131,6 +131,22 @@ The owner hosted from the retail Switch (v524288):
   cannot browse to it, that flag is the first suspect. Joining from a
   second machine is the next run.
 
+## Invite accepted, join and P2P punch — 2026-10-13 ~08:10 UTC
+
+The owner invited from the lobby; the invite travelled OpenPak's
+invitation layer (Penne/five `invitation_groups`, inbox polls, mark
+read — all 200) and the second player joined over NEX:
+
+- Joiner login (method 0x6), secure connect, Register (cid=2).
+- `matchmake: joined gid=876463` via explicit join 0x6D/0x27 with the
+  full-session echo (222B), then `GetParticipantsURLs` 0x15/0x29 for
+  the host stations (328B); join notifications reached both sides.
+- Both ends exchanged NAT probes (`InitiateProbe` pushed both ways)
+  and the punch succeeded: `punch to cid=1 ok (rtt=100ms)`.
+- No `NotImplemented`, no errors, both sessions still live at the
+  last look. Whether the two heroes are in the same dungeon together
+  is the owner's eyes-only confirmation.
+
 ## Validation and next observations
 
 The TLS test harness covers both login methods, ticketed secure connects
