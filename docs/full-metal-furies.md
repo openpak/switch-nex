@@ -89,20 +89,53 @@ certificate covers the SNI name.
 - Add the health endpoint to the existing voice-gathering URL list and
   catalogue/server-health configuration. Catalogue state stays out until
   the relevant flow is game-verified.
-- Re-extract the current update (content 327680) before deploying: the
-  analysed dump is outdated and the pair must be re-confirmed against
-  it. A local registration alone does not install a route or start a
-  production container.
+- Re-extract the current update (content 327680) before relying on
+  this pair long-term: the analysed dump is outdated. A local
+  registration alone does not install a route or start a production
+  container.
+
+**Deployed 2026-10-12 ~22:15 UTC** (local arm64 binary mount, not a
+published release). The block sits inside the planned 23000–23499
+Switch-NEX range.
+
+- `deploy/nex-full-metal-furies.yml` merged into the Traefik TCP maps
+  (backup `dynamic.before-fmf-20261012.yml` on the host); exactly one
+  router plus one service added, unrelated maps preserved. Existing
+  console entrypoint, passthrough TLS and PROXY v2. The SNI route
+  serves the wildcard `*.s.n.srv.nintendo.net` leaf against the
+  OpenPak CA.
+- `openpak-switch-full-metal-furies` quadlet: pinned-base image with
+  the local arm64 binary mounted over `/app/switch-nexd`
+  (`~/openpak/experiments/full-metal-furies-20261012/switch-nexd-arm64`,
+  SHA-256
+  `9423c8966855c27ec4c5383d89caad6a4ea5bd28fa2d18f968dafaa6cd640cd5`),
+  host networking, own recall/state directory, shared identity
+  environment.
+- Host INPUT accepts secure TCP **23121** (own rule with comment,
+  before the REJECT, persisted to `/etc/iptables/rules.v4`). Health
+  **23122** answers `ok full-metal-furies` internally; not exposed
+  publicly.
+- Rollback: remove the router/service, stop the quadlet, drop the
+  23121 rule. Routing/environment backups stay on the host.
+
+Still pending: voice-gathering URL list, catalogue/server-health
+configuration (catalogue stays out until game-verified), and the release
+cut that replaces the binary mount. A local registration plus a healthy
+listener does not establish playability.
 
 ## Validation and next observations
 
-The TLS test harness covers the independently supplied client access key,
-both login methods, ticketed secure connects for distinct players on one
-address, Register's legacy public-station shape, create/browse/join and
-host stations, the explicit-join participant recap, and dispatch through
-the title's own TLS route.
+Local validation 2026-10-12: the full `GOWORK=off go test -race ./...`
+suite and `GOWORK=off go vet ./...` pass.
 
-After deployment, enter the game's online menu and record the actual SNI,
+Production validation 2026-10-12 (~22:15 UTC): public SNI route, both
+login methods, ticketed logins and legacy `type=3` registration all
+pass through the deployed container. Both methods mint tickets
+(`UNPROVEN (no token)`, the synthetic-probe path); no CONNECT
+signature failure against `c093ff57` — external confirmation that the
+static key candidate signs correctly.
+
+Next: boot the game, enter the online menu and record the actual SNI,
 login method, station URL and first RPCs — in particular whether the
 dialled SNI matches `g2c82ee00-lp1` and whether the CONNECT signature
 verifies against `c093ff57`. For the first failures distinguish

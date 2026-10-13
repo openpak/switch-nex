@@ -115,6 +115,22 @@ game-verified). Rollback: remove the router/service, stop/remove the
 quadlet, drop the 23111 rule. Routing/environment backups stay on the
 host.
 
+## First retail trace — 2026-10-13 ~07:16 UTC
+
+The owner hosted from the retail Switch (v524288):
+
+- Proved login on method 0x6 (no `UNPROVEN`), version `00080000`;
+  websocket carriage end to end.
+- Register ok, NAT moderate, `replaceURL` stored the host's post-NAT
+  stations (2 station(s)).
+- `matchmake: created gid=876463 max=4 open=false` via
+  MatchmakeExtension 0x6D/0x26, followed by steady 0x6D traffic
+  (methods 0x1/0x2/0xB, all ok) — session attribute updates, no
+  `NotImplemented`, no errors, session still live at the last look.
+- The session was created closed (`open=false`); if a second console
+  cannot browse to it, that flag is the first suspect. Joining from a
+  second machine is the next run.
+
 ## Validation and next observations
 
 The TLS test harness covers both login methods, ticketed secure connects
