@@ -174,9 +174,9 @@ func nowDateTime() uint64 { return switchnex.NowDateTime() }
 // TEMP-DIAG-DUCK (remove after the mesh-debug capture): log the raw
 // address:port pairs a duck-game client advertises or is handed, so the next
 // retail attempt shows exactly what each side punches at. Bounded to this
-// title; revert once captured.
+// titles (duck-game, mario-party-superstars); revert once captured.
 func diagStations(env *Env, pid uint64, what string, stations []string) {
-	if env.Name != "duck-game" {
+	if env.Name != "duck-game" && env.Name != "mario-party-superstars" {
 		return
 	}
 	addrs := make([]string, 0, len(stations))
@@ -184,7 +184,7 @@ func diagStations(env *Env, pid uint64, what string, stations []string) {
 		u := switchnex.Parse(s)
 		addrs = append(addrs, u.Get("address")+":"+strconv.FormatUint(u.GetInt("port"), 10))
 	}
-	log.Printf("[duck-game] diag %s pid=%s stations=%q", what, redact.Tag(pid), addrs)
+	log.Printf("[%s] diag %s pid=%s stations=%q", env.Name, what, redact.Tag(pid), addrs)
 }
 
 // parseStationPID reads the PID parameter out of a station URL string, or 0.
