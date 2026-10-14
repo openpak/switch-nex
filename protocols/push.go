@@ -10,6 +10,7 @@ package protocols
 
 import (
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -171,12 +172,12 @@ func (n *natStore) compatibleWith(g *gathering, pid uint64) bool {
 // nowDateTime is the current UTC time as a packed NEX DateTime.
 func nowDateTime() uint64 { return switchnex.NowDateTime() }
 
-// TEMP-DIAG-DUCK (remove after the mesh-debug capture): log the raw
-// address:port pairs a duck-game client advertises or is handed, so the next
-// retail attempt shows exactly what each side punches at. Bounded to this
-// titles (duck-game, mario-party-superstars); revert once captured.
+// diagStations logs the raw address:port pairs a client advertises or is
+// handed. Off unless SWITCH_NEX_DIAG_STATIONS lists this title (comma
+// separated) or is "all": it prints players' addresses, so enable it per title
+// for a test and unset it afterwards.
 func diagStations(env *Env, pid uint64, what string, stations []string) {
-	if env.Name != "duck-game" && env.Name != "mario-party-superstars" {
+	if !diagEnabled(env.Name, os.Getenv("SWITCH_NEX_DIAG_STATIONS")) {
 		return
 	}
 	addrs := make([]string, 0, len(stations))
@@ -185,6 +186,15 @@ func diagStations(env *Env, pid uint64, what string, stations []string) {
 		addrs = append(addrs, u.Get("address")+":"+strconv.FormatUint(u.GetInt("port"), 10))
 	}
 	log.Printf("[%s] diag %s pid=%s stations=%q", env.Name, what, redact.Tag(pid), addrs)
+}
+
+func diagEnabled(title, list string) bool {
+	for _, t := range strings.Split(list, ",") {
+		if t = strings.TrimSpace(t); t == "all" || t == title {
+			return true
+		}
+	}
+	return false
 }
 
 // parseStationPID reads the PID parameter out of a station URL string, or 0.
