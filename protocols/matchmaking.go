@@ -1939,6 +1939,8 @@ func participantPIDs(g *gathering) []uint64 {
 	for pid := range g.participants {
 		out = append(out, pid)
 	}
+	// Map order is random per call; every console must see the same roster.
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 
