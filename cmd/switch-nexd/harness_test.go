@@ -47,9 +47,16 @@ func testTLS(t *testing.T) *tls.Config {
 	}
 }
 
-// start brings up one title on ephemeral ports with identity resolution off,
-// which is the shape of the fleet today.
+// start brings up one title on ephemeral ports in the isolated-development
+// shape: identity resolution off AND enforcement disarmed, so logins on
+// unproven names succeed. Production runs enforced (the flag defaults true
+// and startup refuses enforcement without a resolver); a test that needs the
+// enforced shape sets *requireIdentity itself.
 func start(t *testing.T, name string) (authAddr, secureAddr string, svc *service) {
+	t.Helper()
+	prev := *requireIdentity
+	*requireIdentity = false
+	t.Cleanup(func() { *requireIdentity = prev })
 	return startWith(t, name, newIdentity("", ""))
 }
 
@@ -585,7 +592,7 @@ func TestLoginExShapeIsSwitchable(t *testing.T) {
 	for _, structured := range []bool{false, true} {
 		name := "flat (this lineage, in production)"
 		if structured {
-			name = "structured (servers/nex)"
+			name = "structured (platforms/wiiu-3ds/games/nex)"
 		}
 		t.Run(name, func(t *testing.T) {
 			*loginExStruct = structured

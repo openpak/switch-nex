@@ -9,7 +9,7 @@ import (
 )
 
 // healthz must say "down" until both of the title's listeners are serving, and
-// "ok" in the servers/nex shape once they are.
+// "ok" in the platforms/switch/games/switch-nex shape once they are.
 func TestHealthzFollowsTheListeners(t *testing.T) {
 	var spec title
 	for _, tt := range titles {

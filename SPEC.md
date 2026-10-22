@@ -31,7 +31,7 @@ own packet captures. Public documentation (Kinnay's NEX pages) used as cross-ref
   DataHolder containing the full OpenPak BAAS id token JWT (~1 kB). The "918-byte ceiling"
   concern was disproven: the full JWT fits and the server parsed it.
 - Response body (LoginEx 0x02 — flat layout, all little-endian, pinned to the
-  measured server's shape; the earlier "version+length header" reading
+   measured server implementation's shape; the earlier "version+length header" reading
   of our own capture was a MISPARSE of the u32 retval `0x00010001`):
 
 ```
@@ -76,7 +76,7 @@ String SourceKey                   (64 = hex of the 32-byte source key)
 - NEX String = u16le length INCLUDING the trailing NUL, bytes, NUL. NEX Bool =
   one byte. The earlier u32-string/u32-bool reading was wrong.
 
-## PRUDP handshake facts (from the measured server)
+## PRUDP handshake facts (from the measured server implementation)
 
 - SYN-ACK and CONNECT-ACK carry flags `ACK | HAS_SIZE`. Without HAS_SIZE the
   client completes the handshake but sends an EMPTY CONNECT payload — that is
@@ -157,5 +157,5 @@ String SourceKey                   (64 = hex of the 32-byte source key)
   into a room before the host's NAT check and fetched its pre-NAT station
   (`port=1;CID=0`); nothing reachable until the host's lobby closed.
 - `2306-0802` — seen when the game received a login response whose ticket it could not
-  parse (Token Parse Error), against a measured server that closes the auth connection
+   parse (Token Parse Error), against a measured server implementation that closes the auth connection
   right after responding.

@@ -85,7 +85,7 @@ type Env struct {
 	//           structure, message, source key. What this lineage serves and
 	//           what production runs.
 	//   true  — the same ValidateAndRequestTicketResult structure method 6
-	//           returns. What servers/nex serves.
+	//           returns. What platforms/wiiu-3ds/games/nex serves.
 	//
 	// The two are easy to confuse because the flat retval 0x00010001 is the
 	// bytes 01 00 01 00, which reads convincingly as a version byte followed
@@ -95,7 +95,7 @@ type Env struct {
 	// SourceKeyBytes is the per-login kerberos source key size. 32 on Switch
 	// generally (MK8D, MPS, ACNH, LM3, S2, SMM2 measured), 16 attested for
 	// SMB35 against the measured server — the length is per-title, not a protocol
-	// constant (see servers/nex provenance).
+	// constant (see platforms/wiiu-3ds/games/nex provenance).
 	SourceKeyBytes int
 
 	// Matchmaking state (nil when the title registers no matchmaking).

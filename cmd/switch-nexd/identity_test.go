@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -240,7 +241,7 @@ func TestUnprovenLoginFallsBackUntilEnforced(t *testing.T) {
 	// Enforcing: the same login is refused, with the retryable code, because
 	// an unproven token is exactly the case a fresh token can fix.
 	*requireIdentity = true
-	t.Cleanup(func() { *requireIdentity = false })
+	t.Cleanup(func() { *requireIdentity = true }) // restore the production default
 	resp := login()
 	if !resp.IsError {
 		t.Fatal("enforcing, but an unprovable token still logged in")
@@ -284,7 +285,7 @@ func TestEnforcingClosesTheTicketlessRecallPath(t *testing.T) {
 	// Enforcing: the same ticketless CONNECT gets no reply at all, because
 	// there is nothing in it that proves who is calling.
 	*requireIdentity = true
-	t.Cleanup(func() { *requireIdentity = false })
+	t.Cleanup(func() { *requireIdentity = true }) // restore the production default
 
 	s2 := dial(t, secureAddr, key)
 	s2.send(&prudplite.Packet{Type: prudplite.Syn})
@@ -356,5 +357,152 @@ func TestAppClaims(t *testing.T) {
 	}
 	if ai, av := appClaims("nx2.bare"); ai != "" || av != "" {
 		t.Fatalf("bare claim: %q %q", ai, av)
+	}
+}
+
+// TestEnforcementIsTheDefault pins the public posture at the flag
+// definition: enforcement on unless a run explicitly opts out. The DefValue
+// read is immune to whatever earlier tests left in the live variable.
+func TestEnforcementIsTheDefault(t *testing.T) {
+	if got := flag.Lookup("require-identity").DefValue; got != "true" {
+		t.Errorf("require-identity default = %q, want true (public mode enforces)", got)
+	}
+}
+
+// TestStartupRefusesEnforcementWithoutResolver is the fail-closed gate:
+// enforcement with no resolver is a misconfiguration, and starting anyway
+// would serve a public listener that proves nothing.
+func TestStartupRefusesEnforcementWithoutResolver(t *testing.T) {
+	if err := checkIdentityConfig(newIdentity("", ""), true); err == nil {
+		t.Error("enforcement without a resolver passed the startup check")
+	}
+	if err := checkIdentityConfig(newIdentity("", ""), false); err != nil {
+		t.Errorf("isolated dev mode failed the startup check: %v", err)
+	}
+	if err := checkIdentityConfig(newIdentity("http://127.0.0.1:9", "k"), true); err != nil {
+		t.Errorf("configured enforcement failed the startup check: %v", err)
+	}
+}
+
+// TestEnforcedLoginWithoutResolverIsRefused is the second layer: even if the
+// startup gate were bypassed, resolveLogin refuses instead of minting a
+// ticket for an unproven name. Non-retryable — retrying cannot fix the
+// server's configuration.
+func TestEnforcedLoginWithoutResolverIsRefused(t *testing.T) {
+	authAddr, _, _ := startWith(t, "mario-kart-8-deluxe", newIdentity("", ""))
+	key := titleAccessKey(t, "mario-kart-8-deluxe")
+
+	*requireIdentity = true
+	t.Cleanup(func() { *requireIdentity = true })
+
+	c := dial(t, authAddr, key)
+	c.handshake(nil)
+	w := rmc.NewWriter()
+	w.String("anybody")
+	resp := c.call(0x0A, 0x02, w.Bytes())
+	if !resp.IsError {
+		t.Fatal("enforced with no resolver, but a bare name logged in")
+	}
+	if resp.ErrorCode != rmc.ResultAuthValidationFail {
+		t.Fatalf("refusal = %#x, want ValidationFailed %#x", resp.ErrorCode, rmc.ResultAuthValidationFail)
+	}
+}
+
+// TestNoTokenLoginIsRefusedWhenEnforced. A login carrying no AuthenticationInfo
+// has nothing to prove: enforced it is refused (unparseable, not retryable);
+// in isolated dev mode it still falls back, which is the documented shape of
+// that mode and nothing else.
+func TestNoTokenLoginIsRefusedWhenEnforced(t *testing.T) {
+	authAddr, _, _ := startWith(t, "mario-kart-8-deluxe", newIdentity("http://127.0.0.1:9", "k"))
+	key := titleAccessKey(t, "mario-kart-8-deluxe")
+
+	login := func() *rmc.RMCMessage {
+		c := dial(t, authAddr, key)
+		c.handshake(nil)
+		w := rmc.NewWriter()
+		w.String("tokenless")
+		return c.call(0x0A, 0x02, w.Bytes())
+	}
+
+	*requireIdentity = true
+	t.Cleanup(func() { *requireIdentity = true })
+	if resp := login(); !resp.IsError || resp.ErrorCode != rmc.ResultAuthTokenParse {
+		t.Fatalf("tokenless enforced login: error=%v code=%#x, want TokenParse refusal", resp.IsError, resp.ErrorCode)
+	}
+
+	*requireIdentity = false
+	if resp := login(); resp.IsError {
+		t.Fatalf("isolated dev fallback refused a tokenless login: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+}
+
+// TestForeignTokenIsRefusedWhenEnforced. A well-formed token nx-baas does not
+// know (404: genuine JWT, foreign account) is not retryable — no fresh token
+// from the same account will prove — so it gets ValidationFailed, while the
+// isolated dev mode still falls back.
+func TestForeignTokenIsRefusedWhenEnforced(t *testing.T) {
+	baas := newFakeBaas(t, 999)
+	baas.status = http.StatusNotFound // well-formed, unknown account
+	ids := newIdentity(baas.URL, "k")
+
+	authAddr, _, _ := startWith(t, "mario-kart-8-deluxe", ids)
+	key := titleAccessKey(t, "mario-kart-8-deluxe")
+
+	login := func() *rmc.RMCMessage {
+		c := dial(t, authAddr, key)
+		c.handshake(nil)
+		w := rmc.NewWriter()
+		w.String("stranger")
+		w.Raw(authInfoHolder(jwt(t, map[string]any{"sub": "stranger"})))
+		return c.call(0x0A, 0x02, w.Bytes())
+	}
+
+	*requireIdentity = true
+	t.Cleanup(func() { *requireIdentity = true })
+	if resp := login(); !resp.IsError || resp.ErrorCode != rmc.ResultAuthValidationFail {
+		t.Fatalf("foreign token enforced login: error=%v code=%#x, want ValidationFailed", resp.IsError, resp.ErrorCode)
+	}
+
+	*requireIdentity = false
+	if resp := login(); resp.IsError {
+		t.Fatalf("isolated dev fallback refused a foreign token: %#08x", resp.ErrorCode|rmc.ErrorCodeBit)
+	}
+}
+
+// TestRequireIdentityEnvOverride. The environment sets the flag when the
+// command line did not; an explicit flag beats the environment; the default
+// is enforcement.
+func TestRequireIdentityEnvOverride(t *testing.T) {
+	prev := *requireIdentity
+	t.Cleanup(func() { *requireIdentity = prev })
+
+	t.Setenv("NX_REQUIRE_IDENTITY", "false")
+	applyRequireIdentityEnv()
+	if *requireIdentity {
+		t.Error("NX_REQUIRE_IDENTITY=false left enforcement on")
+	}
+
+	t.Setenv("NX_REQUIRE_IDENTITY", "1")
+	applyRequireIdentityEnv()
+	if !*requireIdentity {
+		t.Error("NX_REQUIRE_IDENTITY=1 left enforcement off")
+	}
+
+	// An explicit flag wins over the environment: swap in a FlagSet where
+	// require-identity was Set, and the environment must not touch the live
+	// variable.
+	t.Setenv("NX_REQUIRE_IDENTITY", "false")
+	*requireIdentity = true
+	old := flag.CommandLine
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	fs.Bool("require-identity", true, "")
+	if err := fs.Set("require-identity", "true"); err != nil {
+		t.Fatal(err)
+	}
+	flag.CommandLine = fs
+	t.Cleanup(func() { flag.CommandLine = old })
+	applyRequireIdentityEnv()
+	if !*requireIdentity {
+		t.Error("explicit flag lost to the environment")
 	}
 }

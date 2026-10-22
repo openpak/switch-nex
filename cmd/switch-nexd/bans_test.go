@@ -19,6 +19,7 @@ func TestBannedLoginIsRefusedEvenUnenforced(t *testing.T) {
 	key := titleAccessKey(t, "mario-kart-8-deluxe")
 
 	*requireIdentity = false
+	t.Cleanup(func() { *requireIdentity = true }) // the production default
 	c := dial(t, authAddr, key)
 	c.handshake(nil)
 	w := rmc.NewWriter()

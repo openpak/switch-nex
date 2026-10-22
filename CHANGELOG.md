@@ -8,6 +8,23 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## Unreleased — identity enforcement is the default (ALPHA-11)
+
+- `-require-identity` defaults to true: logins whose BAAS token cannot be
+  proven are refused instead of falling back to the unproven name, and the
+  ticketless-recall path stays closed. Development-only probes pass
+  `-require-identity=false` explicitly.
+- Startup refuses to serve enforcement with no resolver (`-identity-url` /
+  `NX_INTERNAL_URL` unset): fail closed, not fail open. `NX_REQUIRE_IDENTITY`
+  sets the flag from the environment (explicit flag wins); an unparseable
+  value is fatal.
+- `resolveLogin` refuses even if the startup gate were bypassed. Banned
+  accounts were already refused enforced or not; unchanged.
+- Coverage: startup-gate, enforced-without-resolver, tokenless, foreign
+  (404) and env-override tests; full module suite green. Production quadlets
+  need no new setting beyond the `NX_INTERNAL_URL` they pass — verify the
+  `identity: enforcing` startup line (docs/deploy.md).
+
 ## Unreleased — Duck relay investigation
 
 - Resolve shared relay source rewriting through production host networking;
@@ -493,7 +510,7 @@ key were read out of the title's own executable rather than guessed: its
 login...". Neither value appears in Kinnay's Switch game-server list.
 
 DST is a **two-stack title** — the first one here. Klei's own HTTPS backend
-(`servers/klei`) carries the account and the server browser; NEX carries the
+(`platforms/switch/games/klei`) carries the account and the server browser; NEX carries the
 session and NAT traversal. Hosting runs Klei login, TokenPurpose, NGS login,
 start NAT session, then a RakNet UDP server, and when any of it is missing the
 player sees the same "Server failed to start".
@@ -1058,7 +1075,7 @@ build. Both titles' bullets belong here.
   carried no scheme override, so the default went out in every login station
   URL. The title builds its secure station with the secure scheme, and on
   `prudp` its CONNECT arrives empty and dies when Pia needs the session
-  (servers/nex provenance). Untested live — no ACNH
+  (platforms/switch/games/switch-nex provenance). Untested live — no ACNH
   client has completed a login yet — but the wrong scheme fails closed on
   first contact, so it ships before the title's first session, not after.
 
@@ -1141,7 +1158,7 @@ build. Both titles' bullets belong here.
 
 - **`GET /healthz` on every title's base+2**, the port ports.md always gave
   it and `-dump` already printed, but nothing listened on. Stdlib `net/http`,
-  bound on all interfaces like the game ports. The body is the servers/nex
+   bound on all interfaces like the game ports. The body is the platforms/switch/games/switch-nex
   shape: `ok <title> auth=<base>/tls secure=<base+1>/tls`, 200 only once both
   of the title's listeners are serving. A title whose auth or secure port
   failed to bind still answers healthz — 503, `down <title> auth=… secure=…
@@ -1281,8 +1298,9 @@ build. Both titles' bullets belong here.
   structure header. MK8D left its freshly created room 0.2 s after reading the
   bare answer. Codes are now 5 characters, the length the measured server
   issues (ours was an invented 6), and resolve accepts the code bare or inside
-  a header. Shape and length are measured facts; the code here is our own. A numeric-code guess was tried first and
-  reverted once the measured server was read — read the measured server first.
+   a header. Shape and length are facts read from the prior measured server implementation's matchmaking
+   handlers; the code here is our own. A numeric-code guess was tried first and
+   reverted once the measured server implementation was read — read the measured server implementation first.
 - ZNC (`api-lp1.znc.srv.nintendo.net/v1/NX/getToken`, the voice-chat path) is
   called by MK8D after create and gets 404 from nx-baas. The measured server
   does not serve it either, so it is presumed non-fatal; recorded, not fixed.
@@ -1314,8 +1332,8 @@ build. Both titles' bullets belong here.
 
 - New title `clubhouse-games-51` (010047700D540000, game server 2035BB00) on
   port block 22870 (allocated from the ports.md pool), access key `8c3661ff`.
-  First title whose facts came from earlier research notes —
-  provenance in `docs/parity.md`.
+   First title whose measured facts were taken straight from a prior measured server implementation
+   — provenance in `docs/parity.md`.
 - `protocols/`: new `DSClubhouse` DataStore mode (GetPersistenceInfos answers
   empty + NotFound per slot — the "nothing saved yet" signal the game's
   account setup needs; GetMeta NotFound; everything else a bare empty list),

@@ -368,7 +368,7 @@ var titles = []title{
 	{"animal-crossing-new-horizons", 22180, "v43a10em", func(e *protocols.Env) {
 		// prudps, not prudp: ACNH builds its secure station with the
 		// secure scheme, and on prudp its CONNECT arrives empty and the
-		// title dies when Pia needs the session (servers/nex provenance).
+		// title dies when Pia needs the session (platforms/switch/games/switch-nex provenance).
 		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
@@ -447,7 +447,7 @@ var titles = []title{
 	{"super-mario-maker-2", 22330, "fdf6617f", func(e *protocols.Env) {
 		// prudps: on prudp the console completes the handshake and then sends
 		// an EMPTY CONNECT, no ticket, and SMM2 dies at matchmaking (the
-		// measured server's measured note, servers/nex SMM2 provenance).
+		// measured server's measured note, platforms/switch/games/switch-nex SMM2 provenance).
 		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
@@ -694,7 +694,7 @@ var titles = []title{
 		// "c8e4be5d" at main.nso 0x227dc4, in the call that logs
 		// "nxInternetStartup: Performing NGS login...".
 		//
-		// This is half of a two-stack title. Klei's own HTTPS (servers/klei)
+		// This is half of a two-stack title. Klei's own HTTPS (platforms/switch/games/klei)
 		// carries the account and the server browser; NEX carries the session
 		// and NAT traversal. The game's order is Klei login -> TokenPurpose ->
 		// NGS login -> start NAT session -> create the RakNet server, and the
@@ -881,7 +881,7 @@ var (
 	recallFile      = flag.String("recall-file", "", "file the address-to-PID reconnect table is persisted to (empty: memory only, lost on restart)")
 	identityURL     = flag.String("identity-url", "", "nx-baas internal base URL; empty disables account resolution and every login is accepted on its unproven name")
 	identityKey     = flag.String("identity-key", "", "shared key for the nx-baas internal API (X-Internal-Key)")
-	requireIdentity = flag.Bool("require-identity", false, "refuse logins whose token cannot be proven, instead of falling back to the name")
+	requireIdentity = flag.Bool("require-identity", true, "refuse logins whose token cannot be proven, instead of falling back to the name (public mode; development-only probes pass -require-identity=false explicitly; NX_REQUIRE_IDENTITY env overrides)")
 	allowTicketless = flag.Bool("allow-ticketless-recall", false, "legacy development only: allow ambiguous-by-address ticketless login recall; never enable with proven identities")
 	dump            = flag.Bool("dump", false, "print every served title's resolved configuration and exit")
 	loginExStruct   = flag.Bool("loginex-structured", false, "answer TicketGranting method 2 with the ValidateAndRequestTicketResult structure instead of the flat layout (see docs/login-shape-conflict.md)")
@@ -893,6 +893,44 @@ func orEnv(given, envVar string) string {
 		return given
 	}
 	return os.Getenv(envVar)
+}
+
+// applyRequireIdentityEnv lets the environment set the flag, the same shape
+// as the identity URL/key (orEnv): a quadlet sets NX_REQUIRE_IDENTITY rather
+// than editing an Exec line. Precedence matches orEnv — an explicit flag
+// beats the environment, the environment beats the default — checked via
+// flag.Visit because a bool flag cannot tell "set false" from "unset" by
+// value alone. An unparseable value is fatal: silently running enforced (or
+// not) on a typo is the failure this whole file exists to prevent.
+func applyRequireIdentityEnv() {
+	v := os.Getenv("NX_REQUIRE_IDENTITY")
+	if v == "" {
+		return
+	}
+	explicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "require-identity" {
+			explicit = true
+		}
+	})
+	if explicit {
+		return
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		log.Fatalf("NX_REQUIRE_IDENTITY=%q does not parse as a bool", v)
+	}
+	*requireIdentity = b
+}
+
+// checkIdentityConfig is the fail-closed gate: enforcement with no resolver
+// is a configuration error, not a mode. main refuses to start rather than
+// serve a public listener that accepts every login on its unproven name.
+func checkIdentityConfig(ids *identity, require bool) error {
+	if require && !ids.enabled() {
+		return fmt.Errorf("identity enforcement requested (-require-identity) with no resolver configured (-identity-url / NX_INTERNAL_URL): refusing to start")
+	}
+	return nil
 }
 
 // pidFor returns a stable NEX PID for a login username.
@@ -915,6 +953,7 @@ func pidFor(username string) uint64 {
 
 func main() {
 	flag.Parse()
+	applyRequireIdentityEnv()
 	if *dump {
 		dumpTitles()
 		return
@@ -958,6 +997,11 @@ func main() {
 		orEnv(*identityURL, "NX_INTERNAL_URL"),
 		orEnv(*identityKey, "NX_INTERNAL_KEY"),
 	)
+	// Fail closed: enforcement with no resolver is a misconfiguration, and
+	// starting anyway would serve a public listener that proves nothing.
+	if err := checkIdentityConfig(ids, *requireIdentity); err != nil {
+		log.Fatal(err)
+	}
 	switch {
 	case !ids.enabled():
 		log.Printf("identity: DISABLED — every login is accepted on its unproven name, and nx-baas never sees the player")
@@ -1116,7 +1160,7 @@ func (s *service) serve(authLn, secureLn net.Listener) {
 	s.secureUp.Store(true)
 }
 
-// healthz answers GET /healthz in the servers/nex shape:
+// healthz answers GET /healthz in the platforms/switch/games/switch-nex shape:
 // "ok <title> auth=<port>/<transport> secure=<port>/<transport>", 200 when
 // both of the title's listeners are serving, otherwise 503 with the same line
 // headed "down" and the listeners that are not up named at the end.
@@ -1179,17 +1223,27 @@ func handleAuthRMC(ids *identity, recall *recall, env *protocols.Env, targetKey 
 // secure stage, which already recovers the PID from that ticket, becomes
 // authenticated end to end with no further work.
 //
-// Without it, or when a token will not prove and enforcement is off, the PID is
-// derived from the login NAME. That name is an unverified claim: anyone who
-// reaches this port can send any name and be issued a ticket for it. The
-// fallback exists so the fleet can be migrated without locking every player out
-// on the first deploy, and it is logged every time precisely because it should
-// not be permanent.
+// Without a resolver, or when a token will not prove and enforcement is off,
+// the PID is derived from the login NAME. That name is an unverified claim:
+// anyone who reaches this port can send any name and be issued a ticket for
+// it. The fallback survives only for the isolated development mode
+// (-require-identity=false with no resolver); public operation enforces by
+// default and startup refuses the enforcing-without-resolver combination, so
+// the fallback below it is unreachable there — and still refuses, in case.
+// Every fallback use is logged precisely because it should not be permanent.
 // The refusal code travels back with the failure rather than in shared state:
 // logins from different consoles run concurrently, and a package-level variable
 // would hand one console the reason another was refused.
 func resolveLogin(ids *identity, env *protocols.Env, username string, in *rmc.Reader) (pid uint64, refusal uint32, ok bool) {
 	if !ids.enabled() {
+		if *requireIdentity {
+			// Unreachable from main (startup refuses this combination), but
+			// resolveLogin must not depend on that: enforcement without a
+			// resolver refuses here too, non-retryable, instead of minting
+			// a ticket for an unproven name.
+			log.Printf("[%s] login refused: identity enforced with no resolver configured", env.Name)
+			return 0, rmc.ResultAuthValidationFail, false
+		}
 		return pidFor(username), 0, true
 	}
 

@@ -257,6 +257,16 @@ client addresses; the by-IP recall is exact again. Three wires keep working:
   publishes it on host loopback — `PublishPort=127.0.0.1:20070:20070` — and
   the quadlet passes `NX_INTERNAL_URL=http://127.0.0.1:20070`. A working
   chain logs `identity: resolving against http://127.0.0.1:20070 …`.
+- **Identity enforcement is on by default** (`-require-identity=true`; the
+  flag and the URL/key both accept `NX_*` env). The quadlet needs no new
+  setting beyond the `NX_INTERNAL_URL` it already passes — but verify the
+  startup line reads `identity: enforcing`, not `identity: DISABLED` and not
+  the resolving-with-fallback line. A build started enforcing with no
+  resolver refuses to start outright (`refusing to start`); that is the
+  fail-closed gate, not a crash to work around. To disarm for an isolated
+  probe only: `-require-identity=false` (or `NX_REQUIRE_IDENTITY=false`).
+  Never disarm production: disarmed logins fall back to unproven names (the
+  `login UNPROVEN` lines), which is impersonation, not anonymity.
 - **Firewall**: INPUT accepts the fifteen secure ports via the multiport rule
   above; the 443→21443 REDIRECT that feeds Traefik is untouched. **INPUT must
   also accept 21081**, the 80→21081 REDIRECT target: a REDIRECT happens
@@ -338,9 +348,10 @@ systemctl --user daemon-reload && systemctl --user restart openpak-switch-nexd.s
   ```
 
   `-token fake` sends a well-formed but unsigned token, which the server must
-  carry to nx-baas and be told no about: `login UNPROVEN (id token not proven)`
-  in the log is proof the identity call really happens, as distinct from
-  `(no token)`, which never leaves the process.
+  carry to nx-baas and be told no about. Enforced (the production posture),
+  that is a refusal — `login refused: id token not proven` — which is proof
+  the identity call really happens. Disarmed, it is `login UNPROVEN (id token
+  not proven)` instead; `(no token)` never leaves the process either way.
 - Secure port direct dial (the console hits this straight from the station
   URL): `echo | openssl s_client -connect 145.241.199.19:<secure>`
 - Any new 2306-xxxx on the console is a regression until triaged (SPEC.md

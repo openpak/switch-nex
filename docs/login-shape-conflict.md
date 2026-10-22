@@ -8,12 +8,12 @@ records the evidence and what was done about it. It is **not resolved**.
 
 | | method 2 answers | claimed evidence |
 |---|---|---|
-| `servers/switch-nex` (this lineage, **in production**) | the **flat** layout: `u32 retval, PID, Buffer ticket, RVConnectionData structure, String msg, String sourceKey` | `SPEC.md`: a 2026-09-15 capture; says reading it as a structure was a **misparse of the retval** |
-| `servers/nex` | the **`ValidateAndRequestTicketResult` structure**, header and all — the same body method 6 returns | `login.go:87-98`: the flat layout "could not be parsed by the console: it stayed silent after the response and gave up with **2306-0112**" |
+| `platforms/switch/games/switch-nex` (this lineage, **in production**) | the **flat** layout: `u32 retval, PID, Buffer ticket, RVConnectionData structure, String msg, String sourceKey` | `SPEC.md`: a 2026-09-15 capture; says reading it as a structure was a **misparse of the retval** |
+| `platforms/wiiu-3ds/games/nex` | the **`ValidateAndRequestTicketResult` structure**, header and all — the same body method 6 returns | `login.go:87-98`: the flat layout "could not be parsed by the console: it stayed silent after the response and gave up with **2306-0112**" |
 | Measured server | **flat** | its own working deployment |
 
 Two to one for flat, and production serves flat. That is not the same as being
-right: `servers/nex` served these exact titles until the 2026-09-16 cutover, so
+right: `platforms/wiiu-3ds/games/nex` served these exact titles until the 2026-09-16 cutover, so
 its claim is about the same consoles and the same games.
 
 ## Why it is easy to get wrong in either direction
@@ -28,7 +28,7 @@ length — convincing, and wrong. The same four bytes support both readings, whi
 is exactly how two careful people reach opposite conclusions from one capture.
 
 Method **6** is not in dispute: it is the structure, field for field as above,
-and `SPEC.md`, `servers/nex` and the measured server all agree.
+and `SPEC.md`, `platforms/wiiu-3ds/games/nex` and the measured server all agree.
 
 ## What was tried, and why it did not settle it
 
@@ -67,7 +67,7 @@ systemctl --user restart openpak-switch-nexd.service
 ```
 
 The console error is the evidence to record either way. `2306-0112` — the code
-`servers/nex` associates with the flat layout — means the console received a
+`platforms/wiiu-3ds/games/nex` associates with the flat layout — means the console received a
 response it could not parse and gave up; `2306-0116` is `Core::InvalidArgument`,
 which the measured server associates with sending method 6's *request* shape the wrong
 answer. Write down which one appears, against which setting, in `SPEC.md`.

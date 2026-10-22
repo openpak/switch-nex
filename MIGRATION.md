@@ -1,4 +1,4 @@
-# Migrating Switch NEX titles from `servers/nex` to `switch-nex`
+# Migrating Switch NEX titles from `platforms/wiiu-3ds/games/nex` to `switch-nex`
 
 > **Current Switch client (2026-10-13): Harbor**, at
 > `~/REPOS/Openpak/emulators/harbor`. Harbor is an independent
@@ -39,7 +39,7 @@ are in `docs/parity.md`.
 
 | Port base | Title | nex-go state | switch-nex state |
 |---|---|---|---|
-| 22100 | shared reference host | running (test) | n/a — stays nex-go for cross-checks |
+| 22100 | shared measured server host | running (test) | n/a — stays nex-go for cross-checks |
 | 22110 | Mario Party Superstars | deployed | **parity implemented** (matchmaking, settings tables) |
 | 22120 | Monster Hunter Generations Ultimate | deployed (wss auth + udp secure) | **out of scope** — raw PRUDP/UDP secure stage and a kerberos v0 ticket, stays nex-go |
 | 22130 | Mario Golf: Super Rush | deployed (wss) | **parity implemented** |

@@ -1,14 +1,9 @@
 # Server parity — gap report (2026-09-16)
 
-Method-by-method comparison of every protocol `switch-nexd` serves against the
-measured servers. Read for **facts only** per `docs/clean-room-policy.md`:
-opcodes, wire field orders, error codes, response shapes. No outside code,
-structure, naming or comments carried across.
+Method-by-method comparison of every protocol `switch-nexd` serves against the measured
+behaviour in our research notes: opcodes, wire field orders, error codes, response shapes.
 
-Sources: earlier research notes for these titles (mario-party-superstars, mario-golf-super-rush, arms,
-mario-kart-8-deluxe, super-mario-bros-35, mario-tennis-aces, animal-crossing-new-horizons,
-luigis-mansion-3, mario-strikers, minecraft, splatoon-2, super-mario-maker-2, super-mario-odyssey,
-super-smash-bros-ultimate). No notes exist for Clubhouse Games 51.
+Sources: earlier research notes, per title, plus our own captures. None exist for Clubhouse Games 51.
 
 Live evidence: production host reached over `<ssh-agent-socket>`
 (`<prod-host>`). `openpak-switch-nexd.service` active since
@@ -248,12 +243,12 @@ finding, not a blocker.
 | SMM2 22330 | Ranking, DS(SMM2), 0x6E replay | — |
 | SMO 22340 | SC, UT, **Ranking**, DS | Ranking |
 | SSBU 22350 | SC, MMX, MM, MMExt, NAT, **Ranking**, 0x73+0x6E replay | Ranking |
-| Clubhouse 22870 | no local measured server | n/a |
+| Clubhouse 22870 | no local measured server implementation | n/a |
 
 Ours additionally registers Notification (0x0E) and Messaging (0x17) for every
 title. The measured server registers neither: 0x0E is **server→client only** there
 (see #21) and 0x17 does not exist in it. Harmless, but not parity.
 
-Measured NEX versions, for the record (we track none): MPS 40605, Golf 40605,
+NEX versions on the prior measured server implementation, for the record (we track none): MPS 40605, Golf 40605,
 ARMS 40305, MTA 40305, SMB35 40600, everything else 40000. Session key length is
 32 for every title including SMB35.

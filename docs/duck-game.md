@@ -39,7 +39,7 @@ The access key is unknown; the current profile deliberately uses an empty key.
   delivered the correct payload with the relay as source. A third unbound socket
   was dropped. Namespace counters: 48 forwarded bytes, 3 drops (two inactive
   observation packets plus the third-source packet). Probe leases/socket released.
-  Reproducible operator tool: `servers/connectivity/tools/probe_host_relay.py`.
+  Reproducible operator tool: `openpak/connectivity/tools/probe_host_relay.py`.
 - Full `GOWORK=off go test -race ./...` and `go vet ./...` passed in connectivity,
   Switch NEX and NPLN before the retail probe candidate was built.
 

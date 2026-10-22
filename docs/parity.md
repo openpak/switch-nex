@@ -1,11 +1,11 @@
-# Server parity — matching the measured servers title for title
+# Server parity — matching the measured server implementations title for title
 
 Method (same as the MK8D live server): take each title's measured behaviour against
-the measured servers, compare it against what this
+the measured server implementations, compare it against what this
 lineage serves, and close the gap so the answers match like for like. Every
 measured fact below comes from the per-title provenance/design records in
-`servers/nex/titles/<name>/docs/` — observations of games running and getting
-online against the measured server, not guesses. Wire shapes follow the public NEX
+`platforms/wiiu-3ds/games/nex/titles/<name>/docs/` — observations of games running and getting
+online against the measured server implementation, not guesses. Wire shapes follow the public NEX
 protocol tables (Pretendo nex-protocols-go, AGPL-3.0, facts only) and the
 Switch byte-stream profile in SPEC.md.
 
@@ -14,7 +14,7 @@ Implementation: `protocols/` (one Env per title; dispatcher in
 
 ## Shared behaviour (every title)
 
-| What the games do against the measured server | What switch-nexd answers |
+| What the games do against the measured server implementation | What switch-nexd answers |
 |---|---|
 | Login: TicketGranting method 2 (all NEX 4.0-4.3 titles) or method 6 (4.4+ titles — the measured live path on MPS/SMB35/Golf-era SDKs) | Both 0x0A.0x02 and 0x0A.0x06 answered with the byte-verified `ValidateAndRequestTicketResult` (result.go), v1 ticket, per-title source key size |
 | Secure stage opens ticketless; SecureConnection::RegisterEx (0x0B.4) or plain Register (0x0B.1) on pre-5.19-Pia titles | 0x01/0x04 answered with (QResult, connection id, public station URL); 0x03 RequestURLs with the secure URL list; 0x05 TestConnectivity empty (MTA measured 23 calls in 6 h) |
@@ -25,7 +25,7 @@ Implementation: `protocols/` (one Env per title; dispatcher in
 | Matchmaking family (0x15 / 0x32 / 0x6D): create → open participation → searches find it → join → P2P | Real in-memory sessions: GID assignment, owner/host stamping, participants, attribute/buffer/progress updates, flag-gated partial updates (0x2C), Browse lists, GetSimplePlayingSession/GetPlayingSession, FindByGatheringID(Detail)/ByOwner/ByParticipant |
 | Unknown methods | Core::NotImplemented (0x00010002) + logged — the game tells us the backlog |
 
-Per-title matchmaking rules measured on the measured server and implemented here:
+Per-title matchmaking rules measured on the measured server implementation and implemented here:
 
 - **MPS** — `FindMatchmakeSessionByParticipant` caps at 300 PIDs (0x6D.0x33);
   `FindMatchmakeSessionByGatheringIDDetail` is answerable by anyone holding
@@ -34,7 +34,7 @@ Per-title matchmaking rules measured on the measured server and implemented here
 - **MTA** — sessions arrive closed and two searchers deadlock, so every
   session is forced `OpenParticipation=true` at create (the diagnosed fix).
 - **Clubhouse Games 51** — sessions arrive closed too (same forced-open fix
-  as MTA). Create-time normalisation measured on the measured server: max
+   as MTA). Create-time normalisation measured on the measured server implementation: max
   participants 0→12, host counted as participant 1, fresh 32-byte session
   key, start time stamped, state 1 (active), password flags cleared,
   attributes padded to 6, `@SR`=true / `@GIR`=3 in the matchmake param.
@@ -51,36 +51,36 @@ Per-title matchmaking rules measured on the measured server and implemented here
   stored on the session.
 - **S2** — title method 0x6D.0x3C answers an empty list (measured).
 
-## Per-title protocol sets (measured → implemented)
+## Per-title protocol sets (measured server-implementation-measured → implemented)
 
-| Title (base) | Measured protocol set | Our state |
+| Title (base) | Measured-implementation protocol set | Our state |
 |---|---|---|
 | Mario Party Superstars (22110) | SC 0x0B, MM 0x15, MMX 0x6D, MME 0x32, NAT 0x03, UT 0x6E (+`MPS_INTEGER_SETTINGS`), DS 0x73 (empty-list stub), Ranking 0x70; `prudps`, legacy Pia | **implemented** incl. settings tables + detail-find sanitisation |
 | Mario Golf: Super Rush (22130) | MM, MMX, MME, NAT, UT, Ranking; `prudps`, legacy Pia | **implemented** |
 | ARMS (22140) | MM, MMX, MME, NAT, UT, Ranking, DS 0x73; `prudps`, legacy Pia | **implemented**; DataStore at stub level (see deviations) |
 | Mario Kart 8 Deluxe (22150) | MM, MMX, MME, NAT, UT, Ranking 0x70; Pia 5.19 | **implemented** (live; plus `cmd/mk8d`), incl. room codes and tournaments |
 | Super Mario Bros. 35 (22160) | MM, MMX, MME, UT (17-entry index-0 settings table), Ranking2 0x7A, Referee 0x78, MessageDelivery 0x1B; **no NAT, no Ranking 0x70**; 16-byte source key; legacy Pia | **implemented** behaviour-for-behaviour incl. round store, raw StartRoundParam echo, settings table |
-| Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS; NEX 4.3.5 + Pia 5.9.6 (SDK banners, update 3.1.1), served the 5.19 station shape as the measured server did | **implemented**; create-time normalisation since v0.3.28 |
+| Mario Tennis Aces (22170) | MM (+open-participation fix, 0x33), MMX, MME, NAT, UT, Ranking, DS; NEX 4.3.5 + Pia 5.9.6 (SDK banners, update 3.1.1), served the 5.19 station shape as the measured server implementation did | **implemented**; create-time normalisation since v0.3.28 |
 | Animal Crossing: New Horizons (22180) | MM + 0x33/0x2C, MMX, MME, NAT, UT, Ranking, DS; Pia 5.19 | **implemented**; the one title with find-by-participant serving real results |
 | Luigi's Mansion 3 (22190) | MM, MMX, MME, NAT, UT, Ranking, presence 0x79; legacy Pia | **implemented**: 0x79 stub |
 | Mario Strikers: Battle League (22300) | MM, MMX, MME, NAT, UT, Ranking, DS, plus a bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A; Pia 5.19 | **implemented** incl. the bring-up table (`protocols/strikers.go`) |
-| Minecraft (22310) | MM, MMX, MME, NAT, UT, Ranking | **implemented**; SNI `g28c77600-lp1.s.n.srv.nintendo.net` (from the emulator's own DNS redirect log, 2026-09-18 — recorded nowhere else public) |
+| Minecraft (22310) | MM, MMX, MME, NAT, UT, Ranking | **implemented**; SNI `g28c77600-lp1.s.n.srv.nintendo.net` (from the emulator's own DNS redirect log, 2026-09-18 — recorded nowhere else public; the prior implementation's console agent uses a `g2*` hosts wildcard instead) |
 | Splatoon 2 (22320) | MM (+0x3C), MMX, MME, NAT, UT (+2/5), Ranking, DS (**empty success for every method, GetMeta included**); legacy Pia | **implemented** |
 | Super Mario Maker 2 (22330) | MM, MMX, MME, NAT, UT, Ranking, DS + title methods | **implemented**: GetUsers answers (empty UserInfo list, per-PID NotFound) — see deviation 1 |
 | Super Mario Odyssey (22340) | SC, UT, Ranking, DS — no matchmaking at all; balloon methods 0x73.0x2F-0x35 NotImplemented; `prudps` | **implemented** incl. balloon NotImplemented stance |
 | Super Smash Bros. Ultimate (22350) | MM, MMX, MME, NAT, UT, Ranking, DS (empty-list stub); arena codes 0x37/0x38; the 0x3A pre-match probe; Pia 5.19 | **implemented** |
 | Clubhouse Games 51 (22870) | MM, MMX, MME, NAT, UT, Ranking, DS (account-setup stub shapes); NEX 4.4.0, access key `8c3661ff`, secure PID 2, 32-byte session key, game server 2035BB00 | **implemented** (see the per-title rules above); new title, no nex-go predecessor |
 | Super Mario 3D World + Bowser's Fury (22370) | MM, MMX, MME, NAT, UT, Ranking; Participate pushes delayed 100 ms; joins echo the pre-join count; NEX 4.6.4, `prudp` | **registered, not console-verified**: `ParticipateDelay` + `JoinEchoSession`. Game server 2B306A00 and key from our own dump |
-| Kirby's Dream Buffet (22380) | no measured server yet | **registered, not console-verified**: MM, DS (empty-list), Ranking2, the components its binary links. Game server 25374500, key `6wVacwwe` from our own dump |
+| Kirby's Dream Buffet (22380) | no prior measured server yet (the prior implementation's repo is empty) | **registered, not console-verified**: MM, DS (empty-list), Ranking2, the components its binary links. Game server 25374500, key `6wVacwwe` from our own dump |
 
-Corrected 2026-09-16 against earlier measurements. The previous version of this
+Corrected 2026-09-16 against the prior measured sources. The previous version of this
 table claimed MPS, Golf, ARMS, LM3, Minecraft, SMO, SSBU and Strikers had **no
 Ranking**, and that MPS deliberately had no DataStore. Both were wrong: the
-measured server registers Ranking 0x70 for every one of them. It also recorded SMB35's
-secure PID as a retail constant; every measured title, SMB35 included, uses 2.
+prior measured server implementation registers Ranking 0x70 for every one of them. It also recorded SMB35's
+secure PID as a retail constant; every prior measured title, SMB35 included, uses 2.
 See `docs/gap-report.md` conflicts 37-43.
 
-Measured NEX versions, for the record: MPS 40605, Golf 40605, ARMS 40305,
+NEX versions on the prior measured server implementation, for the record: MPS 40605, Golf 40605, ARMS 40305,
 MTA 40305, SMB35 40600, every other title 40000. Session key length is 32
 everywhere, SMB35 included; the 16 bytes that title carries is its SOURCE key.
 
@@ -93,10 +93,10 @@ Pretendo's Monster Hunter XX server.
 
 ## Known deviations (documented, deliberate)
 
-1. **DataStore is a stub, not a store**: shapes match the measured server answers
+1. **DataStore is a stub, not a store**: shapes match the prior measured answers
    the games were measured working against (NotFound on GetMeta, real u64
    data IDs from PostMetaBinary, empty lists elsewhere). The Postgres/S3
-   store from `servers/nex` (ARMS/ACNH/S2/SMM2/SMO generation) is the
+   store from `platforms/wiiu-3ds/games/nex` (ARMS/ACNH/S2/SMM2/SMO generation) is the
    port-ready upgrade when a title needs real object persistence.
 2. **Server-initiated pushes: implemented 2026-09-16.** `prudplite` originates
    RMC requests on a client's own connection (`Connection.SendRMC`), and the
@@ -116,7 +116,7 @@ Pretendo's Monster Hunter XX server.
    of a handoff ignored by another title did not establish that SMB35 could
    play without its documented relay.
    See [the current investigation](../next-session/super-mario-bros-35.md).
-3. **SMB35 listener shape**: the measured server used a single listener with the
+3. **SMB35 listener shape**: the prior measured server implementation used a single listener with the
    secure stage on stream 2 (a nex-go limitation workaround). Here the secure
    stage is its own port (base+1) and the station URL carries `sid=1`, which
    the MK8D-verified station URL shape already covers (SPEC.md).
@@ -132,12 +132,13 @@ Pretendo's Monster Hunter XX server.
    from the login username, which is accepted without proof, and nx-baas never
    sees the player. This is the largest open item on the lineage and is written
    up separately in `docs/identity-gap.md` — it is not a parity gap against the
-   measured server (which binds to nx-baas) but a gap against our own `servers/nex`.
+   prior measured server implementation (which binds to nx-baas) but a gap against our own `platforms/wiiu-3ds/games/nex`.
 
 ## Clubhouse Games 51 — fact provenance (2026-09-16)
 
-Facts for this title come from earlier research notes (clean-room: facts only,
-rewritten here — `docs/clean-room-policy.md`):
+First title whose measured facts were taken directly from a prior measured server implementation
+(clean-room: facts only, rewritten here —
+`docs/clean-room-policy.md`):
 
 - Title ID 010047700D540000, game server ID 2035BB00 (SNI
   `g2035bb00-lp1.s.n.srv.nintendo.net`), access key `8c3661ff`, NEX 4.4.0
