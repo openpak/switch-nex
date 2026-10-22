@@ -46,7 +46,7 @@ The defect is narrower and worse than "shared secret":
 
 It is documented as deliberate — `docs/legacy-parity.md` deviation 5 and
 `next-session.md` open item 4 both name it as the pre-real-console integration
-item, and `servers/nex/account.go` is cited as the reference for the flow. So:
+item, and `servers/nex/account.go` is cited as the measured server for the flow. So:
 a known, documented shortcut, but not a time-boxed one, and it is already live.
 
 ## 2. Blast radius: shipping in production, all fifteen titles

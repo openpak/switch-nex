@@ -3,7 +3,7 @@
 One directory per migrated title. The runtime (`cmd/switch-nexd`) carries the
 per-title protocol sets and behaviour overrides as code — see
 `cmd/switch-nexd/main.go` for the registry and `docs/legacy-parity.md` for
-the per-title comparison against the working reference servers. The shared
+the per-title comparison against the measured servers. The shared
 transport, kerberos, RMC and result code live in the module root (SPEC.md for
 the wire facts).
 

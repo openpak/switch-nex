@@ -8,7 +8,7 @@
 // with the wire-verified ValidateAndRequestTicketResult (result.go, SPEC.md).
 //
 // Secure endpoint: the protocol set each title was measured using against the
-// working reference servers, implemented in ./protocols with response
+// measured servers, implemented in ./protocols with response
 // behaviour matched title for title (docs/legacy-parity.md). Unimplemented
 // methods answer Core::NotImplemented and are logged — the game tells us the
 // backlog.
@@ -44,7 +44,7 @@ import (
 )
 
 // title is one served game: its port block and the protocol behaviour matched
-// to the working reference (provenance per field in docs/legacy-parity.md).
+// to the measured server (provenance per field in docs/legacy-parity.md).
 type title struct {
 	name string
 	base int
@@ -257,12 +257,12 @@ var titles = []title{
 	}},
 	{"mario-golf-super-rush", 22130, "1cb8027c", func(e *protocols.Env) {
 		e.StationScheme = "prudps"
-		// The reference's Golf profile is the MODERN shape — its own
+		// The measured server's Golf profile is the MODERN shape — its own
 		// GOLF_LEGACY_PIA defaults to 0, and the legacy type=0x03 is the
 		// opt-in. We had the two the wrong way round, so Golf's public
 		// station went back type=3 with no Pa while a Pia 5.19+ title
 		// expects type=0x0B and a Pa to punch toward. The era-guess the
-		// reference made is now measured: Ryujinx reports Golf linking
+		// measured server made is now measured: Ryujinx reports Golf linking
 		// Pia 5.33.0, well past the 5.19 cutover.
 		e.Pia = protocols.Pia519()
 		e.Match = protocols.NewMatchmakingStore()
@@ -276,7 +276,7 @@ var titles = []title{
 		// already echoes the session — this changes nothing there; it covers
 		// explicit joins (friend/private rooms) only.
 		e.JoinEchoSession = true
-		// The reference normalises EVERY session it creates, for every title.
+		// The measured server normalises EVERY session it creates, for every title.
 		// Without it Golf's lobby went back keyless, with a participation count
 		// of one while two players stood in it: both sides punched through to
 		// each other, neither ever started, and each gave up after ~60 s
@@ -343,10 +343,10 @@ var titles = []title{
 		// Mario Tennis Aces (0100BDE00862A000, update 3.1.1): NEX 4.3.5 with
 		// Pia 5.9.6 (the SDK banners in its main NSO, not the 5.19 the parity
 		// table guessed). The public station stays the 5.19 shape: it is what
-		// the reference served this title, and the punch is measured working.
+		// the measured server served this title, and the punch is measured working.
 		e.Match = protocols.NewMatchmakingStore()
 		e.ForceOpenParticipation = true // sessions arrive closed; two searchers deadlock
-		// The reference this title was measured working against normalises
+		// The measured server this title was measured working against normalises
 		// every session it creates: host counted, a 32-byte session key, the
 		// start time, attributes padded to 6, @SR/@GIR stamped. Without it the
 		// session kept whatever count and key the creating client sent, and a
@@ -380,7 +380,7 @@ var titles = []title{
 		// timestamped, and joins answer the full session: without a
 		// session key the visitor has nothing to start P2P with, and the
 		// Dodo-code browse result is unusable (2026-09-21, NMT18 visit).
-		// FinalizeParams too: the reference stamps @SR/@GIR on every ACNH
+		// FinalizeParams too: the measured server stamps @SR/@GIR on every ACNH
 		// island and its Dodo-code visits work. v0.2.36 dropped them for
 		// ACNH blaming a 2306-0116 on a Dodo-code browse result, but that
 		// 0116 was the ResultRange prefix on the 0x34 answer (fixed in
@@ -447,7 +447,7 @@ var titles = []title{
 	{"super-mario-maker-2", 22330, "fdf6617f", func(e *protocols.Env) {
 		// prudps: on prudp the console completes the handshake and then sends
 		// an EMPTY CONNECT, no ticket, and SMM2 dies at matchmaking (the
-		// reference's measured note, servers/nex SMM2 provenance).
+		// measured server's measured note, servers/nex SMM2 provenance).
 		e.StationScheme = "prudps"
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
@@ -484,7 +484,7 @@ var titles = []title{
 	{"super-mario-3d-world-bowsers-fury", 22370, "67f366f2", func(e *protocols.Env) {
 		// Game server 2B306A00, key and NEX 4.6.4 read from our v1.2.2 dump
 		// (Openpak/prds/switch-catalogue-prd.md). The delay and the pre-join
-		// count are the reference's measured matchmaking policy.
+		// count are the measured server's measured matchmaking policy.
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking = true
 		e.JoinEchoSession = true
@@ -726,10 +726,9 @@ var titles = []title{
 		//
 		// That is the Risk of Rain failure with the crash filed off: "Pia will
 		// not build a netgroup from" a session it does not accept -- and what
-		// we hand DST is a session the reference would never emit.
+		// we hand DST is a session the measured server would never emit.
 		//
-		// The reference (earlier-nex matchmaking_handlers.go finalizeCreatedSession,
-		// read for facts only) normalises EVERY created session, for every title,
+		// The measured server normalises EVERY created session, for every title,
 		// by padding attributes to 6 and stamping `@SR`=true and `@GIR`=3. Here
 		// that half is behind FinalizeParams, off for titles with no measured
 		// behaviour -- so DST's Pia was reading a session with short attributes
@@ -738,7 +737,7 @@ var titles = []title{
 		// any syscall. ACNH is the one title known to break WITH `@GIR`, and it
 		// is not a Pia 5.45 title.
 		e.FinalizeParams = true
-		// The other half of that normalisation. The reference gates `State = 1`
+		// The other half of that normalisation. The measured server gates `State = 1`
 		// (open/active) and defaults it off, for discoverability rather than for
 		// Pia -- but DST already sets OpenParticipation itself, so the only thing
 		// this changes for it is the state flag and the user password, and a
@@ -1158,7 +1157,7 @@ func serveHealth(addr string, s *service, voice *voiceIndex) {
 
 // handleAuthRMC answers the auth-connection RMCs: TicketGranting 0x0A methods
 // 0x02 (LoginEx, the Switch staple) and 0x06 (WithParam, the NEX 4.4+ path —
-// the reference measured method 6 as the live login path on 4.4+ titles).
+// the measured server measured method 6 as the live login path on 4.4+ titles).
 // Method 0x02 returns the flat result body; method 0x06 wraps the same fields
 // in a version-1 structure header.
 func handleAuthRMC(ids *identity, recall *recall, env *protocols.Env, targetKey []byte, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {

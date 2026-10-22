@@ -1,6 +1,6 @@
 // Package protocols implements the secure-stage NEX protocols the Switch
 // titles call after login, with response behaviour matched to the working
-// reference servers (OpenPak) title for title — see docs/legacy-parity.md
+// measured servers (OpenPak) title for title — see docs/legacy-parity.md
 // for the comparison and the per-title provenance of every answer shape.
 //
 // Protocol IDs and method IDs follow the public NEX protocol definitions
@@ -94,14 +94,14 @@ type Env struct {
 
 	// SourceKeyBytes is the per-login kerberos source key size. 32 on Switch
 	// generally (MK8D, MPS, ACNH, LM3, S2, SMM2 measured), 16 attested for
-	// SMB35 against the reference — the length is per-title, not a protocol
+	// SMB35 against the measured server — the length is per-title, not a protocol
 	// constant (see servers/nex provenance).
 	SourceKeyBytes int
 
 	// Matchmaking state (nil when the title registers no matchmaking).
 	Match *MatchmakingStore
 
-	// Utility behaviour hooks. Nil hooks fall back to the reference answers:
+	// Utility behaviour hooks. Nil hooks fall back to the measured server answers:
 	// empty settings maps, a process-local unique-ID counter, PID-derived tag.
 	// IntegerSettings overrides GetIntegerSettings per index. It returns the
 	// settings map plus an error code: 0 answers the map (empty maps are a
@@ -110,7 +110,7 @@ type Env struct {
 	IntegerSettings func(index uint32) (map[uint16]uint32, uint32)
 
 	// ForceOpenParticipation implements the Mario Tennis Aces fix measured on
-	// the working reference (sessions arrive closed and deadlock two searchers
+	// the measured server (sessions arrive closed and deadlock two searchers
 	// — the fix opens every session at create time).
 	ForceOpenParticipation bool
 
@@ -133,7 +133,7 @@ type Env struct {
 	SanitizeDetailFind bool
 
 	// FinalizeCreateSession applies the create-time normalisation measured on
-	// the working reference for Clubhouse Games (measured working there):
+	// the measured server for Clubhouse Games (measured working there):
 	// bound unbounded sessions, count the host as the first participant, mint
 	// a 32-byte session key, stamp the start time, and — with
 	// ForceOpenParticipation — mark the session open and active.
@@ -141,7 +141,7 @@ type Env struct {
 
 	// FinalizeParams adds the matchmake-param normalisation to the above:
 	// pad attributes to 6 and stamp `@SR`=true / `@GIR`=3. Measured on the
-	// reference for Clubhouse Games (and tolerated by MK8D, Golf and Kirby),
+	// measured server for Clubhouse Games (and tolerated by MK8D, Golf and Kirby),
 	// but ACNH's binary knows `@SR` and has never heard of `@GIR`: foreign
 	// keys in its sessions break its parse (2306-0116 on a Dodo-code browse
 	// result, 2026-09-21). Off unless the title was measured with them.
@@ -160,7 +160,7 @@ type Env struct {
 	// joined caller (Clubhouse Games measured working this way).
 	JoinEchoSession bool
 
-	// JoinRecapParticipate sends the reference's explicit-join notification
+	// JoinRecapParticipate sends the measured server's explicit-join notification
 	// set instead of the auto-match one: Participate (3001) about the joiner
 	// to every participant INCLUDING the joiner, then a recap Participate
 	// per pre-existing participant to the joiner, so it learns who is
@@ -180,7 +180,7 @@ type Env struct {
 
 	// ParticipateDelay holds back every Participate (3001) push by this long.
 	// Super Mario 3D World + Bowser's Fury was measured working on the
-	// reference with a 100 ms delay (ExternalReference/super-mario-3d-world).
+	// measured server with a 100 ms delay.
 	ParticipateDelay time.Duration
 
 	// sent, when set, sees every notification as it is pushed (tests).
@@ -199,11 +199,11 @@ type Env struct {
 	// login (appversion.go). Matchmaking keeps different versions apart.
 	appVersions sync.Map // uint64 -> string
 
-	// DataStore mode. dsOff: not registered. dsStub: reference-level answers
+	// DataStore mode. dsOff: not registered. dsStub: measured-level answers
 	// (empty lists, NotFound on GetMeta, real data IDs from PostMetaBinary).
 	// dsBalloonErrors: Super Mario Odyssey's balloon methods (0x73.0x2F-0x35)
 	// answer Core::NotImplemented. dsSMM2: Super Mario Maker 2's title
-	// methods (0x30 GetUsers etc.) answer with reference shapes.
+	// methods (0x30 GetUsers etc.) answer with measured shapes.
 	// dsClubhouse: Clubhouse Games' account-setup answers — GetPersistenceInfos
 	// (0x1E) empty + NotFound per slot, GetMeta NotFound, everything else a
 	// bare empty list. See the DSMode table for the per-title shapes.

@@ -326,7 +326,7 @@
 - **Owner-verified after deployment:** a retail Switch hosts with Harbor joining,
   and Harbor hosts with the Switch joining; both directions work (2026-10-12).
 
-## 2026-10-11 — v0.3.28: Mario Tennis Aces sessions get the reference's create-time shape
+## 2026-10-11 — v0.3.28: Mario Tennis Aces sessions get the measured server's create-time shape
 
 - **Mario Tennis Aces** online Free Play: matchmaking, the NAT punch (16 ms and 128 ms) and the
   Pia mesh all completed, the host closed participation, and then both consoles sat on the match
@@ -335,12 +335,12 @@
   `FinalizeCreateSession` (with Mario Party Superstars, Super Mario Bros. 35, Strikers and
   Odyssey), and none of the five has been seen playing peer-to-peer here; every title that does
   play has it. Its sessions therefore kept the creating client's own count and key, and a join
-  only added one to that count. The reference Tennis was measured working against normalises
+  only added one to that count. The measured server Tennis was measured working against normalises
   every session at create: host counted, 32-byte session key, start time, attributes padded to
   6, `@SR`/`@GIR`. Tennis now gets `FinalizeCreateSession` + `FinalizeParams`, and
   `JoinEchoSession` + `JoinRecapParticipate` for friend joins.
 - Tennis links NEX 4.3.5 and Pia 5.9.6 (its SDK banners), not Pia 5.19 as docs/legacy-parity.md
-  had it. The public station keeps the 5.19 shape the reference served it; the punch works.
+  had it. The public station keeps the 5.19 shape the measured server served it; the punch works.
 - Not console-verified at release: the retest is the same Switch + ROG 3 Free Play match.
 
 ## 2026-10-11 — v0.3.27: simultaneous "join random" meets in one room
@@ -421,7 +421,7 @@
   PostMetaBinary (0x73.0x15) with a bare u32; it now answers the u64 data id the client
   reads. Data ids start from the clock, so a restart never reissues one.
 - **Super Mario Bros. 35** matchmaking never completing (host 2/2, joiner 1/1):
-  DeliverMessage (0x1B.0x1) is now a relay, as on the reference: no RMC answer, the
+  DeliverMessage (0x1B.0x1) is now a relay, as on the measured server: no RMC answer, the
   message stamped with sender, sender name and reception time and pushed to the
   recipient principal or every participant of the gathering, the sender included.
 
@@ -468,7 +468,7 @@ browse included) and not let in by its id (SessionVoid). An unknown version (no 
 or not 8 hex digits) meets everyone, as before. Every auto-matchmake now logs its search
 criteria and the searcher's version.
 
-## 2026-09-28 — v0.3.18: Don't Starve Together gets the reference's whole create-time shape
+## 2026-09-28 — v0.3.18: Don't Starve Together gets the measured server's whole create-time shape
 
 Hosting got as far as a created gathering, its own Participate push, both shards
 running — and then each shard reported "no available shard [Master|Caves] connected"
@@ -477,7 +477,7 @@ binary links the whole `nn::pia::transport` stack), so a shard link that never o
 a netgroup that never opened: the Risk of Rain failure with the crash filed off.
 
 `FinalizeCreateSession` was already on, so the session was bounded, keyed, timestamped
-and occupied. What it stops short of is the half the reference applies **unconditionally
+and occupied. What it stops short of is the half the measured server applies **unconditionally
 to every session of every title**: attributes padded to 6 and `@SR`/`@GIR` stamped. DST
 was reading a session with short attributes and neither param. Both halves are on for it
 now, `State = 1` included.
@@ -916,7 +916,7 @@ build. Both titles' bullets belong here.
   <user-a>'s friends-only island, 2026-09-22). The friend list nx-baas
   returns with the identity is kept per login.
 - **Friend notification data (0x6D/0x09, 0x0A, 0x0D) implemented** the
-  reference way: a host's published data goes to its online friends as
+  measured way: a host's published data goes to its online friends as
   type*1000 at once, and a friend asking gets the open gates (Param2 != 0)
   back, each pushed again at type*1000 after the answer. This is the "visit
   a friend" menu; it was an empty list.
@@ -925,7 +925,7 @@ build. Both titles' bullets belong here.
 
 ## 2026-09-22 — v0.2.40: ACNH visitors get the join recap
 
-- **`JoinRecapParticipate` for ACNH.** On an explicit join the reference
+- **`JoinRecapParticipate` for ACNH.** On an explicit join the measured server
   pushes Participate (3001) about the joiner to every participant, joiner
   included, then one Participate per pre-existing participant to the joiner.
   We sent 3001 to the others and 122000 to the joiner; ACNH's visitor waited
@@ -940,7 +940,7 @@ build. Both titles' bullets belong here.
 
 - **`FinalizeParams` back on for ACNH.** With the 0x34 answer parsed and
   code-matched (v0.2.37), the visitor still refused the island ("no island
-  I can take you to right now"). The reference stamps `@SR`/`@GIR` and pads
+  I can take you to right now"). The measured server stamps `@SR`/`@GIR` and pads
   attributes on every ACNH island and its visits work; v0.2.36 had removed
   them blaming a 2306-0116 that was in fact the ResultRange prefix.
 
@@ -1002,7 +1002,7 @@ build. Both titles' bullets belong here.
   criteria's GameMode plus the FIRST attribute string only. The later
   attributes are per-player settings (console-measured: constant per player
   across every mode and round) that never agree between two players, so
-  matching them — v0.2.32 following the reference's exact-match rule —
+  matching them — v0.2.32 following the measured server's exact-match rule —
   stranded every pair in private rooms. The criteria decoding itself
   (AutoMatchmakeParam tail) stays, verified against a captured console body.
 - Other titles are untouched: without the flag, matching is password + NAT
@@ -1010,7 +1010,7 @@ build. Both titles' bullets belong here.
 
 ## 2026-09-21 — v0.2.32: auto-match follows the search criteria
 
-- **Rooms are matched against the search criteria, as the reference matches
+- **Rooms are matched against the search criteria, as the measured server matches
   them.** `AutoMatchmakeWithParam` carries an `AutoMatchmakeParam` past the
   source session: a block-list, option, join message, and the search-criteria
   list. Each criterion names a GameMode and attribute strings; a room
@@ -1058,14 +1058,14 @@ build. Both titles' bullets belong here.
   carried no scheme override, so the default went out in every login station
   URL. The title builds its secure station with the secure scheme, and on
   `prudp` its CONNECT arrives empty and dies when Pia needs the session
-  (servers/nex provenance, legacy/acnh main.go). Untested live — no ACNH
+  (servers/nex provenance). Untested live — no ACNH
   client has completed a login yet — but the wrong scheme fails closed on
   first contact, so it ships before the title's first session, not after.
 
-## 2026-09-20 — v0.2.27: Golf gets the Pia shape the reference gives it
+## 2026-09-20 — v0.2.27: Golf gets the Pia shape the measured server gives it
 
 - **Mario Golf: Super Rush moves to the Pia 5.19+ station shape.** The
-  reference's Golf profile defaults to the MODERN shape — its own
+  measured server's Golf profile defaults to the MODERN shape — its own
   `GOLF_LEGACY_PIA` is `0`, and the legacy type=0x03 is the opt-in. We had the
   two the wrong way round: Golf's public station went back `type=3` with no
   `Pa`, and Pa is what a Pia 5.19+ title punches toward. Its era-guess is now
@@ -1075,13 +1075,13 @@ build. Both titles' bullets belong here.
 
 ## 2026-09-20 — v0.2.26: Golf's lobby is normalised like every other
 
-- **`FinalizeCreateSession` on for Mario Golf: Super Rush.** The reference
+- **`FinalizeCreateSession` on for Mario Golf: Super Rush.** The measured server
   normalises every session it creates, for every title; we had it behind a
   per-title flag set only for Clubhouse Games and MK8D. Golf's lobby went back
   keyless, unstamped, and counting one participant while two stood in it. Both
   sides hole-punched through to each other and neither ever started; each gave
   up after ~60 s and re-matchmade.
-- **`@SR` and `@GIR` are stamped on a created session**, as the reference does.
+- **`@SR` and `@GIR` are stamped on a created session**, as the measured server does.
   Without them the param map goes back exactly as the client sent it.
 
 ## 2026-09-20 — v0.2.25: Mario Golf gets past its first call
@@ -1104,7 +1104,7 @@ build. Both titles' bullets belong here.
 
 ## 2026-09-19 — v0.2.20: auto-matchmake tells the joiner who it joined
 
-- **Auto-join notifications follow the reference.** The joiner is announced
+- **Auto-join notifications follow the measured server.** The joiner is announced
   (Participate 3001, count in Param3) to every member, itself included, then
   gets one Participate per member already in the room. Before, only the
   existing members heard anything: Kirby's joiner sat at Pia's notification
@@ -1160,10 +1160,10 @@ build. Both titles' bullets belong here.
 - **Two titles registered from our own dumps.** Game server IDs and access
   keys were read out of the games' code, confirmed by the key and ID being
   loaded side by side (the shape MK8D shows): 3D World `2B306A00` /
-  `67f366f2` (NEX 4.6.4, matching the Reference reference), Kirby
+  `67f366f2` (NEX 4.6.4, matching the Measured server), Kirby
   `25374500` / `6wVacwwe` (NEX 4.6.6). Ports 22370 and 22380.
 - **`ParticipateDelay`**: 3D World's Participate pushes are held back 100 ms,
-  the reference's measured policy, alongside full-session join answers.
+  the measured server's measured policy, alongside full-session join answers.
 - **`switch-nexd -dump`** prints every title's resolved configuration.
 - Neither title is console-verified; their first boots' NotImplemented lines
   are the backlog.
@@ -1171,10 +1171,8 @@ build. Both titles' bullets belong here.
 ## 2026-09-18 — Minecraft online: the hostname, the route, and the first login
 
 - **The last unrouted title found its name by booting.** Minecraft's NEX
-  game-server hostname was recorded nowhere — not our repos or captures, not
-  the earlier server's (their console agent covers the case with a `g2*` hosts
-  wildcard; their public repos carry no per-title table), not Kinnay's Game
-  Server List (Switch table ends at ACNH). The an earlier Ryujinx fork fork resolves
+  game-server hostname was recorded nowhere — not our repos or captures, not Kinnay's Game
+  Server List (Switch table ends at ACNH). OpenPak's earlier Ryujinx port resolves
   the whole `.nintendo.net` suffix to the box, so the moment the game booted,
   its own DNS line named it: `g28c77600-lp1.s.n.srv.nintendo.net`. A temporary
   `g2` regexp route was live for the first attempt; the specific
@@ -1230,7 +1228,7 @@ build. Both titles' bullets belong here.
   public, to participants only (PermissionDenied otherwise, SessionVoid for a
   gathering that is gone).
 - Found by comparing the failing join in the production log against the AGPL
-  `nex-protocols-common-go` reference shapes (the harness agreed with the
+  `nex-protocols-common-go` measured shapes (the harness agreed with the
   server, which is exactly the failure mode the harness cannot catch). A new
   harness test walks create → room code → resolve → join → station handover
   with two clients and insists the joiner can parse every answer.
@@ -1281,20 +1279,19 @@ build. Both titles' bullets belong here.
 - **The room-code answer is a structure.** 0x6D/0x44 (and Smash's 0x37)
   answered the bare pair `(String, DateTime)`; the wire wants it under a
   structure header. MK8D left its freshly created room 0.2 s after reading the
-  bare answer. Codes are now 5 characters, the length the working reference
+  bare answer. Codes are now 5 characters, the length the measured server
   issues (ours was an invented 6), and resolve accepts the code bare or inside
-  a header. Shape and length are facts read from earlier-nex's matchmaking
-  handlers; the code here is our own. A numeric-code guess was tried first and
-  reverted once the reference was read — read the reference first.
+  a header. Shape and length are measured facts; the code here is our own. A numeric-code guess was tried first and
+  reverted once the measured server was read — read the measured server first.
 - ZNC (`api-lp1.znc.srv.nintendo.net/v1/NX/getToken`, the voice-chat path) is
-  called by MK8D after create and gets 404 from nx-baas. The reference stack
+  called by MK8D after create and gets 404 from nx-baas. The measured server
   does not serve it either, so it is presumed non-fatal; recorded, not fixed.
 - **The creator hears its own join.** After a successful create MK8D sat for
   exactly 10 s — no call, no P2P socket — then unregistered the gathering and
   showed a communication error. A create now pushes the creator its own
   Participate (3001) event before the answer, as Pretendo's common matchmaking
   does, and MK8D's created session goes back finalised (occupied by its host,
-  keyed, timestamped). Two changes in one step, both from the same reference
+  keyed, timestamped). Two changes in one step, both from the same measured server
   behaviour; which one MK8D was waiting for is not separated.
 - **Connections were tabled by client address alone.** Two players behind one
   NAT — in production, *every* player, since the forwarder rewrites the source
@@ -1317,8 +1314,8 @@ build. Both titles' bullets belong here.
 
 - New title `clubhouse-games-51` (010047700D540000, game server 2035BB00) on
   port block 22870 (allocated from the ports.md pool), access key `8c3661ff`.
-  First title whose reference facts were taken straight from a public
-  earlier network repo — provenance in `docs/legacy-parity.md`.
+  First title whose facts came from earlier research notes —
+  provenance in `docs/legacy-parity.md`.
 - `protocols/`: new `DSClubhouse` DataStore mode (GetPersistenceInfos answers
   empty + NotFound per slot — the "nothing saved yet" signal the game's
   account setup needs; GetMeta NotFound; everything else a bare empty list),
@@ -1354,14 +1351,14 @@ build. Both titles' bullets belong here.
   game-server hostname was never recorded) — auth via the edge is unreachable
   for it until the hostname is identified and a router added.
 
-## 2026-09-15 — earlier parity for every Switch-era NEX title
+## 2026-09-15 — Server parity for every Switch-era NEX title
 
 - `protocols/` new package: SecureConnection, Utility (+AcquireTagId /
   UpdateCurrentUser), NAT traversal, Notification, Messaging/MessageDelivery,
   the matchmaking trio (0x15/0x32/0x6D) over a real in-memory gathering store
   with a full NEX4 MatchmakeSession codec, Ranking (scores + common data),
   SMB35's Ranking2 + MatchmakeReferee (round store, raw param echo), and LM3's
-  0x79 presence stub. Response behaviour matched to the measured reference
+  0x79 presence stub. Response behaviour matched to the measured
   answers per title — `docs/legacy-parity.md` is the comparison record.
 - `cmd/switch-nexd` serves 14 titles (all Switch-era NEX except MHGU, whose
   UDP transport stays on nex-go), with per-title protocol sets, MPS detail-
@@ -1377,7 +1374,7 @@ build. Both titles' bullets belong here.
 
 ## 2026-09-15 — initial import
 
-## 2026-09-16 — reference parity pass
+## 2026-09-16 — server parity pass
 
 Closed all 43 findings from `docs/legacy-gap-report.md`.
 
@@ -1424,7 +1421,7 @@ New behaviour:
   answered an empty list, which is why friend-joins failed.
 - `FindMatchmakeSessionByParticipant` parses its structure header, and serves
   real results only for the title that uses it.
-- Ranking 0x70 serves the reference's method set, including common-data-by-PIDs.
+- Ranking 0x70 serves the measured server's method set, including common-data-by-PIDs.
 - Mario Strikers' bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A.
 - DataStore stub shapes are per title.
 

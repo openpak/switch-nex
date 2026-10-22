@@ -30,7 +30,7 @@ none of which the nex-go websocket path provides correctly (write framing bug,
 
 The switch-nex runtime core is implemented (PRUDPLite over TLS, RMC dispatch,
 ticket minting, ticketless secure CONNECT with IP→PID recall) and the
-per-title protocol sets are implemented at the working-reference behaviour
+per-title protocol sets are implemented at the measured-server behaviour
 level for every Switch-era NEX title except MHGU (UDP transport — stays on
 nex-go). The per-title comparison, behaviour notes and remaining deviations
 are in `docs/legacy-parity.md`.

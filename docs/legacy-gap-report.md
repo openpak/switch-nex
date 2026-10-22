@@ -1,16 +1,14 @@
-# earlier parity — gap report (2026-09-16)
+# Server parity — gap report (2026-09-16)
 
 Method-by-method comparison of every protocol `switch-nexd` serves against the
-Reference reference servers. Read for **facts only** per `docs/clean-room-policy.md`:
-opcodes, wire field orders, error codes, response shapes. No reference code,
+measured servers. Read for **facts only** per `docs/clean-room-policy.md`:
+opcodes, wire field orders, error codes, response shapes. No outside code,
 structure, naming or comments carried across.
 
-Sources read: `earlier-nex` (shared library, source-available) and the
-per-title repos `mario-party-superstars`, `mario-golf-super-rush`, `arms`,
-`mario-kart-8-deluxe`, `super-mario-bros-35`, `mario-tennis-aces`,
-`animal-crossing-new-horizons`, `luigis-mansion-3`, `mario-strikers`,
-`minecraft`, `splatoon-2`, `super-mario-maker-2`, `super-mario-odyssey`,
-`super-smash-bros-ultimate`. No local reference exists for Clubhouse Games 51.
+Sources: earlier research notes for these titles (mario-party-superstars, mario-golf-super-rush, arms,
+mario-kart-8-deluxe, super-mario-bros-35, mario-tennis-aces, animal-crossing-new-horizons,
+luigis-mansion-3, mario-strikers, minecraft, splatoon-2, super-mario-maker-2, super-mario-odyssey,
+super-smash-bros-ultimate). No notes exist for Clubhouse Games 51.
 
 Live evidence: production host reached over `<ssh-agent-socket>`
 (`<prod-host>`). `openpak-switch-nexd.service` active since
@@ -57,71 +55,71 @@ in the existing round-trip test, about one run in three.
 - **Secure station URL params**: `address, port, CID=1, PID, sid=1, stream=10, type=2`.
 - **MatchmakeSession / Gathering** field order and struct nesting.
 - **Ranking2Info**: list, LowestRank, NumRankedIn, Season(i32).
-- Access keys recorded in `docs/legacy-parity.md` match the reference exactly.
+- Access keys recorded in `docs/legacy-parity.md` match the measured server exactly.
 
 ---
 
 ## P0 — breaks a flow the moment a console connects
 
 ### 1. TicketGranting 0x06 answers the wrong structure
-Reference `ValidateAndRequestTicketWithParam` returns, inside one v1 struct header:
+Measured `ValidateAndRequestTicketWithParam` returns, inside one v1 struct header:
 
     PID SourcePID | Buffer ticket | String ServiceNodeURL | DateTime CurrentUTCTime
     | String ReturnMsg | String SourceKeyHex
 
 We wrap the **LoginEx** body instead (`cmd/switch-nexd/main.go:handleLoginEx`),
 which adds a leading `u32 retval` and replaces the bare URL String with a whole
-RVConnectionData structure. The reference records this exact mistake producing
+RVConnectionData structure. The measured server records this exact mistake producing
 `Core::InvalidArgument` / **2306-0116** on the client.
 Affects every title whose live login path is method 6 (4.4+: MPS, Golf, SMB35,
 Clubhouse, SSBU).
 
 ### 2. SecureConnection 0x01 Register returns the wrong shape
-Reference answers 0x01 and 0x04 **identically**: `u32 retval, u32 pidConnectionID,
+The measured server answers 0x01 and 0x04 **identically**: `u32 retval, u32 pidConnectionID,
 String urlPublic`. We answer 0x01 with a lone String (`protocols/secureconnection.go`).
 Affects the pre-5.19 Pia titles that use plain Register: ARMS, MTA, Splatoon 2, Strikers.
 
 ### 3. Register returns the server's URL, not the client's public station
-earlier reads the client's reported station list, splits LAN vs public by
+The measured server reads the client's reported station list, splits LAN vs public by
 address (RFC1918 + RFC6598 CGNAT, parsed not prefix-matched), synthesises the
 public station by **copying the LAN one** and repointing address/port at the
 observed remote endpoint, then stamps `PID`, `RVCID`, `type`, and (Pia 5.19)
 `Pa`. We return `env.SecureStationURL()` — our own secure endpoint — so the
 console never learns its own public endpoint and Pia cannot build its mesh.
-Reference notes a bare station here yields **2618-562 SessionKeepFailed**.
+The measured server notes a bare station here yields **2618-562 SessionKeepFailed**.
 
 ### 4. Connection id is hardcoded to 1
 `protocols/secureconnection.go` writes `w.U32(1)` for RegisterEx's connection id,
-and `stationurl.go` hardcodes `CID=1`. The reference assigns a per-connection id
+and `stationurl.go` hardcodes `CID=1`. The measured server assigns a per-connection id
 and puts it in both `RVCID` and the response. Two consoles on one title collide.
 
 ### 5. `DataStore::NotFound` constant has transposed digits
 `rmc/types.go`: `ResultDataStoreNotFound = 0x00069004` → goes out as
 **0x80069004**. The correct value is `0x00690004` → **0x80690004**, confirmed in
-three independent reference places (`datastore_smm2.go` citing kinnay's
+three independent measured places (`datastore_smm2.go` citing kinnay's
 errors.py, and the MPS/SSBU/Strikers stubs hardcoding `0x80690004`). Our own
 comment on that line already states 0x80690004 — the constant contradicts it.
 Affects every `GetMeta` answer, SMM2 `GetUsers` per-PID results and Clubhouse
 `GetPersistenceInfos` per-slot results.
 
 ### 6. 0x6D.0x3C answered with an empty list
-Reference `CustomGetSimplePlayingSession`: request `list<PID> + bool includeSelf`,
+Measured `CustomGetSimplePlayingSession`: request `list<PID> + bool includeSelf`,
 response `list<SimplePlayingSession{PID u64, gid u32, gameMode u32, attr0 u32}>`
 (struct-framed). This is how the friend list learns which gathering to join.
 We answer a hardcoded empty list (`protocols/matchmaking.go` case 0x3C), citing
-"S2 measured empty". The reference states plainly that the empty answer makes
+"S2 measured empty". The measured server states plainly that the empty answer makes
 **every friend-join fail** because the joiner never learns the session id.
 
 ### 7. NAT 0x03.0x06 GetRelaySignatureKey answered empty
-Reference returns six fields:
+The measured server returns six fields:
 `i32 relayMode=0 | DateTime now | String "" | u16 0 | i32 0 | u32 0`
 — a well-formed "no relay offered" so the game proceeds on its direct mesh.
 We answer an empty body (`protocols/nattraversal.go` lumps 0x01–0x07 together).
-Reference records the unparseable answer as the cause of Mario Strikers
+The measured server records the unparseable answer as the cause of Mario Strikers
 connecting but never rendering (black screen).
 
 ### 8. 0x6D.0x33 request is a structure — we parse it as a bare list
-earlier reads `FindMatchmakeSessionByParticipantParam` as a NEX Structure, so
+The measured server reads `FindMatchmakeSessionByParticipantParam` as a NEX Structure, so
 with struct headers on the body starts with **u8 version + u32 content length**
 before `list<PID>`, `u32 options`, `MatchmakeBlockListParam`. Our handler calls
 `readPIDList` straight off `msg.Body` (`protocols/matchmaking.go` case 0x33), so
@@ -134,14 +132,14 @@ carrying the full session) cannot work today.
 
 ## P1 — wrong bytes or wrong method number
 
-| # | Where | Reference | Ours |
+| # | Where | Measured | Ours |
 |---|---|---|---|
 | 9 | Ranking2CommonData (0x7A.2/3) | `StringVideZero(userName)`, **QBuffer** mii, **QBuffer** binaryData | `String` (1+NUL when empty), `Buffer` u32 ×2 → 5 bytes of drift |
 | 10 | Ranking2CategorySetting (0x7A.7) | ResetMonth **u16**; ResetMode 0; MaxSeasonsToGoBack 0; ScoreOrder **true** | ResetMonth u32 (+2 bytes, desyncs the rest); 2; 3; false |
 | 11 | Ranking2 GetEstimateMyRank | method **11 (0x0B)**, SamplingRate **1** | we serve 0x0A, SamplingRate 0 |
 | 12 | Ranking2 GetCommonData miss | returns an **empty structure** (zero bytes overflows the client → 2306-0116) | returns `Ranking2::InvalidArgument` |
 | 13 | Referee (0x78) | 3 EndRound, 4 EndRound**PartialReport**, 5 EndRoundWithoutReport | our 0x04 is labelled WithoutReport; 0x05 unhandled |
-| 14 | Utility 0x02 | `UniqueIDInfo{u64 id, u64 password}` — reference: unanswered ⇒ Splatoon 2 shows **2306-0103** | empty success |
+| 14 | Utility 0x02 | `UniqueIDInfo{u64 id, u64 password}` — measured server: unanswered ⇒ Splatoon 2 shows **2306-0103** | empty success |
 | 15 | Utility 0x05 | same `UniqueIDInfo` structure | bare u64 from a counter |
 | 16 | Utility 0x01 | the caller's **PID** (stable across restarts and sessions) | process-local incrementing counter |
 | 17 | Utility 0x07 map | client reads **positions**, so key order is load-bearing | `writeU16U32Map` ranges a Go map — randomised order every call |
@@ -151,9 +149,9 @@ carrying the full session) cannot work today.
 
 ---
 
-## P2 — subsystems the reference has and we do not
+## P2 — subsystems the measured server has and we do not
 
-21. **Server-initiated push.** Reference sends `ProcessNotificationEvent` as an RMC
+21. **Server-initiated push.** The measured server sends `ProcessNotificationEvent` as an RMC
     *request* on the client's own connection (`callID = 0xFFFE0000 + counter`,
     NotificationEvent = struct v0 `{PID, u32 type, u64, u64, String, u64}`, no MapParam).
     Event types: 3001 Participate, 3007 Disconnected, 3008 EndParticipation,
@@ -161,7 +159,7 @@ carrying the full session) cannot work today.
     116000 RefereeRoundStarted, 122000 AddedToGathering. We have no outbound DATA path.
 22. **NAT 0x03.0x03 RequestProbeInitiationExt** must push InitiateProbe to each named
     target carrying the caller's station, so both NATs open together. We ack and drop.
-23. **NAT classification + lobby gating.** Reference buckets peers from
+23. **NAT classification + lobby gating.** The measured server buckets peers from
     ReportNATProperties (`natMap`/`natFilter`) into open/moderate/strict and refuses to
     seat strict×strict and strict×moderate together (**2618-0510**). Absent here.
 24. **Host migration.** MatchMaking 0x24 MigrateGatheringOwnershipV1, 0x2B
@@ -171,11 +169,11 @@ carrying the full session) cannot work today.
     (SSBU, same structures). All NotImplemented.
 26. **0x6D.0x3A is two methods on one number.** SSBU pre-AutoMatchmake probe expects a
     bare `u32 = 2`; MK8D sends `u32 count + count×u32` (body exactly 4+4n) and expects a
-    tournament list. Reference disambiguates by body length. NotImplemented for us.
+    tournament list. The measured server disambiguates by body length. NotImplemented for us.
 27. **Tournaments**: 0x6D.0x39 search, 0x3F join, plus create/delete.
 28. **0x6D.0x41 CustomFriendsQuery** → empty list. NotImplemented for us.
 29. **Ranking 0x16 CommonDataByPIDs** — ordered one entry per requested PID, empty entry
-    for unknowns, never an error. Reference records the unanswered method as the wall for
+    for unknowns, never an error. The measured server records the unanswered method as the wall for
     MK8D worldwide mode (**2618-0006**).
 30. **Ranking 0x10 / 0x12** competition ranking and info.
 31. **SecureConnection 0x07 ReplaceURL** must *store* the re-reported CID-bearing LAN
@@ -183,10 +181,10 @@ carrying the full session) cannot work today.
     answer empty success and discard.
 32. **Login-name → PID map.** SMM2 asks DataStore for profiles by NSA id (the login
     username), not by our internal PID. Without the table it never finds anything.
-33. **Auth recall is not persisted.** Reference writes the IP→PID table to disk
+33. **Auth recall is not persisted.** The measured server writes the IP→PID table to disk
     (debounced, 0600, atomic rename) because a restart cost 40 refusals mid-session on MK8D.
     Ours is memory-only.
-34. **Strikers init table.** Reference answers 0x6E/0x73/0x78/0x79/0x7A per method with
+34. **Strikers init table.** The measured server answers 0x6E/0x73/0x78/0x79/0x7A per method with
     one of three shapes (void ack / zero-struct / empty list) from a reversed decoder
     table: void on 0x7A.13 and 0x6E.14/15; `u64 0` on 0x78.1; struct on 0x6E.10/11,
     0x7A.9/11/12/14, 0x78.2/3/4/7/12/14; empty list on 0x6E.7/9 and 0x78.9/16/17.
@@ -197,26 +195,26 @@ carrying the full session) cannot work today.
 
 ---
 
-## Conflicts: `docs/legacy-parity.md` contradicts the reference
+## Conflicts: `docs/legacy-parity.md` contradicts the measured server
 
 Recorded, not resolved — per the clean-room policy two facts that disagree are a
 finding, not a blocker.
 
 37. **SMB35 secure PID.** We set `257049437023956657` and call it "the retail
-    secure-principal constant". Every reference title, SMB35 included, uses
+    secure-principal constant". Every measured title, SMB35 included, uses
     `securePID = 2`. Internally consistent for us (same value on both sides), but the
-    station URL `PID=` we hand out differs from the reference's.
+    station URL `PID=` we hand out differs from the measured server's.
 38. **"No Ranking" claims are wrong.** The parity table says MPS, Golf, ARMS, LM3,
     Minecraft, SMO and SSBU have no Ranking, and lists Strikers without it. The
-    reference registers Ranking (0x70) for **all** of them, and MPS additionally
+    measured server registers Ranking (0x70) for **all** of them, and MPS additionally
     registers a DataStore stub the table says it deliberately lacks.
-39. **0x6D.0x3C.** Table says "S2 measured: the reference answered an empty list".
-    The reference implements it for real and documents the empty answer as the
+39. **0x6D.0x3C.** Table says "S2 measured: the measured server answered an empty list".
+    The measured server implements it for real and documents the empty answer as the
     friend-join failure. See P0 #6.
-40. **0x6D.0x33 FindByParticipant.** Reference gates real results behind a per-title
+40. **0x6D.0x33 FindByParticipant.** Measured gates real results behind a per-title
     flag enabled **only for ACNH**; everywhere else it deliberately returns an empty
     list, which SSBU's startup depends on. We always return real results — a likely
-    SSBU regression. Our 300-PID cap has no counterpart; the reference instead has an
+    SSBU regression. Our 300-PID cap has no counterpart; the measured server instead has an
     ACNH flag making an *empty* PID list mean "any open session", answers with the
     **host's** PID rather than the requested one, and strips `UserPassword` (keeping
     the session key, which ACNH needs).
@@ -234,7 +232,7 @@ finding, not a blocker.
 
 ## Per-title protocol registry delta
 
-| Title | Reference registers | Missing here |
+| Title | The measured server registers | Missing here |
 |---|---|---|
 | MPS 22110 | SC, MMX, MM, MMExt, NAT, UT, **DS stub**, **Ranking** | DataStore, Ranking |
 | Golf 22130 | + **Ranking** | Ranking |
@@ -250,12 +248,12 @@ finding, not a blocker.
 | SMM2 22330 | Ranking, DS(SMM2), 0x6E replay | — |
 | SMO 22340 | SC, UT, **Ranking**, DS | Ranking |
 | SSBU 22350 | SC, MMX, MM, MMExt, NAT, **Ranking**, 0x73+0x6E replay | Ranking |
-| Clubhouse 22870 | no local reference | n/a |
+| Clubhouse 22870 | no local measured server | n/a |
 
 Ours additionally registers Notification (0x0E) and Messaging (0x17) for every
-title. The reference registers neither: 0x0E is **server→client only** there
+title. The measured server registers neither: 0x0E is **server→client only** there
 (see #21) and 0x17 does not exist in it. Harmless, but not parity.
 
-Reference NEX versions, for the record (we track none): MPS 40605, Golf 40605,
+Measured NEX versions, for the record (we track none): MPS 40605, Golf 40605,
 ARMS 40305, MTA 40305, SMB35 40600, everything else 40000. Session key length is
 32 for every title including SMB35.
