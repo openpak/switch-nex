@@ -3,14 +3,14 @@
 // Switch titles speak raw PRUDPLite frames over a TLS stream: no websocket
 // upgrade, no payload encryption (TLS carries confidentiality), no reliable
 // retransmission (TCP carries reliability and ordering). The state machine
-// mirrors the handshake shapes of the working reference server:
+// mirrors the handshake shapes of a known-working server:
 //
 //   - SYN-ACK: flags ACK|HAS_SIZE, support option, connection signature.
 //   - CONNECT: the client's Lite signature proves the access key; a secure
 //     endpoint's payload carries [buffer ticket][buffer check-data] and the
 //     CONNECT-ACK answers [u32 4][u32 check+1], proving we hold the session
 //     key. An empty payload falls back to the by-IP PID recall (leniency
-//     path, same as the reference).
+//     path, same as the working server).
 //   - DATA: RELIABLE|NEEDS_ACK client frames are acked; our responses go out
 //     as RELIABLE|NEEDS_ACK without HAS_SIZE; acks/multi-acks are consumed,
 //     never parsed as RMC.

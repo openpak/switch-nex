@@ -47,7 +47,7 @@ const (
 )
 
 // relayMessage stamps a delivered message with its sender and reception time,
-// as the reference does, and pushes it to its recipients. A gathering message
+// as the working server does, and pushes it to its recipients. A gathering message
 // from someone who is not in the gathering goes nowhere.
 func relayMessage(env *Env, c *prudplite.Connection, body []byte) {
 	name, out, typ, pid, gid, err := restampMessage(body, c.PID, nowDateTime())

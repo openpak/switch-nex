@@ -1,7 +1,7 @@
 # Eagle v2 / SMB35 provenance
 
 This Go implementation was written independently from protocol facts below.
-No source-available source was used. A compatible AGPL reference was inspected
+A compatible AGPL reference was inspected
 for behavior; its code, comments and file structure are not vendored here.
 
 | Fact | Primary source |

@@ -1,7 +1,7 @@
 // Matchmaking (0x15), MatchMakingExt (0x32) and MatchmakeExtension (0x6D)
 // over one in-memory gathering store.
 //
-// Behaviour is matched to the working reference servers title for title:
+// Behaviour is matched to known-working servers title for title:
 // sessions are real (friends must be able to find each other — the MPS
 // "friend could not see my lobby" bug was an empty answer here), searches
 // filter on OpenParticipation, and find/detail responses carry the full
@@ -206,7 +206,7 @@ func matchmakeExtHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	case 0x09: // UpdateNotificationData(u32 type, pid param1, pid param2, string)
 		// "My gate is open": the host publishes, its online friends get the
 		// same event pushed at type*1000, and friends who ask later (0x0A,
-		// 0x0D) read it back. Reference-measured shape for ACNH.
+		// 0x0D) read it back. Server-measured shape for ACNH.
 		return updateNotificationData(env, c, msg, r)
 
 	case 0x0A, 0x0D: // GetFriendNotificationData(s32 type) / GetlstFriendNotificationData(list<u32>)
@@ -472,7 +472,7 @@ func createSessionAs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, ses
 }
 
 // finalizeCreatedSession normalises a session at create time to the shape
-// Clubhouse Games was measured working against on the reference: a lobby the
+// Clubhouse Games was measured working against on the working server: a lobby the
 // matchmaker can immediately use — bounded, occupied by its host, keyed,
 // timestamped, and (with the open-participation fix) open and active.
 func finalizeCreatedSession(env *Env, s *Session) {
@@ -501,7 +501,7 @@ func finalizeCreatedSession(env *Env, s *Session) {
 	for len(s.Attributes) < 6 {
 		s.Attributes = append(s.Attributes, 0)
 	}
-	// The reference stamps these two on every session it creates. Left out, the
+	// The working server stamps these two on every session it creates. Left out, the
 	// param map goes back exactly as the client sent it, which for a session the
 	// client has not filled in is empty.
 	if s.MatchmakeParam == nil {
@@ -513,7 +513,7 @@ func finalizeCreatedSession(env *Env, s *Session) {
 
 // updateNotificationData stores the caller's published data for its type and
 // pushes it to every online friend as type*1000 — the real-time presence
-// event ACNH's visitor waits on (reference, measured against the original
+// event ACNH's visitor waits on (a working server, measured against the original
 // service). Param2 is the gate: 1 open, 0 closed.
 func updateNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
 	typ, err := r.U32()
@@ -550,7 +550,7 @@ func updateNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 
 // friendNotificationData answers the caller's friends' published data for the
 // requested types, open gates only (Param2 != 0), then pushes each entry to
-// the caller as type*1000 after the answer — the reference's measured order.
+// the caller as type*1000 after the answer — the working server's measured order.
 func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Reader, list bool) []byte {
 	var types []uint32
 	if list {
@@ -604,7 +604,7 @@ func friendNotificationData(env *Env, c *prudplite.Connection, msg *rmc.RMCMessa
 // reach ends up hosting alone, which is a worse experience for one person
 // rather than a broken one for five.
 //
-// "Same game" is the other half, matched the way the reference matches it:
+// "Same game" is the other half, matched the way the working server matches it:
 // against the searcher's search criteria, not its source session. Each
 // criterion names a GameMode and attribute strings; a room qualifies when the
 // GameMode agrees and every non-empty attribute string equals the room's
@@ -742,7 +742,7 @@ func autoMatchmakeStep(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, s
 		if !g.participants[c.PID] {
 			g.participants[c.PID] = true
 			candidate.ParticipationCount++
-			// The reference's shape: the joiner is announced to everyone, itself
+			// The working server's shape: the joiner is announced to everyone, itself
 			// included, then gets one Participate per member already there. Pia
 			// waits on these to learn who it joined; without them Kirby's joiner
 			// sat 10 s and ended its participation (2026-09-19).
@@ -838,7 +838,7 @@ func readSearchCriteriaList(r *rmc.Reader) ([]*searchCriteria, error) {
 // the later attributes are per-player settings that never agree between two
 // different players (console-measured 2026-09-21: character slots 259 vs 320
 // are constant per player across every mode and round). Matching those, as
-// v0.2.32 did following the reference's exact-match rule, strands every pair
+// v0.2.32 did following the working server's exact-match rule, strands every pair
 // in private rooms. No criteria (the pre-param path) matches everything.
 func modeAttrMatch(room *Session, criteria []*searchCriteria) bool {
 	if len(criteria) == 0 {
@@ -862,7 +862,7 @@ func modeAttrMatch(room *Session, criteria []*searchCriteria) bool {
 }
 
 // numberMatch compares a criteria number string against a room value: either
-// an exact number or a min,max range, as the reference accepts both.
+// an exact number or a min,max range, as the working server accepts both.
 func numberMatch(expr string, v uint64) bool {
 	if lo, hi, ok := strings.Cut(expr, ","); ok {
 		min, err := strconv.ParseUint(strings.TrimSpace(lo), 10, 32)
@@ -978,7 +978,7 @@ func (e *Env) Disconnected(pid uint64) {
 // gid has been uncovered by the caller). With JoinEchoSession the answer is
 // the full session — the client builds its P2P mesh from the echoed
 // participation count, which must be the PRE-join value for a new joiner
-// (Clubhouse Games measured working this way on the reference).
+// (Clubhouse Games measured working this way on the working server).
 func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Reader) []byte {
 	gid, err := r.U32()
 	if err != nil {
@@ -1004,7 +1004,7 @@ func joinByGID(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r *rmc.Re
 		// Muted: the seat is taken silently. Diagnostic only (see the
 		// flag): whether the pushes themselves break this title's join.
 	} else if !was && env.JoinRecapParticipate {
-		// The reference's measured pair: announce the joiner to everyone,
+		// The working server's measured pair: announce the joiner to everyone,
 		// joiner included, then recap each existing participant to the
 		// joiner. Pushed before the RMC answer, as measured.
 		pids := participantPIDs(g)

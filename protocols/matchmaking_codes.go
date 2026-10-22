@@ -22,7 +22,7 @@ import (
 // no S/5. A code exists to be spoken.
 const codeAlphabet = "ABCDEFGHJKLMNPQRTUVWXYZ2346789"
 
-// codeLength is five: the length the working reference server issues to
+// codeLength is five: the length a known-working server issues to
 // Mario Kart and Smash, and the length its resolve path expects back
 // (earlier-nex matchmaking, read for the fact 2026-09-17). Six was our own
 // choice and no console had ever been shown one. 30^5 is about 24 million.

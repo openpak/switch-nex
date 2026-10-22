@@ -78,7 +78,7 @@ func appendString(b []byte, s string) []byte {
 	return append(append(b, s...), 0)
 }
 
-// Bytes serialises the response body exactly as the working reference emits
+// Bytes serialises the response body exactly as a working server emits
 // it for LoginEx.
 func (r Result) Bytes() []byte {
 	cd := appendString(nil, r.StationURL)

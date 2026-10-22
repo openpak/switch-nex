@@ -224,7 +224,7 @@ func (w *Writer) QBuffer(b []byte) {
 
 // StringEmptyZero appends a NEX string, but writes an empty string as a bare
 // length 0 with no bytes at all — where String writes length 1 and a lone NUL.
-// The one-byte difference shifts everything after it; the measured servers hit
+// The one-byte difference shifts everything after it; the working servers hit
 // it twice (SMM2 user info, then every unnamed player in a Ranking2 board).
 func (w *Writer) StringEmptyZero(s string) {
 	if s == "" {
@@ -275,7 +275,7 @@ func (w *Writer) List(count int) { w.U32(uint32(count)) }
 func (w *Writer) EmptyList() { w.U32(0) }
 
 // Variant is a tagged NEX value (rdv::Variant). Type IDs follow the
-// reference encoder's registry: 1 Int64, 2 Double, 3 Bool, 4 String,
+// working-server encoder registry: 1 Int64, 2 Double, 3 Bool, 4 String,
 // 5 DateTime, 6 UInt64; 0 carries no data.
 type Variant struct {
 	TypeID uint8

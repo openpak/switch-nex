@@ -131,7 +131,7 @@ func writeU16StringMap(m map[uint16]string) []byte {
 }
 
 // SMB35IntegerSettings is SMB35's measured tuning table (from the working
-// reference, via kinnay's INTEGER_SETTINGS1): index 0 carries the game's
+// working server, via kinnay's INTEGER_SETTINGS1): index 0 carries the game's
 // lobby timers, index 10 answers empty, any other index answers
 // Core::InvalidArgument.
 func SMB35IntegerSettings(index uint32) (map[uint16]uint32, uint32) {

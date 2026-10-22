@@ -1,6 +1,6 @@
 // Packed RMC (Remote Method Call) message framing, as carried in the PRUDP
 // DATA payload. Layout pinned to the byte shapes the working Switch-era
-// reference servers emit (SPEC.md, docs/provenance):
+// servers emit (SPEC.md, docs/provenance):
 //
 //	u32le size — bytes following this field
 //	u8  protocol | 0x80 request bit (0x7F escapes to a u16le protocol id)

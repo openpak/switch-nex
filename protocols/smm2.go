@@ -4,7 +4,7 @@
 //
 // Shapes are kinnay's NintendoClients datastore_smm2 definitions and the wiki's
 // Data-Store-Protocol-(SMM-2) page; which methods the console calls, and which
-// answers it accepted, come from the reference's notes (facts only).
+// answers it accepted, come from earlier research notes (facts only).
 //
 // Boot asks GetUsers (0x30) for the caller's own profile. A player who never
 // registered gets NotFound and, on first entering Course World, picks a Mii,
@@ -233,7 +233,7 @@ func writeSMM2UserInfo(w *rmc.Writer, pid uint64, u *smm2User) {
 		w.String(u.Country)
 		w.U8(u.Region)
 		w.U64(now)                          // last active
-		w.Bool(true)                        // unknown; the reference sent the three flags true
+		w.Bool(true)                        // unknown; the working server sent the three flags true
 		w.Bool(true)                        // comments enabled: false reads "the creator restricted comments"
 		w.Bool(true)                        // tags enabled
 		u8u32Map(w, 0, 0, 0, 0)             // play stats: played, cleared, attempts, deaths
@@ -253,7 +253,7 @@ func writeSMM2UserInfo(w *rmc.Writer, pid uint64, u *smm2User) {
 		})
 		w.StringEmptyZero("") // v3: super world id (none)
 		u8u32Map(w, 0)        // v3: unique super world clears
-		w.Bool(true)          // v3: unknown; the reference sent true
+		w.Bool(true)          // v3: unknown; the working server sent true
 	})
 }
 

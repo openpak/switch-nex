@@ -1,7 +1,7 @@
 // Package prudplite implements the PRUDPLite wire format as spoken by
 // Switch-era NEX titles (verified: MK8D 3.0.5 raw PRUDPLite over TLS-TCP,
 // OpenPak captures 2026-09-14; handshake shapes matched to the working
-// reference server).
+// server).
 //
 // Frame layout (little-endian):
 //

@@ -20,6 +20,6 @@ block carrying the full BAAS id token; expects the ValidateAndRequestTicket
 Result structure (v1 header, 8-byte PID); secure stage is a ticketless CONNECT
 matched by client IP.
 
-earlier parity (docs/legacy-parity.md): matchmaking trio + Ranking
+Parity notes (docs/legacy-parity.md): matchmaking trio + Ranking
 (scores, common data), served by `cmd/switch-nexd` (per-title registry) or
 standalone via `cmd/mk8d`.

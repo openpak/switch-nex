@@ -1,4 +1,4 @@
-// DataStore (0x73) at the working-reference behaviour level: correct response
+// DataStore (0x73) at known-working behaviour level: correct response
 // shapes, real data IDs where a title needs one, no object storage yet.
 //
 // The stub shape is PER TITLE, not one generic answer:
@@ -53,7 +53,7 @@ func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		// persistence info, TouchObject, password infos, GetNotificationURL
 		return success(msg, nil)
 
-	case 0x08: // GetMeta -> DataStore::NotFound (the measured reference answer)
+	case 0x08: // GetMeta -> DataStore::NotFound (the measured working-server answer)
 		return errorResp(msg, rmc.ResultDataStoreNotFound)
 
 	case 0x09, 0x24, 0x1C: // GetMetas / GetMetasMultipleParam / GetSpecificMeta -> empty lists
@@ -74,7 +74,7 @@ func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		return postedDataID(env, msg)
 
 	case 0x18, 0x19, 0x21, 0x1B, 0x1F, 0x20, 0x0A, 0x0B, 0x2D:
-		// Prepare post/get + transfer plumbing: the reference answered these
+		// Prepare post/get + transfer plumbing: the working server answered these
 		// NotImplemented without S3; empty success keeps callers moving.
 		return success(msg, nil)
 
@@ -96,7 +96,7 @@ func dataStoreTitleMethods(env *Env, c *prudplite.Connection, msg *rmc.RMCMessag
 }
 
 // clubhouseDataStore serves Clubhouse Games' DataStore at the level the
-// working reference was measured at. The game calls DataStore during online
+// the working servers were measured at. The game calls DataStore during online
 // account setup, before any matchmaking — with no handler it aborts with the
 // generic communication error. First-time setup runs GetPersistenceInfos
 // (0x73.0x1E): the measured "nothing saved yet" answer is an empty
