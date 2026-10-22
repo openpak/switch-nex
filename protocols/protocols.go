@@ -1,6 +1,6 @@
 // Package protocols implements the secure-stage NEX protocols the Switch
 // titles call after login, with response behaviour matched to the working
-// measured servers (OpenPak) title for title — see docs/legacy-parity.md
+// measured servers (OpenPak) title for title — see docs/parity.md
 // for the comparison and the per-title provenance of every answer shape.
 //
 // Protocol IDs and method IDs follow the public NEX protocol definitions

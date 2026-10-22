@@ -44,7 +44,7 @@ The defect is narrower and worse than "shared secret":
   accounts collide by birthday at roughly 4,800 players and then *are* the same
   principal, with the same sessions and saves.
 
-It is documented as deliberate — `docs/legacy-parity.md` deviation 5 and
+It is documented as deliberate — `docs/parity.md` deviation 5 and
 `next-session.md` open item 4 both name it as the pre-real-console integration
 item, and `servers/nex/account.go` is cited as the measured server for the flow. So:
 a known, documented shortcut, but not a time-boxed one, and it is already live.

@@ -339,7 +339,7 @@
   every session at create: host counted, 32-byte session key, start time, attributes padded to
   6, `@SR`/`@GIR`. Tennis now gets `FinalizeCreateSession` + `FinalizeParams`, and
   `JoinEchoSession` + `JoinRecapParticipate` for friend joins.
-- Tennis links NEX 4.3.5 and Pia 5.9.6 (its SDK banners), not Pia 5.19 as docs/legacy-parity.md
+- Tennis links NEX 4.3.5 and Pia 5.9.6 (its SDK banners), not Pia 5.19 as docs/parity.md
   had it. The public station keeps the 5.19 shape the measured server served it; the punch works.
 - Not console-verified at release: the retest is the same Switch + ROG 3 Free Play match.
 
@@ -1315,7 +1315,7 @@ build. Both titles' bullets belong here.
 - New title `clubhouse-games-51` (010047700D540000, game server 2035BB00) on
   port block 22870 (allocated from the ports.md pool), access key `8c3661ff`.
   First title whose facts came from earlier research notes —
-  provenance in `docs/legacy-parity.md`.
+  provenance in `docs/parity.md`.
 - `protocols/`: new `DSClubhouse` DataStore mode (GetPersistenceInfos answers
   empty + NotFound per slot — the "nothing saved yet" signal the game's
   account setup needs; GetMeta NotFound; everything else a bare empty list),
@@ -1359,7 +1359,7 @@ build. Both titles' bullets belong here.
   with a full NEX4 MatchmakeSession codec, Ranking (scores + common data),
   SMB35's Ranking2 + MatchmakeReferee (round store, raw param echo), and LM3's
   0x79 presence stub. Response behaviour matched to the measured
-  answers per title — `docs/legacy-parity.md` is the comparison record.
+  answers per title — `docs/parity.md` is the comparison record.
 - `cmd/switch-nexd` serves 14 titles (all Switch-era NEX except MHGU, whose
   UDP transport stays on nex-go), with per-title protocol sets, MPS detail-
   find sanitisation, the MTA open-participation fix, ACNH 0x2C codeword
@@ -1376,7 +1376,7 @@ build. Both titles' bullets belong here.
 
 ## 2026-09-16 — server parity pass
 
-Closed all 43 findings from `docs/legacy-gap-report.md`.
+Closed all 43 findings from `docs/gap-report.md`.
 
 Login and connection setup:
 - `ValidateAndRequestTicketWithParam` (0x0A/0x06) now answers its own structure
@@ -1425,6 +1425,6 @@ New behaviour:
 - Mario Strikers' bring-up shape table on 0x6E/0x73/0x78/0x79/0x7A.
 - DataStore stub shapes are per title.
 
-Corrected `docs/legacy-parity.md`: the per-title table wrongly recorded eight
+Corrected `docs/parity.md`: the per-title table wrongly recorded eight
 titles as having no Ranking, and SMB35's secure PID as a retail constant rather
 than 2.

@@ -78,7 +78,7 @@ table claimed MPS, Golf, ARMS, LM3, Minecraft, SMO, SSBU and Strikers had **no
 Ranking**, and that MPS deliberately had no DataStore. Both were wrong: the
 measured server registers Ranking 0x70 for every one of them. It also recorded SMB35's
 secure PID as a retail constant; every measured title, SMB35 included, uses 2.
-See `docs/legacy-gap-report.md` conflicts 37-43.
+See `docs/gap-report.md` conflicts 37-43.
 
 Measured NEX versions, for the record: MPS 40605, Golf 40605, ARMS 40305,
 MTA 40305, SMB35 40600, every other title 40000. Session key length is 32

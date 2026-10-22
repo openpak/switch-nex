@@ -16,11 +16,11 @@ import (
 // assert the request shape, not merely that a reply came back.
 type fakeBaas struct {
 	*httptest.Server
-	gotToken string
-	gotOpenPak  string
-	gotKey   string
-	status   int
-	pid      uint64
+	gotToken   string
+	gotOpenPak string
+	gotKey     string
+	status     int
+	pid        uint64
 	// latest is the title's newest version for /internal/title-version;
 	// empty answers 404, as an nx-baas without the endpoint does.
 	latest     string
@@ -46,7 +46,7 @@ func newFakeBaas(t *testing.T, pid uint64) *fakeBaas {
 		f.gotKey = r.Header.Get("X-Internal-Key")
 		var in struct {
 			IDToken string `json:"id_token"`
-			OpenPak    string `json:"openpak"`
+			OpenPak string `json:"openpak"`
 		}
 		json.NewDecoder(r.Body).Decode(&in)
 		f.gotToken, f.gotOpenPak = in.IDToken, in.OpenPak

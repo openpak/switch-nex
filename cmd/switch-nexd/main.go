@@ -9,7 +9,7 @@
 //
 // Secure endpoint: the protocol set each title was measured using against the
 // measured servers, implemented in ./protocols with response
-// behaviour matched title for title (docs/legacy-parity.md). Unimplemented
+// behaviour matched title for title (docs/parity.md). Unimplemented
 // methods answer Core::NotImplemented and are logged — the game tells us the
 // backlog.
 //
@@ -44,7 +44,7 @@ import (
 )
 
 // title is one served game: its port block and the protocol behaviour matched
-// to the measured server (provenance per field in docs/legacy-parity.md).
+// to the measured server (provenance per field in docs/parity.md).
 type title struct {
 	name string
 	base int

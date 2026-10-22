@@ -21,7 +21,7 @@ from logs. It is all static comparison.
 ## Status — closed 2026-09-16
 
 All 43 findings are implemented, `GOWORK=off go build/vet/test ./...` is green,
-and the per-title registry and `docs/legacy-parity.md` are corrected. Two
+and the per-title registry and `docs/parity.md` are corrected. Two
 entries landed narrower than the heading suggests, and say so where they sit:
 
 - **#32 (login-name to PID map)** is groundwork only. The table is populated at
@@ -55,7 +55,7 @@ in the existing round-trip test, about one run in three.
 - **Secure station URL params**: `address, port, CID=1, PID, sid=1, stream=10, type=2`.
 - **MatchmakeSession / Gathering** field order and struct nesting.
 - **Ranking2Info**: list, LowestRank, NumRankedIn, Season(i32).
-- Access keys recorded in `docs/legacy-parity.md` match the measured server exactly.
+- Access keys recorded in `docs/parity.md` match the measured server exactly.
 
 ---
 
@@ -195,7 +195,7 @@ carrying the full session) cannot work today.
 
 ---
 
-## Conflicts: `docs/legacy-parity.md` contradicts the measured server
+## Conflicts: `docs/parity.md` contradicts the measured server
 
 Recorded, not resolved — per the clean-room policy two facts that disagree are a
 finding, not a blocker.

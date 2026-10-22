@@ -33,7 +33,7 @@ ticket minting, ticketless secure CONNECT with IP→PID recall) and the
 per-title protocol sets are implemented at the measured-server behaviour
 level for every Switch-era NEX title except MHGU (UDP transport — stays on
 nex-go). The per-title comparison, behaviour notes and remaining deviations
-are in `docs/legacy-parity.md`.
+are in `docs/parity.md`.
 
 ## Titles
 

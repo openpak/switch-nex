@@ -131,7 +131,7 @@ switch-nexd-arm64 mk8d-arm64 SHA256SUMS.txt`). The binary is not in git; the
 release and the image are the two records of a build, and their hashes must
 agree with `podman exec switch-nexd sha256sum /app/switch-nexd` in production.
 
-## 2b. Ship + rebuild on the host (legacy path, no registry needed)
+## 2b. Ship + rebuild on the host (manual path, no registry needed)
 
 ```sh
 scp switch-nexd-arm64 <prod-host>:openpak/deploy/switch-nex/
