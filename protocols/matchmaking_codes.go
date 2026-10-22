@@ -24,7 +24,7 @@ const codeAlphabet = "ABCDEFGHJKLMNPQRTUVWXYZ2346789"
 
 // codeLength is five: the length a known-working server issues to
 // Mario Kart and Smash, and the length its resolve path expects back
-// (earlier-nex matchmaking, read for the fact 2026-09-17). Six was our own
+// (measured 2026-09-17). Six was our own
 // choice and no console had ever been shown one. 30^5 is about 24 million.
 const codeLength = 5
 
