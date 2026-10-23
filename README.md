@@ -47,7 +47,7 @@ the server itself and clients arrive with their real addresses. Each title
 also answers `GET /healthz` on its base+2 (e.g. `curl :22152/healthz` →
 `ok mario-kart-8-deluxe auth=22150/tls secure=22151/tls`); 200 only while
 both of its listeners are up, 503 `down …` otherwise. Ports per title:
-`docs/ports.md` or `switch-nexd -dump`. MHGU and
+the port plan (https://docs.openpak.org/contributors/ports/) or `switch-nexd -dump`. MHGU and
 the Wii U / 3DS fleet remain on the nex-go lineage. MHGU is a hybrid — wss auth
 like this lineage, but a raw PRUDP/UDP secure stage and a kerberos v0 ticket,
 neither of which this lineage provides — and it shares its NEX code, and its
