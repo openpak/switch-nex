@@ -8,6 +8,12 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-10-23 — v0.4.1: station diagnostic carries the NAT type
+
+- `SWITCH_NEX_DIAG_STATIONS` lines now include each station's `type`, `natm`
+  and `natf`, so a failed P2P pair (ARMS 2618-0513, phone hosting on mobile
+  data) shows which side reports a symmetric mapping. Still opt-in per title.
+
 ## Unreleased — identity enforcement is the default (ALPHA-11)
 
 - `-require-identity` defaults to true: logins whose BAAS token cannot be

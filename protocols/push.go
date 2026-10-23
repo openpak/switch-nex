@@ -183,7 +183,8 @@ func diagStations(env *Env, pid uint64, what string, stations []string) {
 	addrs := make([]string, 0, len(stations))
 	for _, s := range stations {
 		u := switchnex.Parse(s)
-		addrs = append(addrs, u.Get("address")+":"+strconv.FormatUint(u.GetInt("port"), 10))
+		addrs = append(addrs, u.Get("address")+":"+strconv.FormatUint(u.GetInt("port"), 10)+
+			" type="+u.Get("type")+" natm="+u.Get("natm")+" natf="+u.Get("natf"))
 	}
 	log.Printf("[%s] diag %s pid=%s stations=%q", env.Name, what, redact.Tag(pid), addrs)
 }
