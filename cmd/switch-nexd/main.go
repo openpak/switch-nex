@@ -240,6 +240,22 @@ var titles = []title{
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
 	}},
+	{"tmnt-shredders-revenge", 23130, "vLOlmxdM", func(e *protocols.Env) {
+		// TMNT: Shredder's Revenge (0100FE701475A000, update v589824,
+		// game server 20A95200). NEX 4.6.6, no Pia; the ID/key pair is a
+		// same-call login pairing (ID built in w1, key "vLOlmxdM" in x2,
+		// 60 s timeout in w3). The SNI is console-confirmed: a retail
+		// Switch dialled g20a95200-lp1 with a websocket upgrade on
+		// 2026-10-24 and got 2306-0502 while it was unrouted.
+		//
+		// NEX carries the leaderboards only: the binary links Ranking2,
+		// TicketGranting and SecureConnection clients and nothing else.
+		// Online co-op runs on Epic Online Services (servers/eos).
+		// Static provenance: docs/tmnt-shredders-revenge.md.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia() // no Pia SDK in this title
+		e.Ranking2 = true
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		// Simultaneous searches must wait for the first host to publish its NAT station.
 		e.HoldForOpening = 8 * time.Second
