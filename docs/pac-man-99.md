@@ -25,7 +25,11 @@ The source is the owner's updated client executable. Only sanitized constants ar
 
 ## Profile
 
-Starts from SMB35's: matchmaking store, Ranking2, MatchmakeReferee, MessageDelivery and the
+The client's RTTI names its NEX protocol clients: TicketGranting, SecureConnection,
+MatchMaking, MatchmakeExtension, Messaging, MessageDelivery, Ranking2 and Utility. SMB35
+links the same set plus MatchmakeReferee, which PAC-MAN 99 does not have.
+
+Starts from SMB35's: matchmaking store, Ranking2, MessageDelivery (no referee) and the
 Eagle handoff (notification 200000 with `url` + `token`), 16-byte source key. The relay
 uses the `PacMan99` profile: 99 players per room, and its login fields (protocol, app
 protocol version, DDL hash, version string) are logged instead of enforced until a boot has

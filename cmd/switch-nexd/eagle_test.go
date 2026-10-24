@@ -9,15 +9,16 @@ import (
 )
 
 func TestSMB35EagleAutoMatchAndRoundReports(t *testing.T) {
-	eagleAutoMatchAndRoundReports(t, "super-mario-bros-35", "wss://g21f12900-lp1.s.n.srv.nintendo.net:22163", eagle.SMB35, 35)
+	eagleAutoMatchAndRoundReports(t, "super-mario-bros-35", "wss://g21f12900-lp1.s.n.srv.nintendo.net:22163", eagle.SMB35, 35, true)
 }
 
-// PAC-MAN 99 runs the same NEX + Eagle flow on its own registry entry.
-func TestPacMan99EagleAutoMatchAndRoundReports(t *testing.T) {
-	eagleAutoMatchAndRoundReports(t, "pac-man-99", "wss://g2e471600-lp1.s.n.srv.nintendo.net:23143", eagle.PacMan99, 99)
+// PAC-MAN 99 runs the same NEX + Eagle matchmaking and handoff on its own
+// registry entry; it links no MatchmakeReferee, so it has no rounds.
+func TestPacMan99EagleAutoMatchHandoff(t *testing.T) {
+	eagleAutoMatchAndRoundReports(t, "pac-man-99", "wss://g2e471600-lp1.s.n.srv.nintendo.net:23143", eagle.PacMan99, 99, false)
 }
 
-func eagleAutoMatchAndRoundReports(t *testing.T, name, base string, profile eagle.Profile, players uint16) {
+func eagleAutoMatchAndRoundReports(t *testing.T, name, base string, profile eagle.Profile, players uint16, referee bool) {
 	authAddr, secureAddr, svc := start(t, name)
 	relay, err := eagle.NewServerProfile(profile)
 	if err != nil {
@@ -70,6 +71,12 @@ func eagleAutoMatchAndRoundReports(t *testing.T, name, base string, profile eagl
 		t.Fatal("relay tickets are missing or not specific to each player")
 	}
 
+	if !referee {
+		if resp := host.call(0x78, 1, nil); !resp.IsError {
+			t.Fatal("a title without MatchmakeReferee answered StartRound")
+		}
+		return
+	}
 	// Eagle's referee signals the round ID in Param1 to every participant,
 	// including the initiator, then answers GetStartRoundParam with its body.
 	round := rmc.NewWriter()

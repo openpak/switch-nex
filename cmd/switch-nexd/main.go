@@ -264,10 +264,12 @@ var titles = []title{
 		// service on 2023-10-08; nothing here is retail-measured yet.
 		// Matches run through the Eagle relay (PACMAN99_EAGLE_URL,
 		// listener :23143). Feasibility: research nso-99-games.md.
+		// Linked protocol clients (RTTI): TicketGranting, SecureConnection,
+		// MatchMaking, MatchmakeExtension, Messaging, MessageDelivery,
+		// Ranking2, Utility. Unlike SMB35 there is no MatchmakeReferee.
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.Ranking2 = true
-		e.MatchmakeReferee = true
 		e.MessageDelivery = true
 		e.Eagle = true
 		unmeasuredEagleTitle(e, "PACMAN99")
@@ -280,6 +282,7 @@ var titles = []title{
 		// parser strings), probably Kinnay's 1.x wire: this entry exists
 		// to measure it. The relay logs the login fields; the 1.x node
 		// width and notices are not implemented. Listener :23153.
+		// Linked protocol clients (RTTI): SMB35's set minus Ranking2.
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
 		e.MatchmakeReferee = true
