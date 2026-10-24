@@ -28,6 +28,8 @@
 package protocols
 
 import (
+	"log"
+
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/rmc"
 )
@@ -80,6 +82,9 @@ func utilityHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 		if env.IntegerSettings != nil {
 			settings, errCode = env.IntegerSettings(index)
 		}
+		// The index and the size of the answer are what a new title's first
+		// boot needs to show: which table it asked for, and whether we had one.
+		log.Printf("[%s] GetIntegerSettings index=%d keys=%d err=%#x", env.Name, index, len(settings), errCode)
 		if errCode != 0 {
 			return errorResp(msg, errCode)
 		}
@@ -144,6 +149,30 @@ func SMB35IntegerSettings(index uint32) (map[uint16]uint32, uint32) {
 	return map[uint16]uint32{
 		0: 60, 1: 30, 2: 90, 3: 1, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0,
 		10: 5, 11: 3, 12: 1, 13: 30, 14: 30, 15: 180, 16: 0,
+	}, 0
+}
+
+// PacMan99IntegerSettings is PAC-MAN 99's index-0 table: its lobby fill
+// schedule. Read out of the client (update v131072): after GetIntegerSettings(0)
+// the game checks that keys 0-9, 20 and 21 all exist, else it disconnects and
+// drops back to the mode menu with no message (measured on Harbor 2026-10-24
+// with an empty map). The keys are (seconds, players) pairs: once the lobby has
+// waited settings[t] seconds, it starts with settings[n] players (0 = skip; the
+// smallest reached so far wins, from 99). Pairs (0,1)..(8,9) are the public
+// lobby, (20,21) the private one; the countdown shown is the largest t whose n
+// is non-zero. Nintendo's own values were never captured (the service closed
+// in 2023): these suit a small population, ending at two players.
+func PacMan99IntegerSettings(index uint32) (map[uint16]uint32, uint32) {
+	if index != 0 {
+		return map[uint16]uint32{}, 0
+	}
+	return map[uint16]uint32{
+		0: 20, 1: 99,
+		2: 40, 3: 50,
+		4: 60, 5: 20,
+		6: 80, 7: 8,
+		8: 100, 9: 2,
+		20: 60, 21: 2,
 	}, 0
 }
 

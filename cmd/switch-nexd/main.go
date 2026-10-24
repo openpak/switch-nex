@@ -273,6 +273,9 @@ var titles = []title{
 		e.MessageDelivery = true
 		e.Eagle = true
 		unmeasuredEagleTitle(e, "PACMAN99")
+		if e.IntegerSettings == nil {
+			e.IntegerSettings = protocols.PacMan99IntegerSettings
+		}
 	}},
 	{"tetris-99", 23150, "cdd6114d", func(e *protocols.Env) {
 		// Tetris 99 (010040600C5CE000, update 2.6.0, game server

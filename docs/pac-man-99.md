@@ -42,3 +42,13 @@ and `PACMAN99_INTEGER_SETTINGS` (the `index:key=value;…` shape).
 `PACMAN99_EAGLE_URL=wss://g2e471600-lp1.s.n.srv.nintendo.net:23143`. The existing NEX leaf
 (`*.s.n.srv.nintendo.net`) covers the name. Needs a Traefik SNI route for
 `g2e471600-lp1.s.n.srv.nintendo.net` to 23140 and host ACCEPTs for 23141 and 23143.
+
+## First boot, 2026-10-24 (Harbor, client Ver.1.1.0, aauth version `00020000`)
+
+- NEX login, the 16-byte source key and the secure connection all work. The game then calls
+  Utility GetAssociatedNexUniqueIdWithMyPrincipalId and `GetIntegerSettings(0)`; with an
+  empty map it disconnects and returns to the mode menu with no message.
+- The client requires keys 0–9, 20 and 21 in that table and reads them as lobby-fill
+  (seconds, players) pairs: (0,1)…(8,9) for public lobbies, (20,21) for private ones.
+  `protocols.PacMan99IntegerSettings` serves a schedule ending at two players;
+  Nintendo's values were never captured. `PACMAN99_INTEGER_SETTINGS` still overrides it.
