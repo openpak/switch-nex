@@ -1,58 +1,108 @@
 name: release
 
-# Tag a release (v1.2.3) and this publishes ghcr.io/openpak/switch-nex:1.2.3, :1.2 and :latest
-# for amd64 and arm64. Runs on the OpenPak self-hosted runner (podman), so it costs no
-# GitHub-hosted minutes; this repository is private and those are metered.
+# Tag a release (v1.2.3) and this publishes ghcr.io/openpak/<repo>:1.2.3, :1.2 and :latest for
+# amd64 and arm64. Deployed hosts run podman-auto-update against :latest, so pushing a tag is
+# the deploy. Each arch builds natively on a GitHub-hosted runner and pushes by digest only;
+# the publish job then writes the one multi-arch manifest under the release tags.
 #
-# Pushing a tag IS the deploy: each title's quadlet tracks :latest with AutoUpdate=registry,
-# so podman-auto-update rolls it within five minutes. That is only safe because one container
-# is one title (2026-09-26) — a restart drops the players in that title, not all 21. Pin a
-# title's Image= to hold it back; see docs/deploy.md §2c.
+# Manual run with dry_run=true builds both arches and pushes nothing.
 on:
   push:
     tags: ['v*.*.*']
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build every arch, push nothing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: write
 
+env:
+  IMG: ghcr.io/${{ github.repository }}
+  PUSH: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+
 jobs:
-  image:
-    runs-on: [self-hosted, linux, podman]
+  test:
+    runs-on: ubuntu-24.04
+    env:
+      GOWORK: 'off'
+      GOFLAGS: -mod=mod
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+      - name: Tests and vet, before anything is published
+        run: go test ./... && go vet ./...
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0   # full history, so `git describe` in the build stage is meaningful
-      - name: Scratch in the runner's temp, not the machine's shared /tmp
-        # /tmp is a RAM disk every build on the machine shares; when it filled on
-        # 2026-09-24 a compiler died and a job hung for hours instead of failing.
+      - uses: docker/setup-buildx-action@v3
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+          outputs: ${{ env.PUSH == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMG) || 'type=cacheonly' }}
+      - if: env.PUSH == 'true'
         run: |
-          mkdir -p "$RUNNER_TEMP/scratch"
-          echo "TMPDIR=$RUNNER_TEMP/scratch" >> "$GITHUB_ENV"
-      - name: Tests and vet, before anything is published
-        # docs/deploy.md 1 opens with these two; publishing an image that fails
-        # them is the one thing CI is here to stop.
-        run: |
-          podman run --rm -v "$PWD:/src" -w /src -e GOWORK=off -e GOFLAGS=-mod=mod \
-            docker.io/library/golang:1.26-alpine sh -c 'go test ./... && go vet ./...'
-      # Job-scoped login, never the runner user's own. The runner context is not
-      # available in job-level env, so each step that touches the registry sets it.
-      - env:
-          REGISTRY_AUTH_FILE: ${{ runner.temp }}/auth.json
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - env:
-          REGISTRY_AUTH_FILE: ${{ runner.temp }}/auth.json
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - if: env.PUSH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          retention-days: 1
+
+  publish:
+    needs: build
+    if: github.event_name == 'push' || !inputs.dry_run
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - working-directory: ${{ runner.temp }}/digests
         run: |
           set -e
-          IMG="ghcr.io/${{ github.repository }}"
           case "${GITHUB_REF_NAME}" in v*) VER="${GITHUB_REF_NAME#v}";; *) VER="";; esac
-          podman manifest rm "$IMG:build" 2>/dev/null || true
-          podman build --platform linux/amd64,linux/arm64 --manifest "$IMG:build" .
           TAGS="latest"; [ -n "$VER" ] && TAGS="$TAGS $VER $(echo "$VER" | cut -d. -f1,2)"
-          for t in $TAGS; do podman manifest push --all "$IMG:build" "docker://$IMG:$t"; done
-          podman manifest rm "$IMG:build"
+          ARGS=""; for t in $TAGS; do ARGS="$ARGS -t $IMG:$t"; done
+          # shellcheck disable=SC2046,SC2086
+          docker buildx imagetools create $ARGS $(printf "$IMG@sha256:%s " *)
           echo "pushed $IMG: $TAGS"
-      - name: Clear scratch
-        if: always()
-        run: rm -rf "$RUNNER_TEMP/scratch"
