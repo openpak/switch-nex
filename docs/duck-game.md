@@ -1,10 +1,34 @@
-# Duck Game — relay investigation, gameplay unverified
+# Duck Game — plays online in Harbor (2026-10-24)
 
 Duck Game (`0100750001C70000`, update 1.0.4 / content 262144) is registered
-in `cmd/switch-nexd` as `duck-game`. It shares the existing transport,
-account resolution, matchmaking and NAT/notification handlers. It has a
-production route and per-title quadlet, but gameplay remains unverified.
-The access key is unknown; the current profile deliberately uses an empty key.
+in `cmd/switch-nexd` as `duck-game` and runs from the published image
+(`switch-nex:0.4.1`). The access key is still unknown; the profile keeps an
+empty key, so CONNECT signatures go unverified.
+
+## 2026-10-24: two Harbor consoles, no server change
+
+Two desktop Harbor consoles in separate network households (each NATed to the
+same home public address), one per test account:
+
+- Sign-in on both; Play World opens.
+- Create Game, then Browse Games on the other console lists it and joins:
+  NAT probes run both ways and the punch succeeds; both players share one
+  lobby.
+- Host leaves: Pia migrates the host to the joiner and the session carries on
+  (the server sees the new owner's session updates).
+- Find Game (auto matchmaking) joins the existing session from the other side.
+- Match start closes participation; both consoles show the same level and
+  positions, rounds end and the next level loads on both, about 25 minutes
+  without a disconnect. Game traffic is direct UDP between the consoles.
+
+The game has no leaderboards or stats on Switch, and no NEX service other
+than matchmaking, NAT traversal and secure connection. "Invite friends" hosts
+a friends-only lobby that friends find through Browse; the friend check runs
+on the console. No relay was used: connectivity refuses the bind, so the
+title is direct-only, which is what the run measured.
+
+Still for the owner: the same flow between a real Switch and Harbor, and a
+match played to the end.
 
 ## 2026-10-13: independently verified relay infrastructure
 
