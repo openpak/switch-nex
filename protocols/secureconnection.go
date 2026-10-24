@@ -4,10 +4,10 @@
 //
 //	0x01 Register        -> (QResult, u32 connection id, StationURL public)
 //	0x02 RequestConnectionData -> empty success
-//	0x03 RequestURLs     -> list of station URLs (the caller's own)
+//	0x03 RequestURLs     -> (bool, list of the TARGET's station URLs)
 //	0x04 RegisterEx      -> same three fields as Register
 //	0x05 TestConnectivity -> empty success
-//	0x06 UpdateURLs      -> empty success
+//	0x06 UpdateURLs      -> empty success, and the stations are STORED
 //	0x07 ReplaceURL      -> empty success, and the new station is STORED
 //	0x08 SendReport      -> empty success
 //
@@ -56,11 +56,14 @@ func secureConnectionHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMess
 	case 0x01, 0x04: // Register / RegisterEx
 		return registerStations(env, c, msg)
 
-	case 0x02, 0x06, 0x08: // RequestConnectionData / UpdateURLs / SendReport
+	case 0x02, 0x08: // RequestConnectionData / SendReport
 		return success(msg, nil)
 
-	case 0x03: // RequestURLs(u32 cidTarget, PID pidTarget) -> list<StationURL>
-		return success(msg, stationURLList(c))
+	case 0x03: // RequestURLs(u32 cidTarget, PID pidTarget) -> (bool, list<StationURL>)
+		return requestURLs(env, c, msg)
+
+	case 0x06: // UpdateURLs(list<StationURL>) -> empty
+		return updateURLs(env, c, msg)
 
 	case 0x05: // TestConnectivity() -> empty
 		return success(msg, nil)
@@ -85,7 +88,25 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		}
 		diagStations(env, c.PID, "register-reported", raw)
 	}
-	local, public := splitStations(reported)
+	local, public := stampStations(env, c, reported)
+	if err := env.commitStations(c, []string{local.String(), public.String()}); err != nil {
+		return errorResp(msg, rmc.ResultServiceUnavailable)
+	}
+	log.Printf("[%s] register pid=%s cid=%d", env.Name, redact.Tag(c.PID), c.ID)
+	diagStations(env, c.PID, "register-stored", c.Stations())
+
+	w := rmc.NewWriter()
+	w.U32(rmc.ResultSuccess) // QResult success
+	w.U32(c.ID)              // the connection id the client calls itself
+	w.String(c.Stations()[1])
+	return success(msg, w.Bytes())
+}
+
+// stampStations splits the reported stations into the LAN one and the public
+// one and stamps the caller's identity onto both. Register and UpdateURLs share
+// it, so a re-report keeps exactly the shape the first registration had.
+func stampStations(env *Env, c *prudplite.Connection, reported []*switchnex.URL) (local, public *switchnex.URL) {
+	local, public = splitStations(reported)
 	if local == nil {
 		local = switchnex.Empty(env.StationScheme)
 	}
@@ -129,16 +150,55 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		public.Remove("Pa")
 	}
 
+	return local, public
+}
+
+// updateURLs stores the stations a client re-reports. The previous empty
+// acknowledgement dropped them, so a peer asking for this client's stations
+// kept getting the ones from its first registration.
+func updateURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	reported := readStationList(msg.Body)
+	if len(reported) == 0 {
+		return success(msg, nil)
+	}
+	local, public := stampStations(env, c, reported)
 	if err := env.commitStations(c, []string{local.String(), public.String()}); err != nil {
 		return errorResp(msg, rmc.ResultServiceUnavailable)
 	}
-	log.Printf("[%s] register pid=%s cid=%d", env.Name, redact.Tag(c.PID), c.ID)
-	diagStations(env, c.PID, "register-stored", c.Stations())
+	diagStations(env, c.PID, "update-urls", c.Stations())
+	return success(msg, nil)
+}
 
+// requestURLs answers RequestURLs(u32 cidTarget, PID pidTarget) with the
+// TARGET's stations: (bool found, list<StationURL>). Answering with the
+// caller's own stations sent a NEX P2P client to connect to itself.
+func requestURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	r := rmc.NewReader(msg.Body)
+	cid, err := r.U32()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
+	pid, err := r.U64()
+	if err != nil {
+		return errorResp(msg, rmc.ResultInvalidArgument)
+	}
 	w := rmc.NewWriter()
-	w.U32(rmc.ResultSuccess) // QResult success
-	w.U32(c.ID)              // the connection id the client calls itself
-	w.String(c.Stations()[1])
+	target, ok := c, pid == c.PID
+	if !ok {
+		target, ok = env.push.connection(pid)
+	}
+	if !ok || (cid != 0 && target.ID != cid) {
+		w.Bool(false)
+		w.EmptyList()
+		return success(msg, w.Bytes())
+	}
+	if target != c {
+		if err := env.ensureStationLease(target); err != nil {
+			return errorResp(msg, rmc.ResultServiceUnavailable)
+		}
+	}
+	w.Bool(true)
+	w.Raw(stationURLList(target))
 	return success(msg, w.Bytes())
 }
 

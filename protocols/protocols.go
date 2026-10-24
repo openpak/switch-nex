@@ -330,7 +330,7 @@ func Dispatch(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	defer env.mu.Unlock()
 	// Lease refresh is skipped for calls that replace the candidate set, so a
 	// route update never renews an obsolete mapping first.
-	updatesStations := msg.Protocol == ProtoSecureConnection && (msg.MethodID == 1 || msg.MethodID == 4 || msg.MethodID == 7)
+	updatesStations := msg.Protocol == ProtoSecureConnection && (msg.MethodID == 1 || msg.MethodID == 4 || msg.MethodID == 6 || msg.MethodID == 7)
 	if !updatesStations {
 		if err := env.ensureStationLease(c); err != nil {
 			return errorResp(msg, rmc.ResultServiceUnavailable)

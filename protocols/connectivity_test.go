@@ -136,14 +136,17 @@ func TestSharedLeaseFailurePreservesLastAcceptedStations(t *testing.T) {
 		t.Fatal("unaccepted update was committed")
 	}
 	// Existing valid leases keep working through a control-plane outage.
-	m, err = rmc.Decode(Dispatch(env, c, &rmc.RMCMessage{IsRequest: true, Protocol: ProtoSecureConnection, MethodID: 3, CallID: 2}))
+	self := rmc.NewWriter()
+	self.U32(c.ID)
+	self.U64(c.PID)
+	m, err = rmc.Decode(Dispatch(env, c, &rmc.RMCMessage{IsRequest: true, Protocol: ProtoSecureConnection, MethodID: 3, CallID: 2, Body: self.Bytes()}))
 	if err != nil || m.IsError {
 		t.Fatal("valid cached lease unnecessarily rejected")
 	}
 	lease := env.connectivityLeases[c.ID]
 	lease.ExpiresAt = time.Now().Add(-time.Second)
 	env.connectivityLeases[c.ID] = lease
-	m, err = rmc.Decode(Dispatch(env, c, &rmc.RMCMessage{IsRequest: true, Protocol: ProtoSecureConnection, MethodID: 3, CallID: 3}))
+	m, err = rmc.Decode(Dispatch(env, c, &rmc.RMCMessage{IsRequest: true, Protocol: ProtoSecureConnection, MethodID: 3, CallID: 3, Body: self.Bytes()}))
 	if err != nil || !m.IsError || m.ErrorCode != rmc.ResultServiceUnavailable {
 		t.Fatal("expired candidate authority silently renewed locally")
 	}
