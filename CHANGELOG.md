@@ -8,6 +8,20 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## Unreleased — SecureConnection RequestURLs and UpdateURLs follow the IDL
+
+- `RequestURLs(cid, pid)` (0x0B/0x03) answers `(bool, list<StationURL>)` with
+  the TARGET's stations, refreshing the target's endpoint lease first. It used
+  to return the caller's own stations without the bool, which sends a NEX P2P
+  client to connect to itself. Unknown principals answer `false` and an empty
+  list.
+- `UpdateURLs` (0x0B/0x06) stores the re-reported stations through the same
+  split and identity stamping as Register, instead of acknowledging and
+  dropping them. Like Register and ReplaceURL, it skips the lease refresh.
+- Diagnostics: `SWITCH_NEX_DIAG_STATIONS` also logs `register-reported`,
+  `participants-urls` and `update-urls`; `SWITCH_NEX_DIAG_FULL_URLS` prints
+  them unredacted for the named titles.
+
 ## 2026-10-23 — v0.4.1: station diagnostic carries the NAT type
 
 - `SWITCH_NEX_DIAG_STATIONS` lines now include each station's `type`, `natm`
