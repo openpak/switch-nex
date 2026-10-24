@@ -376,3 +376,41 @@ func TestPacMan99ProfileLoginAndCapacity(t *testing.T) {
 		t.Fatal("SMB35 profile accepted 2.0.5 login fields")
 	}
 }
+
+// PAC-MAN 99 ends NEX participation when the round ends and stays on its
+// results screen: its relay session must survive the departure and the
+// gathering's deletion, while no new login is admitted.
+func TestPacMan99KeepsSessionsAfterDeparture(t *testing.T) {
+	s, err := NewServerProfile(PacMan99)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := httptest.NewServer(s)
+	defer web.Close()
+	phase0, _ := hex.DecodeString("00400001000000000300000000000000000000000005322e302e35")
+	login := func(c *testClient, token string) {
+		c.write(phase0)
+		token += "\x00"
+		c.write(append([]byte{0, 0x40, 0, 3, byte(len(token))}, token...))
+		if binary.BigEndian.Uint32(c.receive(2)[3:]) != 1 {
+			t.Fatal("login rejected")
+		}
+		c.write([]byte{0, 0xc0, 0})
+		c.receive(8)
+	}
+	oneToken, _ := s.Ticket(9, 1)
+	twoToken, _ := s.Ticket(9, 2)
+	one := openClient(t, web.URL, "/9")
+	login(one, oneToken)
+	two := openClient(t, web.URL, "/9")
+	login(two, twoToken)
+	one.receive(8) // two joined
+
+	s.Leave(9, 1)
+	s.Leave(9, 2)
+	s.CloseRoom(9)
+	two.rpc(31, one.node, []byte{0x42})
+	if got := one.receive(31); !bytes.Equal(got[11:], []byte{0x42}) {
+		t.Fatal("relay stopped forwarding after departure")
+	}
+}

@@ -44,6 +44,13 @@ type Profile struct {
 	// once per login, so the first boot records what the client sends; the
 	// ticket still gates admission.
 	Strict bool
+	// KeepAfterDeparture leaves an authenticated connection open when its
+	// player ends NEX participation or the gathering goes away: admission is
+	// still revoked (no new logins), but the client closes its own session.
+	// PAC-MAN 99 ends participation the moment the round ends, then sits on
+	// its results screen; closing its relay socket there left both players
+	// stuck behind "Main Menu" (Harbor + retail Switch, 2026-10-24 23:25 UTC).
+	KeepAfterDeparture bool
 }
 
 // SMB35 is Super Mario Bros. 35: libeagle 2.0.4, 35 players.
@@ -51,7 +58,7 @@ var SMB35 = Profile{Name: "smb35", Version: "2.0.4", Players: 35, Strict: true}
 
 // PacMan99 is PAC-MAN 99: libeagle 2.0.5 (string in its update v131072
 // main, same position as SMB35's), 99 players. Login fields unmeasured.
-var PacMan99 = Profile{Name: "pac-man-99", Version: "2.0.5", Players: 99}
+var PacMan99 = Profile{Name: "pac-man-99", Version: "2.0.5", Players: 99, KeepAfterDeparture: true}
 
 // Tetris99 is Tetris 99 (update 2.6.0): libeagle 2.6.1 (its version getter
 // returns that string; same module set as 2.0.x), a newer build than SMB35's.
@@ -78,6 +85,8 @@ type peer struct {
 	token  []byte
 	phase  int
 	clock  func() uint64
+	lastOp int    // last packet op received, for the disconnect log
+	why    string // who ended the connection, for the disconnect log
 }
 
 // NewServer is the SMB35 relay.
@@ -129,9 +138,14 @@ func (s *Server) Leave(gid uint32, pid uint64) {
 	}
 	r.mu.Lock()
 	delete(r.allowed, pid)
-	for _, p := range r.peers {
-		if p.pid == pid {
-			p.cancel()
+	if !s.profile.KeepAfterDeparture {
+		for _, p := range r.peers {
+			if p.pid == pid {
+				if p.why == "" {
+					p.why = "nex departure"
+				}
+				p.cancel()
+			}
 		}
 	}
 	r.mu.Unlock()
@@ -147,10 +161,25 @@ func (s *Server) CloseRoom(gid uint32) {
 	}
 	r.mu.Lock()
 	r.closed = true
-	for _, p := range r.peers {
-		p.cancel()
+	if !s.profile.KeepAfterDeparture {
+		for _, p := range r.peers {
+			if p.why == "" {
+				p.why = "gathering closed"
+			}
+			p.cancel()
+		}
 	}
 	r.mu.Unlock()
+}
+
+// admits reports whether p may keep using the room (room.mu held). A player
+// who already logged in stays admitted after departure when the profile keeps
+// connections; otherwise the room must be open and the player a member.
+func (s *Server) admits(r *room, p *peer, pid uint64) bool {
+	if s.profile.KeepAfterDeparture && p.phase >= 2 && p.pid == pid {
+		return true
+	}
+	return !r.closed && r.allowed[pid]
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -216,21 +245,42 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		kind, data, err := ws.Read(readCtx)
 		readCancel()
 		if err != nil {
+			why := fmt.Sprintf("client close status=%d", websocket.CloseStatus(err))
+			if ctx.Err() != nil {
+				why = "server"
+			} else if readCtx.Err() == context.DeadlineExceeded {
+				why = "read timeout"
+			}
+			p.setWhy(why)
 			return
 		}
 		if kind != websocket.MessageBinary {
+			p.setWhy("non-binary frame")
 			return
 		}
 		pkt, err := parsePacket(data)
 		if err != nil {
+			p.setWhy("unparsable packet")
 			return
 		}
+		r.mu.Lock()
+		p.lastOp = int(pkt.op)
+		r.mu.Unlock()
 		if err = s.process(p, pkt); err != nil {
 			// Never log a token, payload, PID, nickname or client address.
 			log.Printf("[eagle] rejected gid=%d node=%d op=%d: %v", r.gid, p.node, pkt.op, err)
 			return
 		}
 	}
+}
+
+// setWhy records the first reason a connection ended; room.mu guards it.
+func (p *peer) setWhy(why string) {
+	p.room.mu.Lock()
+	if p.why == "" {
+		p.why = why
+	}
+	p.room.mu.Unlock()
 }
 
 func (s *Server) clock() uint64 { return uint64(time.Since(s.started).Milliseconds()) }
@@ -277,7 +327,7 @@ func (p *peer) depart() {
 			}
 		}
 	}
-	log.Printf("[eagle] disconnected gid=%d node=%d", r.gid, p.node)
+	log.Printf("[eagle] disconnected gid=%d node=%d by=%s last_op=%d", r.gid, p.node, p.why, p.lastOp)
 }
 
 func (s *Server) process(p *peer, pkt packet) error {
@@ -300,6 +350,7 @@ func (s *Server) process(p *peer, pkt packet) error {
 		p.send(5, 0, payload)
 		return nil
 	case 9:
+		p.setWhy("client op 9")
 		p.cancel()
 		return nil
 	}
@@ -345,7 +396,7 @@ func (s *Server) login(p *peer, data []byte) error {
 	r := p.room
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || !r.allowed[pid] {
+	if r.closed || !r.allowed[pid] { // login: always needs a live admission
 		return errTicket
 	}
 	for _, old := range r.peers {
@@ -369,7 +420,7 @@ func (s *Server) ready(p *peer) error {
 	r := p.room
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || !r.allowed[p.pid] {
+	if !s.admits(r, p, p.pid) {
 		return errTicket
 	}
 	p.ready = true
@@ -400,7 +451,7 @@ func (s *Server) route(p *peer, op uint8, targets []uint16, body []byte) error {
 	r := p.room
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || !r.allowed[p.pid] {
+	if !s.admits(r, p, p.pid) {
 		return errTicket
 	}
 	if len(targets) == 1 && (targets[0] == nodeLimit || targets[0] == nodeLimit+1) {
