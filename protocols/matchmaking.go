@@ -2025,6 +2025,7 @@ func getParticipantsURLs(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage)
 	if err != nil {
 		return errorResp(msg, rmc.ResultServiceUnavailable)
 	}
+	diagStations(env, c.PID, "participants-urls", stations)
 	w := rmc.NewWriter()
 	w.List(len(stations))
 	for _, station := range stations {

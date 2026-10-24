@@ -23,6 +23,7 @@ package protocols
 import (
 	"log"
 	"net"
+	"os"
 	"time"
 
 	switchnex "github.com/openpak/switch-nex"
@@ -77,6 +78,13 @@ func secureConnectionHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMess
 // and hand the public one back.
 func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	reported := readStationList(msg.Body)
+	if diagEnabled(env.Name, os.Getenv("SWITCH_NEX_DIAG_STATIONS")) {
+		raw := make([]string, 0, len(reported))
+		for _, u := range reported {
+			raw = append(raw, u.String())
+		}
+		diagStations(env, c.PID, "register-reported", raw)
+	}
 	local, public := splitStations(reported)
 	if local == nil {
 		local = switchnex.Empty(env.StationScheme)
@@ -125,6 +133,7 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		return errorResp(msg, rmc.ResultServiceUnavailable)
 	}
 	log.Printf("[%s] register pid=%s cid=%d", env.Name, redact.Tag(c.PID), c.ID)
+	diagStations(env, c.PID, "register-stored", c.Stations())
 
 	w := rmc.NewWriter()
 	w.U32(rmc.ResultSuccess) // QResult success
