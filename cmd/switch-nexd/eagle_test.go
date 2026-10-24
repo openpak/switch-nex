@@ -9,13 +9,20 @@ import (
 )
 
 func TestSMB35EagleAutoMatchAndRoundReports(t *testing.T) {
-	const name = "super-mario-bros-35"
+	eagleAutoMatchAndRoundReports(t, "super-mario-bros-35", "wss://g21f12900-lp1.s.n.srv.nintendo.net:22163", eagle.SMB35, 35)
+}
+
+// PAC-MAN 99 runs the same NEX + Eagle flow on its own registry entry.
+func TestPacMan99EagleAutoMatchAndRoundReports(t *testing.T) {
+	eagleAutoMatchAndRoundReports(t, "pac-man-99", "wss://g2e471600-lp1.s.n.srv.nintendo.net:23143", eagle.PacMan99, 99)
+}
+
+func eagleAutoMatchAndRoundReports(t *testing.T, name, base string, profile eagle.Profile, players uint16) {
 	authAddr, secureAddr, svc := start(t, name)
-	relay, err := eagle.NewServer()
+	relay, err := eagle.NewServerProfile(profile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := "wss://g21f12900-lp1.s.n.srv.nintendo.net:22163"
 	svc.env.EagleTicket = func(gid uint32, pid uint64) (string, string, error) {
 		token, err := relay.Ticket(gid, pid)
 		return fmt.Sprintf("%s/%d", base, gid), token, err
@@ -25,7 +32,7 @@ func TestSMB35EagleAutoMatchAndRoundReports(t *testing.T) {
 	host := secureSession(t, authAddr, secureAddr, key, "host")
 	joiner := secureSession(t, authAddr, secureAddr, key, "joiner")
 
-	holder := rmc.NewReader(sessionHolderBytes(35, 70010000, 0))
+	holder := rmc.NewReader(sessionHolderBytes(players, 70010000, 0))
 	holder.String()
 	holder.U32()
 	inner, err := holder.Buffer()

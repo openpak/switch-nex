@@ -256,6 +256,32 @@ var titles = []title{
 		e.Pia = protocols.LegacyPia() // no Pia SDK in this title
 		e.Ranking2 = true
 	}},
+	{"pac-man-99", 23140, "1e6b25ec", func(e *protocols.Env) {
+		// PAC-MAN 99 (0100AD9012510000, update v131072, game server
+		// 2E471600; both single literals in the main). NEX 4.6.5 with
+		// MM/R2/UT and libeagle 2.0.5, no Pia: the SMB35 SDK generation,
+		// so it starts from SMB35's profile. Nintendo closed the official
+		// service on 2023-10-08; nothing here is retail-measured yet.
+		// Matches run through the Eagle relay (PACMAN99_EAGLE_URL,
+		// listener :23143). Feasibility: research nso-99-games.md.
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.Ranking2 = true
+		e.MatchmakeReferee = true
+		e.MessageDelivery = true
+		e.Eagle = true
+		// SMB35's measured 16; unmeasured here, so the box can flip it
+		// without a rebuild.
+		e.SourceKeyBytes = 16
+		if n, err := strconv.Atoi(os.Getenv("PACMAN99_SOURCE_KEY_BYTES")); err == nil && (n == 16 || n == 32) {
+			e.SourceKeyBytes = n
+		}
+		// No table measured: empty maps until the first boot names the
+		// index and keys it reads.
+		if os.Getenv("PACMAN99_INTEGER_SETTINGS") != "" {
+			e.IntegerSettings = envIntegerSettings("PACMAN99_INTEGER_SETTINGS")
+		}
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		// Simultaneous searches must wait for the first host to publish its NAT station.
 		e.HoldForOpening = 8 * time.Second

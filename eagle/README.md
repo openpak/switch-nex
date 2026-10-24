@@ -1,4 +1,4 @@
-# SMB35 Eagle gameplay relay
+# Eagle gameplay relay (SMB35, PAC-MAN 99)
 
 `switch-nexd` serves this on a separate TLS/WebSocket port when SMB35 has
 `SMB35_EAGLE_URL` set. The default listener is `:22163` (override with
@@ -37,6 +37,8 @@ Rooms, participants, token fragments, packet sizes and
 send queues are bounded. A slow peer is disconnected without blocking a room.
 Logs omit tokens, principals, names, client addresses and game payloads.
 
-The relay currently supports SMB35's Eagle v2.0.4 over WebSocket/TLS only; it does
-not claim support for Tetris 99's earlier protocol, PAC-MAN 99, F-Zero 99, KCP or
-plain TCP. Wire sources and test limits are in [provenance.md](provenance.md).
+The relay supports Eagle v2 over WebSocket/TLS through per-title profiles:
+SMB35 (2.0.4, 35 players, login fields enforced) and PAC-MAN 99 (2.0.5, 99 players,
+`PACMAN99_EAGLE_URL` / `PACMAN99_EAGLE_LISTEN`, default `:23143`; login fields logged
+until measured, see [../docs/pac-man-99.md](../docs/pac-man-99.md)). It does not claim
+support for Tetris 99's protocol, F-Zero 99, KCP or plain TCP. Wire sources and test limits are in [provenance.md](provenance.md).

@@ -25,6 +25,11 @@ grep -oE '^	\{"[a-z0-9-]+", [0-9]+' "$SRC" | tr -d '\t{"' | while IFS=, read -r 
     eagle_env="Environment=SMB35_EAGLE_LISTEN=:22163
 Environment=SMB35_EAGLE_URL=wss://g21f12900-lp1.s.n.srv.nintendo.net:22163"
   fi
+  if [ "$title" = "pac-man-99" ]; then
+    ports="$ports 23143"
+    eagle_env="Environment=PACMAN99_EAGLE_LISTEN=:23143
+Environment=PACMAN99_EAGLE_URL=wss://g2e471600-lp1.s.n.srv.nintendo.net:23143"
+  fi
   cat > "$OUT/openpak-switch-$title.container" <<EOF
 [Unit]
 Description=OpenPak Switch NEX title $title (switch-nex, ports $base/$((base+1))/$((base+2)))

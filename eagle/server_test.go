@@ -319,3 +319,60 @@ func TestPacketGoldenAndMalformedInputs(t *testing.T) {
 		}
 	}
 }
+
+// PAC-MAN 99's profile: a 2.0.5 client with unmeasured login fields is
+// admitted on its ticket, rooms hold 99, the 100th is refused, and the SMB35
+// profile still rejects anything but its measured 2.0.4 fields.
+func TestPacMan99ProfileLoginAndCapacity(t *testing.T) {
+	s, err := NewServerProfile(PacMan99)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := httptest.NewServer(s)
+	defer web.Close()
+	defer s.CloseRoom(7)
+	// phase 0: P=3, app=0x0102030405060708, DDL=0xdeadbeef, "2.0.5"
+	phase0, _ := hex.DecodeString("0040000100000000030102030405060708deadbeef05322e302e35")
+	login := func(c *testClient, token string) {
+		c.write(phase0)
+		token += "\x00"
+		c.write(append([]byte{0, 0x40, 0, 3, byte(len(token))}, token...))
+	}
+	var first *testClient
+	for pid := uint64(1); pid <= 99; pid++ {
+		token, err := s.Ticket(7, pid)
+		if err != nil {
+			t.Fatalf("admit player %d: %v", pid, err)
+		}
+		if pid > 2 {
+			continue
+		}
+		c := openClient(t, web.URL, "/7")
+		login(c, token)
+		if binary.BigEndian.Uint32(c.receive(2)[3:]) != 1 {
+			t.Fatal("2.0.5 login rejected")
+		}
+		c.write([]byte{0, 0xc0, 0})
+		c.receive(8)
+		if first == nil {
+			first = c
+		} else if added := first.receive(8); added[3] != 0 || binary.BigEndian.Uint16(added[4:]) != c.node {
+			t.Fatal("first player did not learn the second")
+		}
+	}
+	if _, err := s.Ticket(7, 100); err == nil {
+		t.Fatal("room admitted a 100th player")
+	}
+
+	strict, _ := NewServer()
+	sweb := httptest.NewServer(strict)
+	defer sweb.Close()
+	token, _ := strict.Ticket(8, 1)
+	c := openClient(t, sweb.URL, "/8")
+	login(c, token)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, _, err := c.ws.Read(ctx); err == nil {
+		t.Fatal("SMB35 profile accepted 2.0.5 login fields")
+	}
+}

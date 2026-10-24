@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Package eagle serves SMB35's authenticated gameplay relay. Game RPC payloads
+// Package eagle serves the Eagle v2 gameplay relay of the NSO battle-royale
+// titles (SMB35, PAC-MAN 99): authenticated, one room per NEX gathering. Game RPC payloads
 // stay opaque; the clients run the match. Only the shared counter RPCs terminate
 // on the server. See provenance.md for wire facts and compatible reference inputs.
 package eagle
@@ -28,7 +29,29 @@ type Server struct {
 	rooms   map[uint32]*room
 	key     []byte
 	started time.Time
+	profile Profile
 }
+
+// Profile is what differs between the Eagle v2 titles: the libeagle version
+// string the client sends in its first login phase, the room size, and
+// whether the remaining login fields are known well enough to enforce.
+type Profile struct {
+	Name    string // health line and logs
+	Version string // libeagle version string, measured in each client binary
+	Players int    // NEX room capacity; the relay admits no more
+	// Strict enforces the version, protocol=3, app protocol 0 and DDL hash 0
+	// (measured for SMB35). Unmeasured titles accept any values and log them
+	// once per login, so the first boot records what the client sends; the
+	// ticket still gates admission.
+	Strict bool
+}
+
+// SMB35 is Super Mario Bros. 35: libeagle 2.0.4, 35 players.
+var SMB35 = Profile{Name: "smb35", Version: "2.0.4", Players: 35, Strict: true}
+
+// PacMan99 is PAC-MAN 99: libeagle 2.0.5 (string in its update v131072
+// main, same position as SMB35's), 99 players. Login fields unmeasured.
+var PacMan99 = Profile{Name: "pac-man-99", Version: "2.0.5", Players: 99}
 
 type room struct {
 	mu       sync.Mutex
@@ -52,12 +75,18 @@ type peer struct {
 	clock  func() uint64
 }
 
-func NewServer() (*Server, error) {
+// NewServer is the SMB35 relay.
+func NewServer() (*Server, error) { return NewServerProfile(SMB35) }
+
+func NewServerProfile(p Profile) (*Server, error) {
+	if p.Version == "" || p.Players < 2 || p.Players > nodeLimit/4 {
+		return nil, errors.New("invalid Eagle profile")
+	}
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return nil, err
 	}
-	return &Server{rooms: make(map[uint32]*room), key: key, started: time.Now()}, nil
+	return &Server{rooms: make(map[uint32]*room), key: key, started: time.Now(), profile: p}, nil
 }
 
 // Ticket admits one NEX participant to one gathering. Reissuing it is safe for
@@ -78,7 +107,7 @@ func (s *Server) Ticket(gid uint32, pid uint64) (string, error) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || (!r.allowed[pid] && len(r.allowed) >= 35) {
+	if r.closed || (!r.allowed[pid] && len(r.allowed) >= s.profile.Players) {
 		return "", errTicket
 	}
 	r.allowed[pid] = true
@@ -121,7 +150,7 @@ func (s *Server) CloseRoom(gid uint32) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/healthz" && req.Method == http.MethodGet {
-		fmt.Fprintln(w, "ok eagle smb35")
+		fmt.Fprintln(w, "ok eagle "+s.profile.Name)
 		return
 	}
 	path := strings.TrimPrefix(req.URL.Path, "/")
@@ -153,7 +182,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer cancel()
 	p := &peer{room: r, ws: ws, cancel: cancel, out: make(chan []byte, 64), clock: s.clock}
 	r.mu.Lock()
-	if r.closed || len(r.peers) >= 70 {
+	if r.closed || len(r.peers) >= 2*s.profile.Players {
 		r.mu.Unlock()
 		return
 	}
@@ -281,12 +310,17 @@ func (s *Server) login(p *peer, data []byte) error {
 	}
 	phase, last := data[0]>>1, data[0]&1 != 0
 	if phase == 0 {
-		if p.phase != 0 || len(data) < 19 || data[1] != 0 ||
-			binary.BigEndian.Uint32(data[2:]) != 3 ||
-			binary.BigEndian.Uint64(data[6:]) != 0 ||
-			binary.BigEndian.Uint32(data[14:]) != 0 ||
-			int(data[18]) != len(data)-19 || string(data[19:]) != "2.0.4" {
+		if p.phase != 0 || len(data) < 19 || int(data[18]) != len(data)-19 {
 			return errPacket
+		}
+		proto, app, ddl := binary.BigEndian.Uint32(data[2:]), binary.BigEndian.Uint64(data[6:]), binary.BigEndian.Uint32(data[14:])
+		version := string(data[19:])
+		if s.profile.Strict && (data[1] != 0 || proto != 3 || app != 0 || ddl != 0 || version != s.profile.Version) {
+			return errPacket
+		}
+		if !s.profile.Strict {
+			log.Printf("[eagle] login fields gid=%d node=%d unknown=%d protocol=%d app=%d ddl=%#x version=%q expected=%q",
+				p.room.gid, p.node, data[1], proto, app, ddl, version, s.profile.Version)
 		}
 		p.phase = 1
 		return nil
