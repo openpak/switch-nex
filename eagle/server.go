@@ -53,6 +53,10 @@ var SMB35 = Profile{Name: "smb35", Version: "2.0.4", Players: 35, Strict: true}
 // main, same position as SMB35's), 99 players. Login fields unmeasured.
 var PacMan99 = Profile{Name: "pac-man-99", Version: "2.0.5", Players: 99}
 
+// Tetris99 is Tetris 99 (update 2.6.0): a different libeagle lineage, wire
+// unmeasured. Accepted only so the first boot logs its login fields.
+var Tetris99 = Profile{Name: "tetris-99", Version: "unmeasured", Players: 99}
+
 type room struct {
 	mu       sync.Mutex
 	gid      uint32

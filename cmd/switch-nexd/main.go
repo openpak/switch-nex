@@ -270,17 +270,22 @@ var titles = []title{
 		e.MatchmakeReferee = true
 		e.MessageDelivery = true
 		e.Eagle = true
-		// SMB35's measured 16; unmeasured here, so the box can flip it
-		// without a rebuild.
-		e.SourceKeyBytes = 16
-		if n, err := strconv.Atoi(os.Getenv("PACMAN99_SOURCE_KEY_BYTES")); err == nil && (n == 16 || n == 32) {
-			e.SourceKeyBytes = n
-		}
-		// No table measured: empty maps until the first boot names the
-		// index and keys it reads.
-		if os.Getenv("PACMAN99_INTEGER_SETTINGS") != "" {
-			e.IntegerSettings = envIntegerSettings("PACMAN99_INTEGER_SETTINGS")
-		}
+		unmeasuredEagleTitle(e, "PACMAN99")
+	}},
+	{"tetris-99", 23150, "cdd6114d", func(e *protocols.Env) {
+		// Tetris 99 (010040600C5CE000, update 2.6.0, game server
+		// 23BDA200; both single literals in the main). NEX 4.6.9 with
+		// MM/UT (no Ranking2) and Pia 5.47 for local play. Its libeagle is
+		// a different lineage from SMB35's (WebSocket driver, no URL
+		// parser strings), probably Kinnay's 1.x wire: this entry exists
+		// to measure it. The relay logs the login fields; the 1.x node
+		// width and notices are not implemented. Listener :23153.
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.MatchmakeReferee = true
+		e.MessageDelivery = true
+		e.Eagle = true
+		unmeasuredEagleTitle(e, "TETRIS99")
 	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		// Simultaneous searches must wait for the first host to publish its NAT station.
@@ -1387,6 +1392,20 @@ func handleLoginEx(ids *identity, recall *recall, env *protocols.Env, targetKey 
 	recall.rememberName(username, pid)
 	log.Printf("[%s] login pid=%s url=%q ticket=%dB", env.Name, redact.Tag(pid), url, len(ticket))
 	return rmc.EncodeSuccess(0x0A, msg.CallID, msg.MethodID, body)
+}
+
+// unmeasuredEagleTitle applies the box-side overrides of an Eagle title whose
+// login has never been measured: <prefix>_SOURCE_KEY_BYTES (16, SMB35's
+// measured size, by default; or 32) and <prefix>_INTEGER_SETTINGS (empty maps
+// until the first boot names the index and keys the game reads).
+func unmeasuredEagleTitle(e *protocols.Env, prefix string) {
+	e.SourceKeyBytes = 16
+	if n, err := strconv.Atoi(os.Getenv(prefix + "_SOURCE_KEY_BYTES")); err == nil && (n == 16 || n == 32) {
+		e.SourceKeyBytes = n
+	}
+	if os.Getenv(prefix+"_INTEGER_SETTINGS") != "" {
+		e.IntegerSettings = envIntegerSettings(prefix + "_INTEGER_SETTINGS")
+	}
 }
 
 // envIntegerSettings parses "index:key=value;index:key=value;…" (negative

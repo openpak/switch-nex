@@ -30,6 +30,11 @@ Environment=SMB35_EAGLE_URL=wss://g21f12900-lp1.s.n.srv.nintendo.net:22163"
     eagle_env="Environment=PACMAN99_EAGLE_LISTEN=:23143
 Environment=PACMAN99_EAGLE_URL=wss://g2e471600-lp1.s.n.srv.nintendo.net:23143"
   fi
+  if [ "$title" = "tetris-99" ]; then
+    ports="$ports 23153"
+    eagle_env="Environment=TETRIS99_EAGLE_LISTEN=:23153
+Environment=TETRIS99_EAGLE_URL=wss://g23bda200-lp1.s.n.srv.nintendo.net:23153"
+  fi
   cat > "$OUT/openpak-switch-$title.container" <<EOF
 [Unit]
 Description=OpenPak Switch NEX title $title (switch-nex, ports $base/$((base+1))/$((base+2)))

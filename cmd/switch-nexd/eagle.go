@@ -26,6 +26,7 @@ var eagleTitles = map[string]struct {
 }{
 	"super-mario-bros-35": {"SMB35", eagle.SMB35, ":22163"},
 	"pac-man-99":          {"PACMAN99", eagle.PacMan99, ":23143"},
+	"tetris-99":           {"TETRIS99", eagle.Tetris99, ":23153"},
 }
 
 // configureEagle binds the gameplay listener before installing any handoff
