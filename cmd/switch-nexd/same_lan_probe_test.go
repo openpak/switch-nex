@@ -61,11 +61,21 @@ func probe(t *testing.T, c *client, target, self string) {
 // ownStations reads the caller's stored stations back (RequestURLs on self).
 func ownStations(t *testing.T, c *client) map[string]*switchnex.URL {
 	t.Helper()
-	resp := c.call(ProtoSecureConnection, 0x03, make([]byte, 12))
+	w := rmc.NewWriter()
+	w.U32(0)
+	w.U64(c.pid)
+	resp := c.call(ProtoSecureConnection, 0x03, w.Bytes())
 	if resp.IsError {
 		t.Fatalf("requestURLs: %#x", resp.ErrorCode)
 	}
-	return readStationMap(t, resp.Body)
+	body := resp.Body
+	// Two shapes in flight: a bare list (main) and the IDL's (bool, list)
+	// (fix/nex-p2p-station-urls). Our stations are always two, so a leading
+	// 0x01 can only be the bool.
+	if len(body) > 0 && body[0] == 1 {
+		body = body[1:]
+	}
+	return readStationMap(t, body)
 }
 
 func readStationMap(t *testing.T, body []byte) map[string]*switchnex.URL {
