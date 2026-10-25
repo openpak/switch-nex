@@ -20,6 +20,12 @@ package protocols
 
 import (
 	"log"
+	"net"
+	"os"
+	"strconv"
+	"time"
+
+	switchnex "github.com/openpak/switch-nex"
 
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/redact"
@@ -102,6 +108,14 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 	diagStations(env, c.PID, "probe-targets", targets)
 	diagStations(env, c.PID, "probe-self", []string{station})
 
+	self := switchnex.Parse(station)
+	if learnSelfStation(env, c, self) {
+		log.Printf("[%s] nat: pid=%s station corrected from its probe", env.Name, redact.Tag(c.PID))
+		diagStations(env, c.PID, "probe-learned", c.Stations())
+	}
+	publicSelf := self.Get("address") != "" && !isPrivateAddr(self.Get("address"))
+	keepHairpin := diagEnabled(env.Name, os.Getenv("SWITCH_NEX_HAIRPIN_PROBES"))
+
 	params := rmc.NewWriter()
 	params.String(station)
 	for _, t := range targets {
@@ -113,6 +127,22 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 		if !ok {
 			continue
 		}
+		pair := strconv.FormatUint(c.PID, 10) + ">" + strconv.FormatUint(pid, 10)
+		if !publicSelf {
+			if env.lanProbes == nil {
+				env.lanProbes = map[string]time.Time{}
+			}
+			env.lanProbes[pair] = time.Now()
+		} else if !keepHairpin && time.Since(env.lanProbes[pair]) < lanProbeWindow && sameLAN(c, peer) {
+			// Same uplink, same LAN subnet: the LAN push for this pair is
+			// (or was) sent on its own request. Pushing the public one too
+			// has the peer punch through the router's hairpin NAT, and once
+			// Pia locks onto that path every game packet loops through the
+			// router -- the household that went dark for six minutes in
+			// Clubhouse Games 51 (2026-10-25).
+			log.Printf("[%s] nat: same-LAN pair pid=%s -> pid=%s, public probe withheld", env.Name, redact.Tag(c.PID), redact.Tag(pid))
+			continue
+		}
 		req := rmc.EncodeRequest(ProtoNatTraversal, 0x02, env.push.nextCallID(), params.Bytes())
 		if err := peer.SendRMC(req); err != nil {
 			log.Printf("[%s] nat: probe push to pid=%s failed: %v", env.Name, redact.Tag(pid), err)
@@ -120,6 +150,46 @@ func pushInitiateProbe(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 		}
 		log.Printf("[%s] nat: pushed InitiateProbe pid=%s -> pid=%s", env.Name, redact.Tag(c.PID), redact.Tag(pid))
 	}
+}
+
+// lanProbeWindow is how recently the caller's LAN push to a peer must have gone
+// out for its public push to that peer to be withheld. Pia sends the two
+// RequestProbeInitiationExt calls back to back (same millisecond in every
+// trace); the window only has to cover that, and expire before a later,
+// unrelated session between the same two players.
+const lanProbeWindow = 10 * time.Second
+
+// sameLAN reports whether two connections are one LAN behind one uplink: the
+// same observed public address AND private LAN stations in the same subnet
+// (/24 for IPv4, /64 for IPv6). A shared public address alone is not enough --
+// unrelated households share carrier-grade NAT addresses, and one household
+// can put devices on separate subnets (guest network, a mesh node in router
+// mode) that only meet through the router. Those keep the hairpin path.
+func sameLAN(a, b *prudplite.Connection) bool {
+	if a.Host == "" || a.Host != b.Host {
+		return false
+	}
+	la, lb := lanIP(a), lanIP(b)
+	if la == nil || lb == nil {
+		return false
+	}
+	if v4a, v4b := la.To4(), lb.To4(); v4a != nil && v4b != nil {
+		return v4a.Mask(net.CIDRMask(24, 32)).Equal(v4b.Mask(net.CIDRMask(24, 32)))
+	}
+	return la.Mask(net.CIDRMask(64, 128)).Equal(lb.Mask(net.CIDRMask(64, 128)))
+}
+
+// lanIP is the connection's RFC1918 / ULA station address, or nil. Carrier
+// grade NAT (100.64/10) is deliberately not a LAN here: two phones on one
+// carrier are not on one network.
+func lanIP(c *prudplite.Connection) net.IP {
+	for _, raw := range c.Stations() {
+		ip := net.ParseIP(switchnex.Parse(raw).Get("address"))
+		if ip != nil && ip.IsPrivate() {
+			return ip
+		}
+	}
+	return nil
 }
 
 // natClass buckets a peer's reported NAT behaviour.
