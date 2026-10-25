@@ -271,6 +271,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// the WebSocket with a close frame; CloseNow only dropped TCP,
 			// and PAC-MAN 99 then sat on its results screen (2026-10-25
 			// 00:16 UTC, Switch + Harbor). Inferred, not yet measured.
+			// libeagle carries a DISCONNECTED sender on both sides and a
+			// kDisconnecting handshake state (PAC-MAN 99 strings): answer
+			// the client's op 9 with ours, then close. Inferred.
+			writeCtx, writeCancel := context.WithTimeout(ctx, 2*time.Second)
+			_ = ws.Write(writeCtx, websocket.MessageBinary, encodePacket(9, 0, nil))
+			writeCancel()
 			ws.Close(websocket.StatusNormalClosure, "")
 			return
 		} else if err != nil {

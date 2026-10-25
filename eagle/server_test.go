@@ -424,6 +424,7 @@ func TestDisconnectedGetsCloseFrame(t *testing.T) {
 	token, _ := s.Ticket(5, 1)
 	c := readyClient(t, web.URL, "/5", token)
 	c.write([]byte{0x02, 0x40, 0}) // relay 0, op 9, source 0
+	c.receive(9) // the server's own Disconnected
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_, _, err := c.ws.Read(ctx)
