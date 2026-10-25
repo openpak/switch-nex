@@ -363,3 +363,21 @@ Not servable here — its secure stage is raw PRUDP/UDP and its ticket is kerber
 v0. Its auth stage *is* wss on the shared SNI route, so the Traefik entry for
 `g2896bd04-lp1.s.n.srv.nintendo.net` stays pointed at the nex-go container, which
 now listens TCP there rather than UDP.
+
+## From the previous README
+
+## Deployment (current)
+
+Deployed on quilted-waffle since 2026-09-16: `openpak-switch-nexd.service`
+(podman quadlet) serves all 14 Switch-era titles — auth through Traefik SNI,
+and since 2026-09-17 with `Network=host`, so the secure ports are bound by
+the server itself and clients arrive with their real addresses. Each title
+also answers `GET /healthz` on its base+2 (e.g. `curl :22152/healthz` →
+`ok mario-kart-8-deluxe auth=22150/tls secure=22151/tls`); 200 only while
+both of its listeners are up, 503 `down …` otherwise. Ports per title:
+the port plan (https://docs.openpak.org/contributors/ports/) or `switch-nexd -dump`. MHGU and
+the Wii U / 3DS fleet remain on the nex-go lineage. MHGU is a hybrid — wss auth
+like this lineage, but a raw PRUDP/UDP secure stage and a kerberos v0 ticket,
+neither of which this lineage provides — and it shares its NEX code, and its
+access key, with Pretendo's Monster Hunter XX server, which is on nex-go.
+
