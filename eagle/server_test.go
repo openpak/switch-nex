@@ -414,3 +414,20 @@ func TestPacMan99KeepsSessionsAfterDeparture(t *testing.T) {
 		t.Fatal("relay stopped forwarding after departure")
 	}
 }
+
+// A client that sends Disconnected (op 9) gets a WebSocket close frame back,
+// not a dropped TCP connection.
+func TestDisconnectedGetsCloseFrame(t *testing.T) {
+	s, _ := NewServer()
+	web := httptest.NewServer(s)
+	defer web.Close()
+	token, _ := s.Ticket(5, 1)
+	c := readyClient(t, web.URL, "/5", token)
+	c.write([]byte{0x02, 0x40, 0}) // relay 0, op 9, source 0
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, _, err := c.ws.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+		t.Fatalf("want a normal close frame, got %v", err)
+	}
+}

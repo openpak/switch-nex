@@ -266,7 +266,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.mu.Lock()
 		p.lastOp = int(pkt.op)
 		r.mu.Unlock()
-		if err = s.process(p, pkt); err != nil {
+		if err = s.process(p, pkt); errors.Is(err, errClientLeft) {
+			// The reference server returns from its handler here, which ends
+			// the WebSocket with a close frame; CloseNow only dropped TCP,
+			// and PAC-MAN 99 then sat on its results screen (2026-10-25
+			// 00:16 UTC, Switch + Harbor). Inferred, not yet measured.
+			ws.Close(websocket.StatusNormalClosure, "")
+			return
+		} else if err != nil {
 			// Never log a token, payload, PID, nickname or client address.
 			log.Printf("[eagle] rejected gid=%d node=%d op=%d: %v", r.gid, p.node, pkt.op, err)
 			return
@@ -351,8 +358,7 @@ func (s *Server) process(p *peer, pkt packet) error {
 		return nil
 	case 9:
 		p.setWhy("client op 9")
-		p.cancel()
-		return nil
+		return errClientLeft
 	}
 	if pkt.op < 16 || p.phase != 3 || len(data) < 8 {
 		return errPacket

@@ -11,6 +11,9 @@ const maxPacket = 65535
 
 var errPacket = errors.New("invalid Eagle packet")
 
+// errClientLeft ends a session the client closed itself (Disconnected, op 9).
+var errClientLeft = errors.New("client disconnected")
+
 type bitsIn struct {
 	data []byte
 	pos  int
