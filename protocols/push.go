@@ -181,7 +181,15 @@ func diagStations(env *Env, pid uint64, what string, stations []string) {
 		return
 	}
 	addrs := make([]string, 0, len(stations))
+	// SWITCH_NEX_DIAG_FULL_URLS (same title list) prints the stations
+	// verbatim, PIDs included: which field a client puts which port in is
+	// only visible in the raw string.
+	full := diagEnabled(env.Name, os.Getenv("SWITCH_NEX_DIAG_FULL_URLS"))
 	for _, s := range stations {
+		if full {
+			addrs = append(addrs, s)
+			continue
+		}
 		u := switchnex.Parse(s)
 		addrs = append(addrs, u.Get("address")+":"+strconv.FormatUint(u.GetInt("port"), 10)+
 			" type="+u.Get("type")+" natm="+u.Get("natm")+" natf="+u.Get("natf"))

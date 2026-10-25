@@ -55,6 +55,11 @@ type Env struct {
 	UseRelay   bool
 	relayLinks map[uint32]map[string]*pairRelay
 
+	// lanProbes records, per directed pair "caller>peer", when the caller last
+	// had its LAN station pushed to that peer. A same-LAN public push is only
+	// withheld when this exists: the peer must never be left with no probe.
+	lanProbes map[string]time.Time
+
 	// mu serialises the title's secure stage: every Dispatch and every
 	// Disconnected. Gatherings are shared between connections and their
 	// fields are not individually locked, so a disconnect tearing a player

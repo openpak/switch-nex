@@ -23,6 +23,7 @@ package protocols
 import (
 	"log"
 	"net"
+	"os"
 	"time"
 
 	switchnex "github.com/openpak/switch-nex"
@@ -77,6 +78,13 @@ func secureConnectionHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMess
 // and hand the public one back.
 func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	reported := readStationList(msg.Body)
+	if diagEnabled(env.Name, os.Getenv("SWITCH_NEX_DIAG_STATIONS")) {
+		raw := make([]string, 0, len(reported))
+		for _, u := range reported {
+			raw = append(raw, u.String())
+		}
+		diagStations(env, c.PID, "register-reported", raw)
+	}
 	local, public := splitStations(reported)
 	if local == nil {
 		local = switchnex.Empty(env.StationScheme)
@@ -140,13 +148,15 @@ func registerStations(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 // one winning, which keeps the fresh entry and drops the stale duplicate.
 func replaceURL(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	r := rmc.NewReader(msg.Body)
-	if _, err := r.String(); err != nil { // target: the URL being replaced
+	target, err := r.String() // the URL being replaced
+	if err != nil {
 		return success(msg, nil)
 	}
 	raw, err := r.String()
 	if err != nil || raw == "" {
 		return success(msg, nil)
 	}
+	diagStations(env, c.PID, "replaceURL-request", []string{target, raw})
 	replacement := switchnex.Parse(raw)
 	replacement.SetInt("PID", c.PID)
 	addr := replacement.Get("address")
@@ -166,12 +176,79 @@ func replaceURL(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
 	if !replaced {
 		kept = append(kept, replacement.String())
 	}
+	kept = carryMappedPortToPublic(kept, replacement)
 	if err := env.commitStations(c, kept); err != nil {
 		return errorResp(msg, rmc.ResultServiceUnavailable)
 	}
 	log.Printf("[%s] replaceURL pid=%s (%d station(s))", env.Name, redact.Tag(c.PID), len(kept))
 	diagStations(env, c.PID, "replaceURL", kept)
 	return success(msg, nil)
+}
+
+// carryMappedPortToPublic copies the port of a LAN-addressed ReplaceURL onto
+// the public station. The Switch's ReplaceURL names its LAN address but carries
+// the port its NAT check saw on the public side: in every household and mobile
+// trace on record (ARMS, Mario Party Superstars, Kirby, 2026-09-26 to
+// 2026-10-25) that port equals the public port the same client later claims for
+// itself in RequestProbeInitiationExt, while its real LAN port is a different,
+// ephemeral one. The public station we synthesised at Register meanwhile still
+// carried the placeholder port the console registered with (port=1), so every
+// peer was handed a public candidate nobody listens on. natm/natf move with
+// the port: they describe the same NAT check.
+func carryMappedPortToPublic(stations []string, replacement *switchnex.URL) []string {
+	port := replacement.GetInt("port")
+	if !isPrivateAddr(replacement.Get("address")) || port <= 1 || port > 65535 {
+		return stations
+	}
+	out := append([]string(nil), stations...)
+	for i, raw := range out {
+		u := switchnex.Parse(raw)
+		if addr := u.Get("address"); addr == "" || isPrivateAddr(addr) {
+			continue
+		}
+		u.SetInt("port", port)
+		for _, k := range []string{"natm", "natf"} {
+			if replacement.Has(k) {
+				u.Set(k, replacement.Get(k))
+			}
+		}
+		out[i] = u.String()
+		break
+	}
+	return out
+}
+
+// learnSelfStation corrects a stored station from the one the client names as
+// itself in RequestProbeInitiationExt. That station is the socket Pia actually
+// probes from, so its port is authoritative; the LAN station from ReplaceURL
+// carries the NAT-mapped port instead (see carryMappedPortToPublic), which on a
+// shared LAN is a port nobody listens on. Matched by address, so a self station
+// for an address the client never registered changes nothing. Reports whether
+// anything changed.
+func learnSelfStation(env *Env, c *prudplite.Connection, self *switchnex.URL) bool {
+	addr, port := self.Get("address"), self.GetInt("port")
+	if addr == "" || port <= 1 || port > 65535 {
+		return false
+	}
+	stations := c.Stations()
+	changed := false
+	for i, raw := range stations {
+		u := switchnex.Parse(raw)
+		if u.Get("address") != addr || u.GetInt("port") == port {
+			continue
+		}
+		u.SetInt("port", port)
+		stations[i] = u.String()
+		changed = true
+		break
+	}
+	if !changed {
+		return false
+	}
+	if err := env.commitStations(c, stations); err != nil {
+		return false
+	}
+	return true
 }
 
 // readStationList parses a list<StationURL> request body.

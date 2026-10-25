@@ -8,6 +8,35 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## Unreleased — two players behind one router stay on their LAN
+
+Every household trace (ARMS, Mario Party Superstars, Clubhouse Games 51,
+2026-10-24/25) showed the same three faults; Clubhouse ran six minutes and then
+the router dropped the whole home connection, while the same pair with the
+phone on mobile data played 37 minutes.
+
+- ReplaceURL: the Switch re-reports its LAN address with the port its NAT
+  check saw on the PUBLIC side. That port now also lands on the public station
+  (with natm/natf), which until now kept Register's placeholder `port=1`, so
+  every peer was handed a public candidate nobody listens on.
+- RequestProbeInitiationExt: the caller's `self` station is the socket Pia
+  probes from. Its port now corrects the stored station with the same address,
+  so a later GetSessionURLs / GetParticipantsURLs hands out the real LAN socket
+  instead of the NAT-mapped port.
+- Same LAN (same observed public address AND private stations in one /24 or
+  /64): after a caller's LAN station has been pushed to a peer, its public
+  station is no longer pushed to that peer as well. That push made the peer
+  punch through the router's hairpin NAT, and every game packet then looped
+  through the router. Different subnets, carrier-grade NAT addresses and
+  different households keep both pushes. `SWITCH_NEX_HAIRPIN_PROBES=<titles>`
+  restores the old push for the named titles.
+- Diagnostics: `SWITCH_NEX_DIAG_FULL_URLS=<titles>` prints stations verbatim;
+  the station diag also logs `register-reported`, `replaceURL-request`
+  (target and new) and `probe-learned`.
+- Tests: `cmd/switch-nexd/same_lan_probe_test.go` (four titles, both Pia station
+  shapes; fails on the previous code with exactly the production pattern) and
+  `protocols/samelan_test.go`.
+
 ## 2026-10-23 — v0.4.1: station diagnostic carries the NAT type
 
 - `SWITCH_NEX_DIAG_STATIONS` lines now include each station's `type`, `natm`
