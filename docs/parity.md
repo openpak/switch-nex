@@ -115,7 +115,7 @@ Pretendo's Monster Hunter XX server.
    pass. The end-of-round retail retest remains pending. The earlier report
    of a handoff ignored by another title did not establish that SMB35 could
    play without its documented relay.
-   See [the current investigation](../next-session/super-mario-bros-35.md).
+   The current investigation is kept in the maintainers' private notes.
 3. **SMB35 listener shape**: the prior measured server implementation used a single listener with the
    secure stage on stream 2 (a nex-go limitation workaround). Here the secure
    stage is its own port (base+1) and the station URL carries `sid=1`, which
