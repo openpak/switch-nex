@@ -7,3 +7,4 @@ mk8d-arm64
 
 # Local build outputs and probe binaries
 bin/
+next-session.md
