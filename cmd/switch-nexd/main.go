@@ -360,6 +360,49 @@ var titles = []title{
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
 	}},
+	{"astroneer", 23180, "", func(e *protocols.Env) {
+		// Astroneer (0100E63013E60000, patched routing ID 0xA57).
+		// UE4 project Astro; NEX statically linked (~4.6.5,
+		// UNCONFIRMED, no version banner in the binary). The
+		// production pair is unrecoverable statically: both
+		// values are FConfig::GetString reads from
+		// [/Script/SwitchRuntimeSettings] (GameServerId at code
+		// ref 0xfe3d20, GameServerAccessKey at 0x10292f8 in the
+		// update main, build 35DD08..), with no default
+		// literals — they live only in the AES-encrypted
+		// Astro-Switch.pak, and no UE4 pak/AES key strings
+		// exist in the binary. Consoles therefore run the
+		// openpak_astro_key patch (tools/astro-key in the
+		// astroneer repo, owner-approved 2026-10-27): the wide
+		// ini name becomes XameServerAccessKey so the read
+		// misses and the client takes its guarded empty path,
+		// and the login SNI format becomes the fixed
+		// ga57-lp1.s.n.srv.nintendo.net. The empty key is the
+		// documented risk-of-rain-returns shape (CONNECT
+		// signatures unverified; the server signs nothing the
+		// client checks), and the game server ID is never
+		// validated — it only selects the server via DNS — so
+		// the real ini value flows through untouched.
+		// Static provenance: docs/astroneer.md. Runtime
+		// confirmation still needs the first patched-client
+		// online attempt (SNI ga57-lp1, empty-key CONNECT).
+		//
+		// The binary links Authentication, SecureConnection,
+		// MatchMaking (+Ext), MatchmakeExtension, NATTraversal
+		// (+Relay), Ranking2, TicketGranting, Notification,
+		// Dns, Http, NATCheck, Health and Monitoring (no
+		// DataStore, Utility, Messaging or Subscriber); only
+		// the matchmaking set is registered until the first
+		// boot's NotImplemented log shows what the game
+		// actually calls. No Pia version measured, so the
+		// pre-5.19 legacy shape is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		// Simultaneous searches must wait for the first host to publish its NAT station.
 		e.HoldForOpening = 8 * time.Second

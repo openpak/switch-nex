@@ -8,6 +8,14 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## Unreleased — Astroneer registered (patched-client profile)
+
+- New registered title: Astroneer (routing ID `A57`, base 23180,
+  empty access key) — production pair unrecoverable statically
+  (AES-encrypted pak), so consoles run the `openpak_astro_key`
+  patch; see `docs/astroneer.md`. Runtime confirmation still open
+  (patched SNI `ga57-lp1`, empty-key CONNECT).
+
 ## 2026-10-27 — v0.6.0: Rivals of Aether registered
 
 - New registered title: Rivals of Aether (`2A28FB00`, base 23160,
