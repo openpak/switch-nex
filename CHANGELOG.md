@@ -8,7 +8,7 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
-## Unreleased — Astroneer real pair + four wave-2 titles + honeypot
+## 2026-10-27 — v0.8.0: Astroneer real pair + four wave-2 titles + honeypot
 
 - Astroneer re-pointed at its production pair (`2EE4D000`,
   `18dbde6c`, read from the plaintext pak ini): the
