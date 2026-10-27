@@ -293,6 +293,33 @@ var titles = []title{
 		e.Eagle = true
 		unmeasuredEagleTitle(e, "TETRIS99")
 	}},
+	{"lethal-league-blaze", 23170, "a3267987", func(e *protocols.Env) {
+		// Lethal League Blaze (01003AB00983C000, game server
+		// 21117E00). Unity 2017.4.17f1 IL2CPP (metadata v24.1),
+		// NEX 4.6.2 with Pia 5.14.0 and PIA_UNITY 0.13.0; the pair
+		// is same-struct construction in PiaSettings
+		// ::GetInternetInitSettings (native 0x10cfb80): the ID is
+		// built into w21 at 0x10cfc28 (mov #0x7e00) / 0x10cfc2c
+		// (movk #0x2111, lsl #16) and stored at [x19+0x1c]
+		// (0x10cfc50), while the key string object from literal
+		// slot 0x33461F0 (pointer 0x35AFB70 = managed literal
+		// "a3267987") lands at [x19+0x20]. Static provenance:
+		// docs/lethal-league-blaze.md. Runtime/DNS confirmation
+		// still needs the first routed boot.
+		//
+		// The binary links MatchmakeExtension, NATTraversal and
+		// NintendoAuth DDL with SecureConnection (no DataStore or
+		// Ranking); only the matchmaking set is registered until
+		// the first boot's NotImplemented log shows what the game
+		// actually calls. Pia 5.14.0 predates the 5.19 cutover, so
+		// the pre-5.19 legacy shape is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"mario-party-superstars", 22110, "e915510f", func(e *protocols.Env) {
 		// Simultaneous searches must wait for the first host to publish its NAT station.
 		e.HoldForOpening = 8 * time.Second
@@ -457,6 +484,39 @@ var titles = []title{
 		// Risk of Rain Returns, Streets of Rage 4). Nothing here was ever measured
 		// working WITHOUT them -- this title has simply never been on a console.
 		// FinalizeParams stays off (it breaks ACNH).
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"gang-beasts", 22210, "b9106845", func(e *protocols.Env) {
+		// Gang Beasts (0100D58012E12000, game server 2F56A000).
+		// Unity 2020.3.5f1 IL2CPP (metadata v29), NEX 4.6.5 with
+		// PiaNex 5.36.0-forNEX-4_6_5; the pair is named managed
+		// constants in CS.CorePlatform.Nintendo.Client.Part
+		// .NintendoLobby (NEX_SERVER_ID = 794206208, NEX_ACCESS_KEY
+		// = "b9106845"). The ID is consumed natively in
+		// NintendoLobby::InitialisePiaSettings as one 64-bit store
+		// (0x2c4fc60/64/68 building 0x2F56A000_0000C800, stored
+		// at [x26+0x14], so the ID lands at +0x18 next to the
+		// 0xC800 tag); the key string object goes to the same
+		// config at +0x20. Same-struct construction evidence.
+		// Static provenance: docs/gang-beasts.md. Runtime/DNS
+		// confirmation still needs the first routed boot; the
+		// key-to-login link is provisional until a CONNECT verifies
+		// it. LDN: LOCAL_COMMUNICATION_ID 72292340087201792,
+		// wireless cryptokey "Boneloaf_GangBeasts_WirelessCryptoKey".
+		//
+		// The binary links MatchMaking+Ext/MatchmakeExtension,
+		// NATTraversal+Relay, Notification, SecureConnection,
+		// TicketGranting, AccountManagement and HealthService (no
+		// Ranking, DataStore, Subscriber, Utility, Shop or
+		// Messaging); only the matchmaking set is registered until
+		// the first boot's NotImplemented log shows what the game
+		// actually calls. Pia 5.36.0 is past the 5.19 cutover, so
+		// the modern type=0x0B shape is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.Pia519()
+		e.Match = protocols.NewMatchmakingStore()
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
