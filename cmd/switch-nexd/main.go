@@ -534,6 +534,34 @@ var titles = []title{
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
 	}},
+	{"speedrunners", 22360, "ae8528ab", func(e *protocols.Env) {
+		// SpeedRunners (0100C8B00C4AE000, game server 2C186B00).
+		// Unity 2018.3.10f1 IL2CPP, NEX 4.6.3 with PiaNex 5.18.0;
+		// the ID/key pair is named managed constants in
+		// Assets.Switch.SwitchOnline (GAME_SERVER_ID = 739797760,
+		// GAME_SERVER_KEY = "ae8528ab"), consumed adjacently in
+		// InitFrameworkTask::Execute (ID built into w23 at
+		// 0x34db7c/0x34db80, stored at [x21+0x1c]; key string
+		// object at 0x3081E38 stored at [x21+0x20]) — same-call
+		// construction evidence, stronger than adjacent-config.
+		// Static provenance: docs/speedrunners.md. Runtime/DNS
+		// confirmation still needs the first routed boot (the game
+		// gates online behind a linked Nintendo Account; Harbor
+		// reaches that gate).
+		//
+		// The binary links DS/MM/R2/RK/SS/UT with Auth/Secure/NAT-T,
+		// Subscriber, Utility and Notification; only the matchmaking
+		// set is registered until the first boot's NotImplemented
+		// log shows what the game actually calls. Pia 5.18.0
+		// predates the 5.19 cutover, so the pre-5.19 legacy shape
+		// is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"super-mario-3d-world-bowsers-fury", 22370, "67f366f2", func(e *protocols.Env) {
 		// Game server 2B306A00, key and NEX 4.6.4 read from our v1.2.2 dump
 		// (Openpak/prds/switch-catalogue-prd.md). The delay and the pre-join
