@@ -8,6 +8,24 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-10-27 — v0.5.0: three new titles, Eagle relay answers
+
+- New registered titles: SpeedRunners (`2C186B00`, base 22360),
+  Gang Beasts (`2F56A000`, base 22210), Lethal League Blaze
+  (`21117E00`, base 23170) — server IDs and access keys recovered
+  from IL2CPP metadata and native construction; see
+  `docs/speedrunners.md`, `docs/gang-beasts.md`,
+  `docs/lethal-league-blaze.md`.
+- Also newly registered since v0.4.1: PAC-MAN 99 (lobby schedule,
+  relay sessions kept after rounds), Tetris 99 (libeagle 2.6.1
+  measurement entry), TMNT: Shredder's Revenge (Ranking2
+  leaderboards).
+- Eagle: answers a client's Disconnected with our own close
+  (WebSocket close frame) before closing.
+- Diag: registered/participant station logging with full URLs.
+- CI: builds on GitHub-hosted runners, publishes images with the
+  org `GHCR_TOKEN`.
+
 ## 2026-10-23 — v0.4.1: station diagnostic carries the NAT type
 
 - `SWITCH_NEX_DIAG_STATIONS` lines now include each station's `type`, `natm`
