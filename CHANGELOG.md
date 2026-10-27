@@ -8,7 +8,7 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
-## Unreleased — Astroneer registered (patched-client profile)
+## 2026-10-27 — v0.7.0: Astroneer registered (patched-client profile)
 
 - New registered title: Astroneer (routing ID `A57`, base 23180,
   empty access key) — production pair unrecoverable statically
