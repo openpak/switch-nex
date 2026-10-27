@@ -360,32 +360,28 @@ var titles = []title{
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
 	}},
-	{"astroneer", 23180, "", func(e *protocols.Env) {
-		// Astroneer (0100E63013E60000, patched routing ID 0xA57).
-		// UE4 project Astro; NEX statically linked (~4.6.5,
-		// UNCONFIRMED, no version banner in the binary). The
-		// production pair is unrecoverable statically: both
-		// values are FConfig::GetString reads from
-		// [/Script/SwitchRuntimeSettings] (GameServerId at code
-		// ref 0xfe3d20, GameServerAccessKey at 0x10292f8 in the
-		// update main, build 35DD08..), with no default
-		// literals — they live only in the AES-encrypted
-		// Astro-Switch.pak, and no UE4 pak/AES key strings
-		// exist in the binary. Consoles therefore run the
-		// openpak_astro_key patch (tools/astro-key in the
-		// astroneer repo, owner-approved 2026-10-27): the wide
-		// ini name becomes XameServerAccessKey so the read
-		// misses and the client takes its guarded empty path,
-		// and the login SNI format becomes the fixed
-		// ga57-lp1.s.n.srv.nintendo.net. The empty key is the
-		// documented risk-of-rain-returns shape (CONNECT
-		// signatures unverified; the server signs nothing the
-		// client checks), and the game server ID is never
-		// validated — it only selects the server via DNS — so
-		// the real ini value flows through untouched.
+	{"astroneer", 23180, "18dbde6c", func(e *protocols.Env) {
+		// Astroneer (0100E63013E60000, game server 2EE4D000 =
+		// 787480576). UE4 project Astro; NEX statically linked
+		// (~4.6.5, UNCONFIRMED, no version banner in the
+		// binary). The pair is cooked config, read from
+		// [/Script/SwitchRuntimeSettings.SwitchRuntimeSettings]
+		// (GameServerId at code ref 0xfe3d20,
+		// GameServerAccessKey at 0x10292f8 in the update main,
+		// build 35DD08..): GameServerId=2EE4D000 and
+		// GameServerAccessKey="18dbde6c", identical in the
+		// base v0 and update v2293760 BaseSwitchEngine.ini.
+		// The paks were first thought AES-encrypted; they are
+		// fully plaintext (0 encrypted entries, index-SHA1
+		// verified) — zlib had been mistaken for ciphertext.
+		// This entry replaces the openpak_astro_key
+		// patched-client profile (empty key, fixed SNI ga57):
+		// unpatched consoles now work, and the patch set is
+		// superseded (switch-patcher removes it; the ga57
+		// router is retired for g2ee4d000-lp1).
 		// Static provenance: docs/astroneer.md. Runtime
-		// confirmation still needs the first patched-client
-		// online attempt (SNI ga57-lp1, empty-key CONNECT).
+		// confirmation still needs the first routed boot
+		// (derived SNI g2ee4d000-lp1).
 		//
 		// The binary links Authentication, SecureConnection,
 		// MatchMaking (+Ext), MatchmakeExtension, NATTraversal
@@ -399,6 +395,120 @@ var titles = []title{
 		e.StationScheme = "prudps"
 		e.Pia = protocols.LegacyPia()
 		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"castle-crashers-remastered", 23200, "effc17b3", func(e *protocols.Env) {
+		// Castle Crashers Remastered (010001300D14A000, game
+		// server 2458D100 = 610222080). The Behemoth custom
+		// native engine, NEX 4.6.3 with MM/R2/VS modules. The
+		// pair is same-call construction: the ID is built into
+		// w2 at 0x19338c (mov #0xd100) / 0x193390 (movk
+		// #0x2458, lsl #16) while x3 carries the key string
+		// (fileoff 0x30307b, the single effc17b3 occurrence),
+		// consumed by the call at 0x1933a8. The base-v0 dump
+		// decrypts with title.keys and carries the same key
+		// at 0x307ec3. Static provenance:
+		// docs/castle-crashers-remastered.md. Runtime/DNS
+		// confirmation still needs the first routed boot
+		// (derived SNI g2458d100-lp1).
+		//
+		// The binary links MatchmakeExtension/Session and
+		// Ranking2; only the matchmaking set is registered
+		// until the first boot's NotImplemented log shows
+		// what the game actually calls. No Pia version
+		// measured, so the pre-5.19 legacy shape is the
+		// measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"nobody-saves-the-world", 23210, "5a8be9a0", func(e *protocols.Env) {
+		// Nobody Saves the World (0100787014460000, game
+		// server 2CA9E100 = 749731840). DrinkBox custom
+		// native engine, NEX 4.6.6 with MM/VS modules. The
+		// pair is same-call construction: the ID is built
+		// into w2 at 0x126a80 (mov #0xe100) / 0x126a84
+		// (movk #0x2ca9, lsl #16) while x3 carries the key
+		// string (fileoff 0xbfba6d, the single 5a8be9a0
+		// occurrence), consumed by the call at 0x126a98.
+		// Static provenance:
+		// docs/nobody-saves-the-world.md. Runtime/DNS
+		// confirmation still needs the first routed boot
+		// (derived SNI g2ca9e100-lp1).
+		//
+		// The binary links NgsFacade auth, MatchmakeReferee
+		// DDL and secure PRUDP; the matchmaking set plus the
+		// referee flag is registered until the first boot's
+		// NotImplemented log shows what the game actually
+		// calls. No Pia version measured, so the pre-5.19
+		// legacy shape is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.MatchmakeReferee = true
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"pico-park", 23220, "c02db590", func(e *protocols.Env) {
+		// Pico Park (01004EA00DF70000, game server 2C3C9A00
+		// = 741522432). TECOPARK custom native engine, NEX
+		// 4.6.2 with MM/VS modules. The pair is same-call
+		// construction into a stack config struct: the ID
+		// (movk #0x2c3c, lsl #16 over #0x9a00) is stored at
+		// [sp] while x8 carries the key string (fileoff
+		// 0x296319, the single c02db590 occurrence) at
+		// [sp+8], consumed by the call at 0x21648. Static
+		// provenance: docs/pico-park.md. Runtime/DNS
+		// confirmation still needs the first routed boot
+		// (derived SNI g2c3c9a00-lp1).
+		//
+		// The binary links NgsFacade auth, MatchmakeReferee
+		// DDL and secure PRUDP; the matchmaking set plus the
+		// referee flag is registered until the first boot's
+		// NotImplemented log shows what the game actually
+		// calls. No Pia version measured, so the pre-5.19
+		// legacy shape is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.MatchmakeReferee = true
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
+	{"nidhogg-2", 23230, "c95df951", func(e *protocols.Env) {
+		// Nidhogg 2 (0100C8700B0B6000, game server 28DDB000
+		// = 685617152). GameMaker Studio 2 runner, NEX
+		// 4.5.0 with MM/VS modules. The pair shares the
+		// GameMaker login literal pool, duplicated across
+		// two data segments: "c95df951" at fileoff
+		// 0xebf093 and 0xecaa9d beside the SWITCH NET login
+		// strings, with the double 685617152.0 at 0xebf148
+		// and 0xecab20 respectively — the only two
+		// occurrences of each, pairing the same values
+		// twice. Same-pool evidence, one step below
+		// same-call construction. Static provenance:
+		// docs/nidhogg-2.md. Runtime/DNS confirmation
+		// still needs the first routed boot (derived SNI
+		// g28ddb000-lp1).
+		//
+		// The binary links MatchmakeReferee DDL and secure
+		// PRUDP (prudp:/ and prudps:/ schemes); the
+		// matchmaking set plus the referee flag is
+		// registered until the first boot's NotImplemented
+		// log shows what the game actually calls. NEX 4.5.0
+		// predates the 5.19 cutover by a distance, so the
+		// pre-5.19 legacy shape is the measured-era choice.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.MatchmakeReferee = true
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true

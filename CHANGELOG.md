@@ -8,6 +8,21 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## Unreleased — Astroneer real pair + four wave-2 titles + honeypot
+
+- Astroneer re-pointed at its production pair (`2EE4D000`,
+  `18dbde6c`, read from the plaintext pak ini): the
+  `openpak_astro_key` patched-client profile is retired, the patch
+  set superseded, and the `ga57-lp1` router gives way to
+  `g2ee4d000-lp1`. See `docs/astroneer.md`.
+- New registered titles: Castle Crashers Remastered (`2458D100`,
+  base 23200), Nobody Saves the World (`2CA9E100`, base 23210),
+  Pico Park (`2C3C9A00`, base 23220), Nidhogg 2 (`28DDB000`, base
+  23230) — same-call/same-pool native evidence; see their docs.
+- NEX SNI honeypot (`-honeypot-base`, base 23190 on prod): unknown
+  game SNIs route to a handshake-logging endpoint for offline key
+  recovery; see `docs/honeypot.md`.
+
 ## 2026-10-27 — v0.7.0: Astroneer registered (patched-client profile)
 
 - New registered title: Astroneer (routing ID `A57`, base 23180,

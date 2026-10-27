@@ -4,9 +4,10 @@ Astroneer (`0100E63013E60000`, UE4 project `Astro`) is registered in
 `cmd/switch-nexd` as `astroneer` (port base 23180). It shares the
 existing transport, account resolution, matchmaking and
 NAT/notification handlers. No new proprietary backend is introduced.
-This is a patched-client profile for client testing, not
-gameplay-verified support: consoles run the `openpak_astro_key` patch
-and the title serves them with an empty access key.
+This is an initial profile for client testing, not gameplay-verified
+support. Consoles run unpatched: the production pair below replaced
+the earlier `openpak_astro_key` patched-client profile (empty key,
+fixed SNI `ga57-lp1`), whose patch set is superseded.
 
 ## Client facts and provenance
 
@@ -23,36 +24,28 @@ instruction observations are recorded here. Recon:
 
 | Title | Application ID | Game server ID | Public PRUDP access key | SDK |
 | --- | --- | --- | --- | --- |
-| Astroneer | `0100E63013E60000` | `A57` (patched routing ID; real ID unknown) | `""` (empty; patched clients only) | NEX ~4.6.5 UNCONFIRMED, no Pia banner |
+| Astroneer | `0100E63013E60000` | `2EE4D000` | `18dbde6c` | NEX ~4.6.5 UNCONFIRMED, no Pia banner |
 
-- UE4 4.26/4.27, NEX client statically linked. The production pair is
-  unrecoverable statically: both values are `FConfig::GetString`
-  reads (callee `0x1a98c7c`) from
+- UE4 4.26/4.27, NEX client statically linked. The pair is cooked
+  config: both values are `FConfig::GetString` reads (callee
+  `0x1a98c7c`) from
   `[/Script/SwitchRuntimeSettings.SwitchRuntimeSettings]` —
   `GameServerId` (single code ref `0xfe3d20`) and
   `GameServerAccessKey` (single code ref `0x10292f8`) — with no
-  default literals in code. The values live only in the
-  AES-encrypted `Astro-Switch.pak` (`DefaultEngine.ini`), and no
-  UE4 pak/AES key strings exist in the binary.
-- The patch (`astroneer` repo `tools/astro-key/`, owner-approved
-  2026-10-27, shipped to consoles as
-  `exefs_patches/openpak_astro_key`) is two read-only data edits —
-  no code cave exists (max `.text` zero run is 15 bytes):
-  - Wide `GameServerAccessKey` → `XameServerAccessKey` (first
-    character): the read misses and the client takes its guarded
-    empty path (zero length selects the NUL default, the narrow
-    conversion yields `""`, frees are null-checked). The empty key
-    is the documented `risk-of-rain-returns` server shape.
-  - SNI format `g%08x-%%.s.n.srv.nintendo.net` →
-    `ga57-lp1.s.n.srv.nintendo.net` (exact-fit 30 bytes). The game
-    server ID is never validated — it only selects the server via
-    DNS — so the real ini value flows through untouched and only
-    the routing name is pinned. No format verbs remain, so both
-    format stages pass the fixed string through.
-- Covered builds: update v2293760 (`35DD08…`: key name fileoff
-  `0x769b10a`, SNI `0x74b600e`) and base v0 (`B70714…`: key name
-  `0x55815c0`, SNI `0x5736593`); each string occurs exactly once per
-  build with the same code-ref shape.
+  default literals in code. The values read
+  `GameServerId=2EE4D000` and `GameServerAccessKey="18dbde6c"`
+  from `BaseSwitchEngine.ini`, identical in the base v0 and
+  update v2293760 paks.
+- The paks were first thought AES-encrypted; they are fully
+  plaintext (0 encrypted entries across 33963 base + 46196 update
+  entries, footer index-SHA1 verified) — zlib had been mistaken
+  for ciphertext. No AES key was ever needed.
+- History: before the plaintext finding, consoles ran the
+  `openpak_astro_key` patch (empty key, fixed SNI `ga57-lp1`;
+  `astroneer` repo `tools/astro-key/`). The patch set is now
+  superseded and the `ga57-lp1` router retired for the derived
+  `g2ee4d000-lp1.s.n.srv.nintendo.net` — not yet observed on the
+  wire.
 - Markers: `nn::nex::*` (~6800 mangled names in an unreferenced
   blob), StationURL/PRUDP/NAT-traversal clients, protocols
   Authentication, SecureConnection, MatchMaking (+Ext),
