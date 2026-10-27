@@ -8,6 +8,15 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-10-27 — v0.8.2: Astroneer friend join (FindByParticipant)
+
+- Console-measured with two Switches: hosting works both ways, but the
+  friend lookup (`0x6D/0x33 FindMatchmakeSessionByParticipant`) got an
+  empty list, so the joiner never received a gathering id and sent no
+  join at all. `FindByParticipant` is now on for `astroneer` (same
+  shape as the risk-of-rain-2 friend-join fix). Invites already notify
+  (type 3001); this unblocks the join itself.
+
 ## 2026-10-27 — v0.8.1: duplicate wave-2 entries removed
 
 - Castle Crashers Remastered, Nobody Saves the World and Pico Park

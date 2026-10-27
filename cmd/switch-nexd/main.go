@@ -398,6 +398,13 @@ var titles = []title{
 		e.FinalizeCreateSession = true
 		e.JoinEchoSession = true
 		e.JoinRecapParticipate = true
+		// Console-measured 2026-10-27 (two Switches, hosting works both
+		// ways): the friend lookup is 0x6D/0x33
+		// FindMatchmakeSessionByParticipant, and with the flag off we
+		// answered an empty list, so the joiner never received a
+		// gathering id and sent no join at all. Same shape as the
+		// risk-of-rain-2 friend-join fix.
+		e.FindByParticipant = true
 	}},
 	{"nidhogg-2", 23230, "c95df951", func(e *protocols.Env) {
 		// Nidhogg 2 (0100C8700B0B6000, game server 28DDB000
