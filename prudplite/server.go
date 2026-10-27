@@ -57,6 +57,13 @@ type Endpoint struct {
 	OnConnect    func(c *Connection)
 	OnRMC        func(c *Connection, msg *rmc.RMCMessage) (response []byte)
 	OnDisconnect func(c *Connection)
+	// OnHandshake observes every client CONNECT frame before the access-key
+	// check, with the raw frame bytes and the decoded packet (c.Signature
+	// is the connection signature the SYN-ACK carried, the value the
+	// client's Lite proof signs). The honeypot logger uses it to capture
+	// handshakes for offline key recovery; nil (every title) leaves the
+	// CONNECT path exactly as it was. The hook must not retain raw.
+	OnHandshake func(c *Connection, raw []byte, p *Packet)
 
 	ln     net.Listener
 	mu     sync.Mutex
@@ -394,7 +401,7 @@ func (c *Connection) serve() {
 		if p.Type == Disconnect && !p.HasFlag(FlagAck) {
 			reason = "client sent DISCONNECT"
 		}
-		c.handle(p)
+		c.handle(p, frame)
 	}
 }
 
@@ -417,7 +424,7 @@ func describeReadError(err error) string {
 	return "read: " + err.Error()
 }
 
-func (c *Connection) handle(p *Packet) {
+func (c *Connection) handle(p *Packet, raw []byte) {
 	switch p.Type {
 	case Syn:
 		if !p.HasFlag(FlagAck) {
@@ -425,7 +432,7 @@ func (c *Connection) handle(p *Packet) {
 		}
 	case Connect:
 		if !p.HasFlag(FlagAck) {
-			c.handleConnect(p)
+			c.handleConnect(p, raw)
 		}
 	case Data:
 		c.handleData(p)
@@ -466,7 +473,12 @@ func (c *Connection) handleSyn(p *Packet) {
 	_ = c.send(ack)
 }
 
-func (c *Connection) handleConnect(p *Packet) {
+func (c *Connection) handleConnect(p *Packet, raw []byte) {
+	// Observed before the access-key check: the honeypot captures CONNECTs
+	// whose key it does not know, which a post-check hook would never see.
+	if c.Endpoint.OnHandshake != nil {
+		c.Endpoint.OnHandshake(c, raw, p)
+	}
 	// The client proves it knows the access key by signing our connection
 	// signature. Only enforced when the endpoint knows its access key.
 	if c.Endpoint.AccessKey != "" {

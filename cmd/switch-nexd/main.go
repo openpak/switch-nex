@@ -1109,6 +1109,8 @@ var (
 	allowTicketless = flag.Bool("allow-ticketless-recall", false, "legacy development only: allow ambiguous-by-address ticketless login recall; never enable with proven identities")
 	dump            = flag.Bool("dump", false, "print every served title's resolved configuration and exit")
 	loginExStruct   = flag.Bool("loginex-structured", false, "answer TicketGranting method 2 with the ValidateAndRequestTicketResult structure instead of the flat layout (see docs/login-shape-conflict.md)")
+	honeypotBase    = flag.Int("honeypot-base", 0, "serve the NEX handshake honeypot on base/base+1/healthz base+2 (0: off; with no -only, serves only the honeypot; docs/honeypot.md)")
+	honeypotLogPath = flag.String("honeypot-log", "", "append-only JSONL capture file for the honeypot (required with -honeypot-base)")
 )
 
 // orEnv prefers an explicitly given value, falling back to the environment.
@@ -1239,7 +1241,22 @@ func main() {
 	}
 
 	voice := &voiceIndex{ids: ids}
+	if *honeypotBase > 0 {
+		if *honeypotLogPath == "" {
+			log.Fatal("honeypot: -honeypot-log is required with -honeypot-base")
+		}
+		if err := serveHoneypot(*honeypotBase, *honeypotLogPath, tlsCfg, *stationAddress, voice); err != nil {
+			log.Fatal(err)
+		}
+	}
+	// With no -only the honeypot runs alone: its unit shares the host
+	// network with the title units, so serving every title here too would
+	// collide on every port. Name titles explicitly to run both (local).
+	honeypotOnly := *honeypotBase > 0 && *only == ""
 	for _, t := range titles {
+		if honeypotOnly {
+			break
+		}
 		if len(want) > 0 && !want[t.name] {
 			continue
 		}
