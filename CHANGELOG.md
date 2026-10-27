@@ -8,6 +8,12 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-10-27 — v0.5.1: Gang Beasts moves to base 22390
+
+- First pick 22210 was already bound on the production host by the
+  Splatoon 3 service (a non-NEX title outside the registry survey);
+  Gang Beasts moves to 22390/22391/22392, verified free with `ss`.
+
 ## 2026-10-27 — v0.5.0: three new titles, Eagle relay answers
 
 - New registered titles: SpeedRunners (`2C186B00`, base 22360),

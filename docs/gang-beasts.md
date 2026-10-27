@@ -1,7 +1,9 @@
 # Gang Beasts — 2026-10-27
 
 Gang Beasts (`0100D58012E12000`, base v0) is registered in
-`cmd/switch-nexd` as `gang-beasts` (port base 22210). It shares the
+`cmd/switch-nexd` as `gang-beasts` (port base 22390; 22210 was
+taken on the production host by the Splatoon 3 service, found at
+deploy time 2026-10-27). It shares the
 existing transport, account resolution, matchmaking and
 NAT/notification handlers. No new proprietary backend is introduced.
 This is an initial profile for client testing, not gameplay-verified
