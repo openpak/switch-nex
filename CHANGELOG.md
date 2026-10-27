@@ -8,7 +8,7 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
-## Unreleased — Rivals of Aether registered
+## 2026-10-27 — v0.6.0: Rivals of Aether registered
 
 - New registered title: Rivals of Aether (`2A28FB00`, base 23160,
   access key `8f0c5daa`) — GameMaker NEX-login literal pool in the
