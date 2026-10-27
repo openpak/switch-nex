@@ -293,6 +293,46 @@ var titles = []title{
 		e.Eagle = true
 		unmeasuredEagleTitle(e, "TETRIS99")
 	}},
+	{"rivals-of-aether", 23160, "8f0c5daa", func(e *protocols.Env) {
+		// Rivals of Aether (0100D2700DE7C000, game server
+		// 2A28FB00 = 706199552). GameMaker Studio 2 runner, NEX
+		// 4.6.4 with MM/R2/VS modules; no Pia banner in the
+		// binary. The pair shares one GameMaker literal pool in
+		// the update (v655360) main: the key "8f0c5daa" sits at
+		// file offset 0x417ce95 between the NEX login format
+		// strings ("Error! NEX log in failed because the user
+		// is offline", "Error during NEX login", "NEX login
+		// successful", "NEX online token is ..."), and the
+		// double 706199552.0 (f64 bytes 000000807d14c541)
+		// follows at 0x417cee8, 83 bytes later — the complete
+		// literal set of the GML NEX-login function. Both
+		// literals occur exactly once in the 76.8 MB main; the
+		// ID fits the third-party shape (low byte 0x00, high
+		// byte in the measured 0x21-0x2F range) and the key
+		// fits the 8-hex-char access-key convention. Same-pool
+		// evidence, one step below same-call construction.
+		// Static provenance: docs/rivals-of-aether.md.
+		// Runtime/DNS confirmation still needs the first
+		// routed boot (derived SNI g2a28fb00-lp1).
+		//
+		// The binary links MatchmakeExtension (+DDL),
+		// MatchmakeReferee (round arbitration),
+		// MatchmakeSession/RendezVous session passwords,
+		// Ranking/Ranking2 and Secure PRUDP (both prudp:/
+		// and prudps: schemes); only the matchmaking set
+		// plus the referee flag is registered until the
+		// first boot's NotImplemented log shows what the
+		// game actually calls. No Pia version measured, so
+		// the pre-5.19 legacy shape is the measured-era
+		// choice, as for the NEX 4.6.x peers.
+		e.StationScheme = "prudps"
+		e.Pia = protocols.LegacyPia()
+		e.Match = protocols.NewMatchmakingStore()
+		e.MatchmakeReferee = true
+		e.FinalizeCreateSession = true
+		e.JoinEchoSession = true
+		e.JoinRecapParticipate = true
+	}},
 	{"lethal-league-blaze", 23170, "a3267987", func(e *protocols.Env) {
 		// Lethal League Blaze (01003AB00983C000, game server
 		// 21117E00). Unity 2017.4.17f1 IL2CPP (metadata v24.1),

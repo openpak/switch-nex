@@ -8,6 +8,13 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## Unreleased — Rivals of Aether registered
+
+- New registered title: Rivals of Aether (`2A28FB00`, base 23160,
+  access key `8f0c5daa`) — GameMaker NEX-login literal pool in the
+  update main; see `docs/rivals-of-aether.md`. Runtime/DNS
+  confirmation still open (derived SNI `g2a28fb00-lp1`).
+
 ## 2026-10-27 — v0.5.1: Gang Beasts moves to base 22390
 
 - First pick 22210 was already bound on the production host by the
