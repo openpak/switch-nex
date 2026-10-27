@@ -8,7 +8,16 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
-## 2026-10-27 — v0.8.0: Astroneer real pair + four wave-2 titles + honeypot
+## 2026-10-27 — v0.8.1: duplicate wave-2 entries removed
+
+- Castle Crashers Remastered, Nobody Saves the World and Pico Park
+  were briefly re-registered at 23200-23220 before the existing
+  23060/23070/23080 entries were found. The duplicates never served
+  traffic (the live units kept running) and are removed here; only
+  Nidhogg 2 (`28DDB000`, base 23230) is new. The re-derivation
+  confirmed the three live keys byte-for-byte.
+
+## 2026-10-27 — v0.8.0: Astroneer real pair + four wave-2 titles + honeypot (superseded by v0.8.1)
 
 - Astroneer re-pointed at its production pair (`2EE4D000`,
   `18dbde6c`, read from the plaintext pak ini): the
@@ -19,6 +28,8 @@
   base 23200), Nobody Saves the World (`2CA9E100`, base 23210),
   Pico Park (`2C3C9A00`, base 23220), Nidhogg 2 (`28DDB000`, base
   23230) — same-call/same-pool native evidence; see their docs.
+  (The first three duplicated the live 23060/23070/23080 entries
+  and were removed in v0.8.1; only Nidhogg 2 is new.)
 - NEX SNI honeypot (`-honeypot-base`, base 23190 on prod): unknown
   game SNIs route to a handshake-logging endpoint for offline key
   recovery; see `docs/honeypot.md`.
