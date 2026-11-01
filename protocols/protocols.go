@@ -236,6 +236,7 @@ type Env struct {
 	tournaments tournamentStore
 	referee     roundStore
 	ranking     rankingStore
+	festivals   festivalStore // Splatoon 2 Splatfest tallies (splatoon2_fest.go)
 	r2common    r2CommonStore
 	smm2        smm2Store
 }

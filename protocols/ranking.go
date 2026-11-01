@@ -78,6 +78,11 @@ func (rs *rankingStore) get(pid uint64) []byte {
 }
 
 func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	if env.Name == "splatoon-2" {
+		if resp, ok := rankingSplatoon2(env, c, msg); ok {
+			return resp
+		}
+	}
 	r := rmc.NewReader(msg.Body)
 	switch msg.MethodID {
 	case methodRankingUploadScore: // (RankingScoreData, u64 uniqueID) -> bool true

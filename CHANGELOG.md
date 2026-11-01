@@ -8,6 +8,13 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-01 — v0.8.3: Splatoon 2 Splatfest Ranking methods
+
+- `splatoon-2` only: Ranking 0x12 GetFestivalResult, 0x13 UploadFestivalVote, 0x14
+  UploadFestivalScore, 0x15 DeleteFestival, layouts from the public NintendoClients wiki, in-memory
+  tallies. 0x19 GetEventMatchResult stays NotImplemented (no public layout). See
+  `docs/splatoon2-fest.md`. Not console-tested.
+
 ## 2026-10-27 — v0.8.2: Astroneer friend join (FindByParticipant)
 
 - Console-measured with two Switches: hosting works both ways, but the
