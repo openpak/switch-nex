@@ -17,7 +17,7 @@
 
 ## 2026-11-01 — v0.8.6: SMM2 settings may reference variables
 
-- `SMM2_*` values go through `os.ExpandEnv`, so a quadlet can say `\$PGPASSWORD` and take the secret from the shared .env.
+- `SMM2_*` values go through `os.ExpandEnv`, so a quadlet can say `$PGPASSWORD` and take the secret from the shared .env.
 
 ## 2026-11-01 — v0.8.5: SMM2 creates its bucket
 

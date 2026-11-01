@@ -66,3 +66,17 @@ the `mario-maker` repo's `docs/api-contract.md`.
 
 `go test ./protocols ./internal/smm2store`. The Postgres tests run when
 `SMM2_TEST_DATABASE_URL` points at a scratch database.
+
+## Deployment (production, 2026-11-01)
+
+* The title runs `switch-nex:0.8.6` on the host network, so it cannot see Postgres or MinIO on
+  `openpak.network`. `openpak-switch-bridge` (a Traefik TCP forwarder, config in
+  `~/openpak/deploy/switch-nex/bridge`) publishes them on loopback: Postgres 19432, MinIO 19000,
+  the Super Mario Maker (Wii U) read API 19584.
+* `SMM2_S3_PUBLIC_URL=http://smm2-ds.openpak.org`: a Traefik router on the `web` entrypoint sends
+  `smm2-ds.openpak.org/nex-smm2/*` to MinIO. Whether a console resolves that name through OpenPak
+  DNS and accepts plain HTTP for the upload is NOT verified; it needs the first console upload.
+* The read API listens on `:22333` (X-Internal-Key `SMM2_API_KEY` from the shared .env).
+* The host's container keyring quota (`kernel.keys.maxkeys`, 200) is full with 189 containers, so
+  a new container fails with "create keyring: Disk quota exceeded". The OpenMaker site therefore
+  runs as a user systemd service until the quota is raised (needs root).
