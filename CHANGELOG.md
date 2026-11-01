@@ -15,6 +15,10 @@
   tallies. 0x19 GetEventMatchResult stays NotImplemented (no public layout). See
   `docs/splatoon2-fest.md`. Not console-tested.
 
+## 2026-11-01 — v0.8.6: SMM2 settings may reference variables
+
+- `SMM2_*` values go through `os.ExpandEnv`, so a quadlet can say `\$PGPASSWORD` and take the secret from the shared .env.
+
 ## 2026-11-01 — v0.8.5: SMM2 creates its bucket
 
 - `super-mario-maker-2` creates the `nex-smm2` bucket on start when missing. An end-to-end test client
