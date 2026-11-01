@@ -8,6 +8,11 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-01 — v0.8.7: rewards events from SMM2
+
+- Super Mario Maker 2 reports completed course uploads and course downloads (plays) to the rewards service
+  (`REWARDS_EVENTS_URL` / `REWARDS_EVENTS_KEY`; unset = off). Async, never blocks a call.
+
 ## 2026-11-01 — v0.8.3: Splatoon 2 Splatfest Ranking methods
 
 - `splatoon-2` only: Ranking 0x12 GetFestivalResult, 0x13 UploadFestivalVote, 0x14
