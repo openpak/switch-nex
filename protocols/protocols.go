@@ -249,6 +249,11 @@ type Env struct {
 	// course list is empty.
 	SMM2      SMM2Backend
 	SMM2Blobs SMM2Blobs
+
+	// MK8D (and MK8DBlobs for ghost bodies) give Mario Kart 8 Deluxe durable
+	// rankings, competitions and ghosts (mk8d.go). Unset: empty boards.
+	MK8D      MK8DBackend
+	MK8DBlobs MK8DBlobs
 }
 
 // DSMode selects the DataStore behaviour.
@@ -263,6 +268,7 @@ const (
 	DSBalloonErrors        // + title balloon methods answer NotImplemented (SMO)
 	DSSMM2                 // + SMM2 user profiles and empty Course World lists (smm2.go)
 	DSClubhouse            // account-setup answers: GetPersistenceInfos empties + per-slot NotFound
+	DSMK8D                 // + time-trial ghosts when a store is attached (mk8d_datastore.go), else DSStub
 )
 
 // BindPush attaches the title's secure endpoint so the server can originate
@@ -428,7 +434,7 @@ func Served(env *Env) []string {
 }
 
 func (m DSMode) String() string {
-	return [...]string{"off", "empty-list", "empty-success", "stub", "balloon-errors", "smm2", "clubhouse"}[m]
+	return [...]string{"off", "empty-list", "empty-success", "stub", "balloon-errors", "smm2", "clubhouse", "mk8d"}[m]
 }
 
 // success frames an RMC success response for the request's protocol.

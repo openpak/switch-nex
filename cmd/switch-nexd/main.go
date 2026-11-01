@@ -1305,6 +1305,9 @@ func main() {
 			svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
 			configureSMM2(svc.env)
 		}
+		if t.name == "mario-kart-8-deluxe" {
+			configureMK8D(svc.env)
+		}
 		if err := configureEagle(svc.env, tlsCfg); err != nil {
 			log.Fatalf("[%s] eagle setup: %v", t.name, err)
 		}

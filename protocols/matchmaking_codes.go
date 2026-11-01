@@ -251,7 +251,22 @@ func createTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		}
 		blob[i] = b
 	}
-	t := env.tournaments.create(c.PID, version, blob)
+	logHex(env, c.PID, "TournamentCreate descriptor", blob)
+	var t tournament
+	if env.mk8dReady() {
+		// Durable: the store hands out the id, which also lands in the
+		// descriptor when the console left its object id at 0.
+		ctx, cancel := ctxDB()
+		id, err := env.MK8D.SaveTournament(ctx, c.PID, version, blob)
+		cancel()
+		if err != nil {
+			log.Printf("[%s] mk8d: save tournament: %v", env.Name, err)
+			return errorResp(msg, rmc.ResultInvalidArgument)
+		}
+		t = tournament{id: id, owner: c.PID, version: version, blob: TournamentWithID(blob, id)}
+	} else {
+		t = env.tournaments.create(c.PID, version, blob)
+	}
 	log.Printf("[%s] tournament %d created by pid=%s (%d bytes)", env.Name, t.id, redact.Tag(c.PID), len(blob))
 
 	w := rmc.NewWriter()
@@ -262,6 +277,17 @@ func createTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 // searchTournaments answers the list: u32 count, then each entry framed.
 func searchTournaments(env *Env, msg *rmc.RMCMessage) []byte {
 	all := env.tournaments.all()
+	if env.mk8dReady() {
+		ctx, cancel := ctxDB()
+		stored, err := env.MK8D.ListTournaments(ctx, maxTournaments)
+		cancel()
+		if err == nil {
+			all = all[:0]
+			for _, t := range stored {
+				all = append(all, tournament{id: t.ID, owner: t.Owner, version: t.Version, blob: TournamentWithID(t.Blob, t.ID)})
+			}
+		}
+	}
 	w := rmc.NewWriter()
 	w.List(len(all))
 	for _, t := range all {
@@ -276,8 +302,29 @@ func deleteTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r 
 	if err != nil {
 		return errorResp(msg, rmc.ResultInvalidArgument)
 	}
+	if env.mk8dReady() {
+		ctx, cancel := ctxDB()
+		ok, err := env.MK8D.DeleteTournament(ctx, id, c.PID)
+		cancel()
+		if err != nil || !ok {
+			return errorResp(msg, rmc.ResultPermissionDenied)
+		}
+		return success(msg, nil)
+	}
 	if !env.tournaments.remove(id, c.PID) {
 		return errorResp(msg, rmc.ResultPermissionDenied)
 	}
 	return success(msg, nil)
+}
+
+// TournamentWithID returns the descriptor with its leading object id set to id
+// when the console left it 0 (SimpleSearchObject starts with a Uint32 object
+// id, matchmaking wiki). A descriptor that already has an id is untouched.
+func TournamentWithID(blob []byte, id uint32) []byte {
+	if len(blob) < 4 || blob[0]|blob[1]|blob[2]|blob[3] != 0 {
+		return blob
+	}
+	out := append([]byte(nil), blob...)
+	out[0], out[1], out[2], out[3] = byte(id), byte(id>>8), byte(id>>16), byte(id>>24)
+	return out
 }

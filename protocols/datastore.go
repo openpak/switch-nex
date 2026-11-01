@@ -29,6 +29,10 @@ func dataStoreHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		if body, ok := smm2DataStore(env, c, msg); ok {
 			return body
 		}
+	case DSMK8D:
+		if body, ok := mk8dDataStore(env, c, msg); ok {
+			return body
+		}
 	case DSClubhouse:
 		return clubhouseDataStore(env, msg)
 	case DSEmptySuccess:

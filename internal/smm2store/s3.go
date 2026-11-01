@@ -183,3 +183,18 @@ func (b *Blobs) EnsureBucket() error {
 	}
 	return fmt.Errorf("create bucket %s: %s %s", b.cfg.Bucket, resp.Status, strings.TrimSpace(string(body)))
 }
+
+// Fetch reads an object's body (at most limit bytes) through this process's own
+// endpoint; ok is false when it is absent or the store is unreachable.
+func (b *Blobs) Fetch(key string, limit int64) ([]byte, bool) {
+	resp, err := b.http.Get(b.internalGet(key))
+	if err != nil {
+		return nil, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, false
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	return data, err == nil
+}

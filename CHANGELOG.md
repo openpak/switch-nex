@@ -8,6 +8,22 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-01 — v0.9.0: Mario Kart 8 Deluxe rankings, competitions and ghosts
+
+- `mario-kart-8-deluxe`: Ranking 0x70 now stores and serves (Postgres, `MK8D_DATABASE_URL`): UploadScore with
+  best-time / overwrite update rules, GetRanking / GetRankingByPIDList / GetRankingByUniqueIDList as real
+  `RankingResult` (global, around-self, self modes, standard and ordinal ranks, group filter, top-1000 ceiling),
+  GetCompetitionRankingScore / UploadCompetitionRankingScore / GetCompetitionInfo, UploadScorePack /
+  GetScorePack, persisted common data. The one-zero-byte answers and the 0x04/0x16 behaviour are unchanged.
+- Fixed the `ranking: ... upload category=` log, which printed the structure length as the category.
+- Tournaments (MatchmakeExtension create / search / delete) are durable with a store.
+- DataStore ghosts (`DSMK8D`, bucket `nex-mk8d`): PreparePostObject / CompletePostObject / PrepareGetObject
+  with presigned S3, GetMeta(s), SearchObject, persistence slots, DeleteObject. Parameters are logged in hex
+  for the first console capture.
+- Read API for OpenKart on `MK8D_API_ADDR` (`:22854`): courses, rankings, ghosts, objects, players, tournaments.
+- `smm2store.Blobs.Fetch` (object body read) for the ghost body endpoint.
+- See `docs/mk8d-rankings.md` (FACT vs INFERRED, console test). Not console-tested.
+
 ## 2026-11-02 — v0.8.8: rewards online sessions
 
 - Mario Kart 8 Deluxe, Splatoon 2 and Smash Ultimate report online sessions (two players sharing a gathering for 3 minutes, `REWARDS_SESSION_MIN`) to the rewards service.
