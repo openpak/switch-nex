@@ -45,6 +45,9 @@ func configureSMM2(env *protocols.Env) {
 		Endpoint: os.Getenv("SMM2_S3_ENDPOINT"), PublicURL: pub, Bucket: bucket,
 		Access: os.Getenv("SMM2_S3_ACCESS_KEY"), Secret: os.Getenv("SMM2_S3_SECRET_KEY"),
 	})
+	if err := blobs.EnsureBucket(); err != nil {
+		log.Printf("[%s] smm2 bucket: %v (uploads will fail until it exists)", env.Name, err)
+	}
 	env.SMM2, env.SMM2Blobs = st, blobs
 	log.Printf("[%s] smm2 course storage on (bucket %s)", env.Name, bucket)
 	if addr := os.Getenv("SMM2_API_ADDR"); addr != "" {

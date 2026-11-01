@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -165,4 +166,20 @@ func (b *Blobs) PostForm(key string, maxSize uint32, ttl time.Duration) (string,
 		{"policy", pol},
 		{"x-amz-signature", sig},
 	}, nil
+}
+
+// EnsureBucket creates the bucket when it does not exist yet, as the nex titles
+// do for their nex-* buckets. A bucket that is already there is fine.
+func (b *Blobs) EnsureBucket() error {
+	req, _ := http.NewRequest("PUT", b.presignPath("PUT", b.cfg.Endpoint, "/"+b.cfg.Bucket, time.Minute), nil)
+	resp, err := b.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+	if resp.StatusCode == 200 || resp.StatusCode == 409 && strings.Contains(string(body), "BucketAlreadyOwnedByYou") {
+		return nil
+	}
+	return fmt.Errorf("create bucket %s: %s %s", b.cfg.Bucket, resp.Status, strings.TrimSpace(string(body)))
 }
