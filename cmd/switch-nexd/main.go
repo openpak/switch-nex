@@ -1297,6 +1297,10 @@ func main() {
 		}
 		svc := newService(t, *stationAddress, recall, ids)
 		svc.env.Connectivity = connectivityClient
+		if m := sessionMetric[t.name]; m != "" {
+			svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
+			svc.env.WatchSessions(m, protocols.SessionMin(), 20*time.Second)
+		}
 		if t.name == "super-mario-maker-2" {
 			svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
 			configureSMM2(svc.env)

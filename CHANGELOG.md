@@ -8,6 +8,10 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-02 — v0.8.8: rewards online sessions
+
+- Mario Kart 8 Deluxe, Splatoon 2 and Smash Ultimate report online sessions (two players sharing a gathering for 3 minutes, `REWARDS_SESSION_MIN`) to the rewards service.
+
 ## 2026-11-01 — v0.8.7: rewards events from SMM2
 
 - Super Mario Maker 2 reports completed course uploads and course downloads (plays) to the rewards service
