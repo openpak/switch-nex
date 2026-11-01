@@ -15,6 +15,12 @@
   tallies. 0x19 GetEventMatchResult stays NotImplemented (no public layout). See
   `docs/splatoon2-fest.md`. Not console-tested.
 
+## 2026-11-01 — v0.8.5: SMM2 creates its bucket
+
+- `super-mario-maker-2` creates the `nex-smm2` bucket on start when missing. An end-to-end test client
+  (`internal/smm2store/e2e_test.go`) drives upload, completion, thumbnail, download and the read API
+  against a real Postgres and MinIO; run on 2026-11-01 against production MinIO.
+
 ## 2026-11-01 — v0.8.4: Super Mario Maker 2 course storage
 
 - `super-mario-maker-2`: courses are stored. Upload (66, 68, 26, 132), download (25), delete
