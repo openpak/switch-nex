@@ -239,6 +239,12 @@ type Env struct {
 	festivals   festivalStore // Splatoon 2 Splatfest tallies (splatoon2_fest.go)
 	r2common    r2CommonStore
 	smm2        smm2Store
+
+	// SMM2 and SMM2Blobs, both set, give Super Mario Maker 2 durable users and
+	// course storage (smm2_courses.go). Unset, profiles stay in memory and every
+	// course list is empty.
+	SMM2      SMM2Backend
+	SMM2Blobs SMM2Blobs
 }
 
 // DSMode selects the DataStore behaviour.

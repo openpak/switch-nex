@@ -15,6 +15,17 @@
   tallies. 0x19 GetEventMatchResult stays NotImplemented (no public layout). See
   `docs/splatoon2-fest.md`. Not console-tested.
 
+## 2026-11-01 — v0.8.4: Super Mario Maker 2 course storage
+
+- `super-mario-maker-2`: courses are stored. Upload (66, 68, 26, 132), download (25), delete
+  (4), `GetCourses` (70) and the Latest, Advanced, PostedBy and PointRanking searches
+  (73, 72, 74, 71) are served from Postgres (`smm2` schema) with bodies and thumbnails in the
+  `nex-smm2` bucket through presigned URLs (hand-rolled SigV4, checked against AWS examples).
+  Maker profiles are durable. Off unless `SMM2_DATABASE_URL` is set. New dependency: pgx v5
+  (MIT). Read API for the OpenMaker course site on `SMM2_API_ADDR`. Field meanings the wiki
+  lists as Unknown are inferred and flagged in `docs/smm2-courses.md`; no console upload has
+  been seen yet.
+
 ## 2026-10-27 — v0.8.2: Astroneer friend join (FindByParticipant)
 
 - Console-measured with two Switches: hosting works both ways, but the

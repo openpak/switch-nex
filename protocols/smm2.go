@@ -82,6 +82,9 @@ func makerCode(pid uint64) string {
 // smm2DataStore serves the DSSMM2 methods it knows and reports whether it
 // answered; everything else falls through to the generic DataStore switch.
 func smm2DataStore(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) ([]byte, bool) {
+	if body, ok := smm2CourseMethods(env, c, msg); ok {
+		return body, true
+	}
 	r := rmc.NewReader(msg.Body)
 	switch msg.MethodID {
 	case 0x19: // PrepareGetObject: no objects stored, so nothing to fetch
@@ -92,7 +95,7 @@ func smm2DataStore(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) ([]by
 		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument), true
 		}
-		env.smm2.put(c.PID, u)
+		env.putSMM2User(c.PID, u)
 		return success(msg, nil), true
 
 	case 0x30: // GetUsers(GetUsersParam) -> (List<UserInfo>, List<Result>)
@@ -112,12 +115,12 @@ func smm2DataStore(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) ([]by
 		n := 0
 		results.List(len(pids))
 		for _, pid := range pids {
-			u, ok := env.smm2.get(pid)
+			u, ok := env.getSMM2User(pid)
 			if !ok {
 				results.U32(resultNotFoundInList)
 				continue
 			}
-			writeSMM2UserInfo(found, pid, u)
+			writeSMM2UserInfo(found, pid, u, env.smm2Posted(pid))
 			results.U32(resultSuccess)
 			n++
 		}
@@ -132,12 +135,12 @@ func smm2DataStore(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) ([]by
 		if err != nil {
 			return errorResp(msg, rmc.ResultInvalidArgument), true
 		}
-		old, ok := env.smm2.get(c.PID)
+		old, ok := env.getSMM2User(c.PID)
 		if !ok {
 			return errorResp(msg, rmc.ResultDataStoreNotFound), true
 		}
 		u.Device = old.Device
-		env.smm2.put(c.PID, u)
+		env.putSMM2User(c.PID, u)
 		w := rmc.NewWriter()
 		w.StructOf(0, func(w *rmc.Writer) {
 			w.U64(c.PID)
@@ -154,7 +157,7 @@ func smm2DataStore(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) ([]by
 
 	case 0x3C: // CanPostCourse -> (bool, u32); a lone u32 desyncs the client
 		w := rmc.NewWriter()
-		w.Bool(true)
+		w.Bool(env.smm2Posted(c.PID) < SMM2MaxCourses)
 		w.U32(0)
 		return success(msg, w.Bytes()), true
 	}
@@ -222,7 +225,7 @@ func u8u32Map(w *rmc.Writer, values ...uint32) {
 // writeSMM2UserInfo writes UserInfo version 3: a new maker with nothing
 // played, made or uploaded yet. Every map is present whatever the result
 // option asked for; the option only selects what the server fills in.
-func writeSMM2UserInfo(w *rmc.Writer, pid uint64, u *smm2User) {
+func writeSMM2UserInfo(w *rmc.Writer, pid uint64, u *smm2User, posted uint32) {
 	now := nowDateTime()
 	w.StructOf(3, func(w *rmc.Writer) {
 		w.U64(pid)
@@ -243,7 +246,7 @@ func writeSMM2UserInfo(w *rmc.Writer, pid uint64, u *smm2User) {
 		u8u32Map(w, 0)                      // weekly maker points
 		w.EmptyList()                       // badges
 		u8u32Map(w, 0, 0)                   // first clears, world records
-		u8u32Map(w, 0, 32)                  // uploaded courses, upload slots
+		u8u32Map(w, posted, SMM2MaxCourses) // uploaded courses, upload slots
 		w.Bool(false)                       // v1: Nintendo employee
 		w.U64(now)                          // v1: last uploaded
 		w.Bool(false)                       // v1: unknown
@@ -309,3 +312,46 @@ var smm2EmptyAnswers = func() map[uint32][]byte {
 		0xA2: list,     // SearchWorldMapPickUp
 	}
 }()
+
+// getSMM2User looks a maker up in memory, then in the durable store.
+func (e *Env) getSMM2User(pid uint64) (*smm2User, bool) {
+	if u, ok := e.smm2.get(pid); ok {
+		return u, true
+	}
+	if e.SMM2 == nil {
+		return nil, false
+	}
+	ctx, cancel := ctxDB()
+	defer cancel()
+	u, ok, err := e.SMM2.GetUser(ctx, pid)
+	if err != nil || !ok {
+		return nil, false
+	}
+	e.smm2.put(pid, u)
+	return u, true
+}
+
+// putSMM2User stores a profile in memory and, when there is one, durably.
+func (e *Env) putSMM2User(pid uint64, u *smm2User) {
+	e.smm2.put(pid, u)
+	if e.SMM2 == nil {
+		return
+	}
+	ctx, cancel := ctxDB()
+	defer cancel()
+	e.SMM2.PutUser(ctx, pid, u)
+}
+
+// smm2Posted is how many courses a maker has published.
+func (e *Env) smm2Posted(pid uint64) uint32 {
+	if e.SMM2 == nil {
+		return 0
+	}
+	ctx, cancel := ctxDB()
+	defer cancel()
+	n, err := e.SMM2.CountByOwner(ctx, pid)
+	if err != nil {
+		return 0
+	}
+	return uint32(n)
+}

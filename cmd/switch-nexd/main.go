@@ -1296,6 +1296,9 @@ func main() {
 		}
 		svc := newService(t, *stationAddress, recall, ids)
 		svc.env.Connectivity = connectivityClient
+		if t.name == "super-mario-maker-2" {
+			configureSMM2(svc.env)
+		}
 		if err := configureEagle(svc.env, tlsCfg); err != nil {
 			log.Fatalf("[%s] eagle setup: %v", t.name, err)
 		}

@@ -27,4 +27,5 @@ LABEL org.opencontainers.image.source=https://github.com/openpak/switch-nex
 WORKDIR /app
 COPY --from=build /out/switch-nexd /app/switch-nexd
 COPY licenses/websocket-ISC.txt /usr/share/licenses/switch-nex/websocket-ISC.txt
+COPY licenses/pgx-MIT.txt /usr/share/licenses/switch-nex/pgx-MIT.txt
 ENTRYPOINT ["/app/switch-nexd"]
