@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	emit "github.com/openpak/rewards-emit"
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/rmc"
@@ -43,7 +44,10 @@ const (
 // Env is one title's serving environment: identity of the server on the wire
 // plus the title's state and behaviour hooks. One Env per title.
 type Env struct {
-	Name               string
+	Name string
+	// Rewards reports server-observed facts (a course uploaded) to the rewards service. Nil
+	// or disabled does nothing; it never blocks or fails a call.
+	Rewards            *emit.Client
 	Connectivity       *connectivity.Client
 	connectivityLeases map[uint32]connectivity.Participant
 

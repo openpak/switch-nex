@@ -36,6 +36,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	emit "github.com/openpak/rewards-emit"
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/protocols"
 	"github.com/openpak/switch-nex/prudplite"
@@ -1297,6 +1298,7 @@ func main() {
 		svc := newService(t, *stationAddress, recall, ids)
 		svc.env.Connectivity = connectivityClient
 		if t.name == "super-mario-maker-2" {
+			svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
 			configureSMM2(svc.env)
 		}
 		if err := configureEagle(svc.env, tlsCfg); err != nil {

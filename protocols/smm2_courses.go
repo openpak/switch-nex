@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	emit "github.com/openpak/rewards-emit"
 	switchnex "github.com/openpak/switch-nex"
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/rmc"
@@ -373,6 +374,12 @@ func smm2CourseMethods(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) (
 		if err != nil || !ok || cr.Status != SMM2Complete {
 			return errorResp(msg, rmc.ResultDataStoreNotFound), true
 		}
+		if cr.Owner != c.PID {
+			// Proxy: the console asked for the course body to play it. A clear is not
+			// reported to the server, so this is the closest signal there is.
+			env.Rewards.Event(emit.Event{ID: fmt.Sprintf("smm2:play:%d:%d", id, c.PID), Metric: "maker_courses_played",
+				Player: &emit.Identity{Namespace: "switch", Subject: fmt.Sprintf("%016x", c.PID)}, Keys: []string{fmt.Sprint(id)}})
+		}
 		w := rmc.NewWriter()
 		w.StructOf(0, func(w *rmc.Writer) {
 			w.String(env.SMM2Blobs.GetURL(SMM2BodyKey(id), smm2URLTTL))
@@ -472,6 +479,11 @@ func smm2Finish(ctx context.Context, env *Env, owner, id uint64) bool {
 		size = uint32(n)
 	}
 	ok, err := env.SMM2.CompleteCourse(ctx, owner, id, size)
+	if err == nil && ok {
+		// One course uploaded; the id makes a repeated completion count once.
+		env.Rewards.Event(emit.Event{ID: fmt.Sprintf("smm2:upload:%d", id), Metric: "maker_courses_uploaded",
+			Player: &emit.Identity{Namespace: "switch", Subject: fmt.Sprintf("%016x", owner)}, Keys: []string{fmt.Sprint(id)}})
+	}
 	return err == nil && ok
 }
 

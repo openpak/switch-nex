@@ -1,10 +1,11 @@
 module github.com/openpak/switch-nex
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/openpak/rewards-emit v0.1.0
 )
 
 require (
