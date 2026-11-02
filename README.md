@@ -65,7 +65,6 @@ Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 
 - [Protocol](docs/protocol.md)
 - [Deploy](docs/deploy.md)
-- [Notes](docs/notes.md)
 - [Parity record](docs/parity.md): per-title comparison with the measured server implementations
 - [Duck Game](docs/duck-game.md): relay investigation
 - [Full Metal Furies](docs/full-metal-furies.md)
@@ -77,6 +76,8 @@ Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 - [Monopoly](docs/monopoly.md)
 - [First new NEX titles](docs/nex-first-batch.md)
 - [Protocol facts](SPEC.md)
+
+PRDs: openpak/prds (private)
 
 ## Licence
 
