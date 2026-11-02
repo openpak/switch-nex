@@ -8,6 +8,10 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-02 — v0.9.1: rankings contract for Mario Kart 8 Deluxe
+
+- `mario-kart-8-deluxe`: serves the OpenPak rankings contract (network `switch`) on `RANKINGS_ADDR` (for example `:9090`; off when empty), read-only, container network only. Boards: one time-trial board per course with a stored time (fastest first) and one board per tournament season with a stored score (highest first), straight from the existing Postgres tables. Rows carry the NEX pid only. The other titles keep their boards in memory or store none, so they serve nothing.
+
 ## 2026-11-01 — v0.9.0: Mario Kart 8 Deluxe rankings, competitions and ghosts
 
 - `mario-kart-8-deluxe`: Ranking 0x70 now stores and serves (Postgres, `MK8D_DATABASE_URL`): UploadScore with

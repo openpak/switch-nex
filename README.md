@@ -61,6 +61,8 @@ GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o switch-nexd-arm64 .
 
 Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 
+Rankings: with `MK8D_DATABASE_URL` set, `mario-kart-8-deluxe` also serves the OpenPak rankings contract (read-only, container network only) on `RANKINGS_ADDR` (for example `:9090`); empty leaves it off.
+
 ## Docs
 
 - [Protocol](docs/protocol.md)

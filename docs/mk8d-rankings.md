@@ -19,6 +19,7 @@ Sources (facts only, no code): the NintendoClients wiki by Kinnay, MIT: *Ranking
 | `MK8D_S3_BUCKET` | default `nex-mk8d`, created if missing |
 | `MK8D_S3_ACCESS_KEY`, `MK8D_S3_SECRET_KEY` | MinIO credentials |
 | `MK8D_API_ADDR` | read API listener (production `:22854`) |
+| `RANKINGS_ADDR` | OpenPak rankings contract listener (`:9090`), empty = off |
 
 Values go through `os.ExpandEnv`, so the quadlet names `$PGPASSWORD` and the shared `.env` supplies it.
 

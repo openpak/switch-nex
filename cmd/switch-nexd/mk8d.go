@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/openpak/switch-nex/internal/mk8dstore"
+	"github.com/openpak/switch-nex/internal/rankingsapi"
 	"github.com/openpak/switch-nex/protocols"
 )
 
@@ -22,6 +23,7 @@ import (
 //	MK8D_S3_BUCKET        default nex-mk8d
 //	MK8D_S3_ACCESS_KEY, MK8D_S3_SECRET_KEY
 //	MK8D_API_ADDR         read API listener (container network only)
+//	RANKINGS_ADDR         OpenPak rankings contract listener, e.g. :9090 (off when empty)
 //
 // Every value is passed through os.ExpandEnv.
 func configureMK8D(env *protocols.Env) {
@@ -60,6 +62,7 @@ func configureMK8D(env *protocols.Env) {
 		log.Printf("[%s] mk8d ghost storage on (bucket %s)", env.Name, bucket)
 	}
 	log.Printf("[%s] mk8d rankings on", env.Name)
+	rankingsapi.Serve(getenv("RANKINGS_ADDR"), "switch", mk8dstore.Rankings{Store: st})
 	if addr := getenv("MK8D_API_ADDR"); addr != "" {
 		api := &mk8dstore.API{Store: st, Blobs: blobs}
 		go func() {
