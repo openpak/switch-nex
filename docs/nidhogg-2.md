@@ -1,4 +1,4 @@
-# Nidhogg 2 — 2026-10-27
+# Nidhogg 2
 
 Nidhogg 2 (`0100C8700B0B6000`) is registered in `cmd/switch-nexd` as
 `nidhogg-2` (port base 23230). It shares the existing transport,

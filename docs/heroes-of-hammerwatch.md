@@ -1,4 +1,4 @@
-# Heroes of Hammerwatch — Ultimate Edition — 2026-10-12
+# Heroes of Hammerwatch — Ultimate Edition
 
 Heroes of Hammerwatch — Ultimate Edition (`0100D2B00BC54000`, content
 524288 current) is registered in `cmd/switch-nexd` as
@@ -78,9 +78,8 @@ are recorded here.
 | --- | ---: | ---: | --- | --- |
 | `heroes-of-hammerwatch` | 23110 | 23111 | 23112 | `g2075e100-lp1.s.n.srv.nintendo.net` |
 
-**Deployed 2026-10-12 in v0.3.42** (`openpak-switch-heroes-of-hammerwatch`
-quadlet, image `ghcr.io/openpak/switch-nex:latest` = 0.3.42 digest
-`sha256:0545683850846cfefbc8ed70a0042977b7ccaee0f9f0d351416c37efb2614e4e`,
+Runs as the `openpak-switch-heroes-of-hammerwatch`
+quadlet (image `ghcr.io/openpak/switch-nex`,
 own recall/state directory, host networking, shared identity
 environment, drain-update managed). The block follows the Duck Game
 block (23100). Routing follows the existing `console` entrypoint,

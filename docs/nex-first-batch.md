@@ -1,15 +1,9 @@
-# First new NEX titles — 2026-10-12
+# First new NEX titles
 
 Castle Crashers Remastered, Nobody Saves the World and PICO PARK are registered
 in `cmd/switch-nexd`. They share the existing transport, account resolution,
 matchmaking and NAT/notification handlers. No new proprietary backend is introduced.
 These are initial profiles for client testing, not gameplay-verified support.
-
-**Deployed 2026-10-12, v0.3.32.** All three generated per-title quadlets are
-installed and active. The running image matches the published release digest
-`sha256:aea0fcfc35565b18d9bb9115aa04adca7752d89cd0edb0df8c8653739655937d`.
-The [release workflow](https://github.com/openpak/switch-nex/actions/runs/38256450958)
-passed tests/vet and published both architectures.
 
 ## Client facts and provenance
 

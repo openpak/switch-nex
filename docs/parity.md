@@ -70,8 +70,8 @@ Per-title matchmaking rules measured on the measured server implementation and i
 | Super Mario Odyssey (22340) | SC, UT, Ranking, DS — no matchmaking at all; balloon methods 0x73.0x2F-0x35 NotImplemented; `prudps` | **implemented** incl. balloon NotImplemented stance |
 | Super Smash Bros. Ultimate (22350) | MM, MMX, MME, NAT, UT, Ranking, DS (empty-list stub); arena codes 0x37/0x38; the 0x3A pre-match probe; Pia 5.19 | **implemented** |
 | Clubhouse Games 51 (22870) | MM, MMX, MME, NAT, UT, Ranking, DS (account-setup stub shapes); NEX 4.4.0, access key `8c3661ff`, secure PID 2, 32-byte session key, game server 2035BB00 | **implemented** (see the per-title rules above); new title, no nex-go predecessor |
-| Super Mario 3D World + Bowser's Fury (22370) | MM, MMX, MME, NAT, UT, Ranking; Participate pushes delayed 100 ms; joins echo the pre-join count; NEX 4.6.4, `prudp` | **registered, not console-verified**: `ParticipateDelay` + `JoinEchoSession`. Game server 2B306A00 and key from our own dump |
-| Kirby's Dream Buffet (22380) | no prior measured server yet (the prior implementation's repo is empty) | **registered, not console-verified**: MM, DS (empty-list), Ranking2, the components its binary links. Game server 25374500, key `6wVacwwe` from our own dump |
+| Super Mario 3D World + Bowser's Fury (22370) | MM, MMX, MME, NAT, UT, Ranking; Participate pushes delayed 100 ms; joins echo the pre-join count; NEX 4.6.4, `prudp` | **registered**: `ParticipateDelay` + `JoinEchoSession`. Game server 2B306A00 and key from our own dump |
+| Kirby's Dream Buffet (22380) | no prior measured server yet (the prior implementation's repo is empty) | **registered**: MM, DS (empty-list), Ranking2, the components its binary links. Game server 25374500, key `6wVacwwe` from our own dump |
 
 Corrected 2026-09-16 against the prior measured sources. The previous version of this
 table claimed MPS, Golf, ARMS, LM3, Minecraft, SMO, SSBU and Strikers had **no
@@ -88,7 +88,7 @@ Not served by this lineage: **MHGU (22120)** — kerberos v0 tickets and a raw
 PRUDP-over-UDP *secure* stage, 3DS-lineage code under an AArch64 shim. Its
 *auth* stage is wss like everything here, which is why it sits behind the same
 Traefik SNI route; the secure half is what this lineage cannot serve. Stays on
-nex-go (MIGRATION.md), where it shares its NEX code and access key with
+nex-go (`platforms/wiiu-3ds/games/nex`), where it shares its NEX code and access key with
 Pretendo's Monster Hunter XX server.
 
 ## Known deviations (documented, deliberate)

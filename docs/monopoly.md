@@ -1,4 +1,4 @@
-# Monopoly for Nintendo Switch — 2026-10-12
+# Monopoly for Nintendo Switch
 
 Monopoly for Nintendo Switch (`01007430037F6000`, update 1.0.5 / content
 327680) is registered in `cmd/switch-nexd` as `monopoly`. It shares the

@@ -1,4 +1,4 @@
-# Gang Beasts — 2026-10-27
+# Gang Beasts
 
 Gang Beasts (`0100D58012E12000`, base v0) is registered in
 `cmd/switch-nexd` as `gang-beasts` (port base 22390; 22210 was

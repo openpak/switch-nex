@@ -1,4 +1,4 @@
-# Full Metal Furies — 2026-10-12
+# Full Metal Furies
 
 Full Metal Furies (`010079300AD54000`, available update content 131072,
 latest 327680 — the analysed dump is outdated) is registered in
@@ -94,8 +94,7 @@ certificate covers the SNI name.
   registration alone does not install a route or start a production
   container.
 
-**Deployed 2026-10-12 ~22:15 UTC** (local arm64 binary mount, not a
-published release). The block sits inside the planned 23000–23499
+Deployed from a local arm64 binary mount (not a published release). The block sits inside the planned 23000–23499
 Switch-NEX range.
 
 - `deploy/nex-full-metal-furies.yml` merged into the Traefik TCP maps

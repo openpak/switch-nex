@@ -1,12 +1,10 @@
-# The switch-nex identity gap (investigation, 2026-09-16)
+# The switch-nex identity gap (investigation)
 
 Asked: does the `platforms/wiiu-3ds/games/nex` → `platforms/switch/games/switch-nex` cutover trade a per-account
 identity for a shared secret? **Confirmed, with one correction to the framing.**
 
-**Status 2026-09-16: implemented, off by default, NOT deployed.** The code below
-exists and is tested end to end against a stub nx-baas; production still runs
-with identity disabled, which is the state section 1 describes. Turning it on is
-a configuration change plus a deploy, and a decision about when to enforce.
+The code below is off by default; turning it on is a configuration change plus a deploy, and a
+decision about when to enforce.
 
 ## 1. What actually happens today
 
@@ -44,8 +42,7 @@ The defect is narrower and worse than "shared secret":
   accounts collide by birthday at roughly 4,800 players and then *are* the same
   principal, with the same sessions and saves.
 
-It is documented as deliberate — `docs/parity.md` deviation 5 and
-`next-session.md` open item 4 both name it as the pre-real-console integration
+It is documented as deliberate — `docs/parity.md` deviation 5 names it as the pre-real-console integration
 item, and `platforms/wiiu-3ds/games/nex/account.go` is cited as the measured server for the flow. So:
 a known, documented shortcut, but not a time-boxed one, and it is already live.
 

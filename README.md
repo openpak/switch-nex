@@ -64,7 +64,6 @@ Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 ## Docs
 
 - [Protocol](docs/protocol.md)
-- [Evidence](docs/evidence.md)
 - [Deploy](docs/deploy.md)
 - [Notes](docs/notes.md)
 - [Parity record](docs/parity.md): per-title comparison with the measured server implementations
@@ -77,9 +76,7 @@ Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 - [Login shape conflict](docs/login-shape-conflict.md)
 - [Monopoly](docs/monopoly.md)
 - [First new NEX titles](docs/nex-first-batch.md)
-- [Unexplained push](docs/unexplained-push.md)
 - [Protocol facts](SPEC.md)
-- [Migration record](MIGRATION.md)
 
 ## Licence
 

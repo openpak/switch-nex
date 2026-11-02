@@ -1,4 +1,4 @@
-# Server parity — gap report (2026-09-16)
+# Server parity — gap report
 
 Method-by-method comparison of every protocol `switch-nexd` serves against the measured
 behaviour in our research notes: opcodes, wire field orders, error codes, response shapes.
@@ -13,10 +13,9 @@ from logs. It is all static comparison.
 
 ---
 
-## Status — closed 2026-09-16
+## Findings implemented
 
-All 43 findings are implemented, `GOWORK=off go build/vet/test ./...` is green,
-and the per-title registry and `docs/parity.md` are corrected. Two
+All 43 findings are implemented and the per-title registry and `docs/parity.md` are corrected. Two
 entries landed narrower than the heading suggests, and say so where they sit:
 
 - **#32 (login-name to PID map)** is groundwork only. The table is populated at

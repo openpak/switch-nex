@@ -1,4 +1,4 @@
-# Duck Game — plays online in Harbor (2026-10-24)
+# Duck Game
 
 Duck Game (`0100750001C70000`, update 1.0.4 / content 262144) is registered
 in `cmd/switch-nexd` as `duck-game` and runs from the published image
@@ -81,29 +81,6 @@ allocated **inactive** relay station without calling BindRelay. It cannot forwar
 traffic. Direct stations are retained and allocations release on leave/teardown.
 This operator canary is not production relay support and must be removed after
 the measurement. Other titles cannot enter this mode.
-
-Probe-only retail candidate deployed 2026-10-13 16:04:29 UTC, SHA-256
-`cb18ce9e5f929b563a4d2a420fc8fa6436873e2226bfba7cf2eedbb5a03bbbfe`.
-The parallel connectivity agent had replaced the old experimental mount with
-`releases/20261013-switch-duck-game/switch-nexd` (hash
-`fc3099bfbd61ea2800f1558a475854e03c93f5ad8fe68dac639b32166988f5e4`).
-The first canary deployment guard refused the obsolete mount; the next backed
-up and preserved the newer deployment instead of restoring historical binaries.
-Exact quadlet backup:
-`~/.config/containers/systemd/openpak-switch-duck-game.container.before-probe-only-20261013T160429Z`.
-Retail packet capture: `/tmp/duck-relay-retail-20261013.pcap` on production.
-No TEMP-DIAG station-address logger was deployed by this session.
-The first 180-second capture contained zero packets and no retail clients
-connected during that window; this is **not** evidence that Pia ignored a station.
-A bounded rotating capture (`/tmp/duck-relay-retail-live.pcap0`, up to two 2 MB
-files, 15-minute timeout) was started at 16:07 UTC while awaiting the owner's
-Switch-host / Harbor-join run. No retail result is recorded yet.
-
-After the run, restore the exact newer quadlet backup above if the live quadlet
-still mounts `switch-nexd-arm64-probe-only` and sets the probe environment flag,
-then reload user systemd and restart `openpak-switch-duck-game.service` while
-the title is idle. Preserve any subsequent operator changes. Do not restore the
-historical `.before-diag` binary over the newer connectivity deployment.
 
 Two local Atmosphere reports (`/tmp/duck-crash-1018.log` and
 `/tmp/duck-crash-1131.log`) contain a User Break with `nn::util::CompressZlib` on
@@ -190,8 +167,7 @@ constants and instruction observations are recorded here.
 | --- | ---: | ---: | ---: | --- |
 | `duck-game` | 23100 | 23101 | 23102 | `g25e42700-lp1.s.n.srv.nintendo.net` |
 
-**Deployed 2026-10-12 ~21:20 UTC** (local binary mount, not a published
-release). The block sits inside the planned 23000–23499 Switch-NEX range.
+Deployed from a local binary mount (not a published release). The block sits inside the planned 23000–23499 Switch-NEX range.
 
 - `deploy/nex-duck-game.yml` merged into the Traefik TCP maps (backup
   `dynamic.before-duck-game-20261012T212500Z.yml` on the host); exactly one

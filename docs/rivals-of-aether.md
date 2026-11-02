@@ -1,4 +1,4 @@
-# Rivals of Aether — 2026-10-27
+# Rivals of Aether
 
 Rivals of Aether (`0100D2700DE7C000`, update v655360) is registered in
 `cmd/switch-nexd` as `rivals-of-aether` (port base 23160). It shares the

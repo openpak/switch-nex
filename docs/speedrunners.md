@@ -1,4 +1,4 @@
-# SpeedRunners — 2026-10-27
+# SpeedRunners
 
 SpeedRunners (`0100C8B00C4AE000`, base v0) is registered in
 `cmd/switch-nexd` as `speedrunners` (port base 22360). It shares the

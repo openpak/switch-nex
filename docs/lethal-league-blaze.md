@@ -1,4 +1,4 @@
-# Lethal League Blaze — 2026-10-27
+# Lethal League Blaze
 
 Lethal League Blaze (`01003AB00983C000`, base v0) is registered in
 `cmd/switch-nexd` as `lethal-league-blaze` (port base 23170). It

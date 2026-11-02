@@ -1,4 +1,4 @@
-# Astroneer — 2026-10-27
+# Astroneer
 
 Astroneer (`0100E63013E60000`, UE4 project `Astro`) is registered in
 `cmd/switch-nexd` as `astroneer` (port base 23180). It shares the

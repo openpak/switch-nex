@@ -2,7 +2,7 @@
 
 The deployable artifact is `switch-nexd-arm64` (static, CGO off), wrapped by
 `Dockerfile.deploy` into `localhost/switch-nexd:latest` on the host. The
-deployed shape since the 2026-09-17 **host-networking cutover**: one
+deployed shape is **host-networking**: one
 `switch-nexd` container serving every title, quadlet `openpak-switch-nexd.service`
 (a **user** unit — `systemctl --user`, not the system manager), Traefik SNI for
 the auth stage, secure ports bound by the process itself on the host netns
@@ -48,8 +48,7 @@ cert, station address 127.0.0.1, one `-only <title>`.
 
 ## 2. Publish the image (registry path — this is what production runs)
 
-Production runs `ghcr.io/openpak/switch-nex:v0.1.0` as of 2026-09-16; it was
-the last service still building a `localhost/` image on the host. Build and
+Production runs `ghcr.io/openpak/switch-nex` from the registry. Build and
 publish from a dev machine:
 
 ```sh
@@ -192,7 +191,7 @@ TCP service in `traefik/dynamic.yml` carries:
 Order matters: every title must run v0.3.21+ **before** its service gets the header (an
 older switch-nexd reads the header as a broken TLS hello).
 
-**Live since 2026-10-10, but it does not carry the console's address yet.** Traefik
+**It does not carry the console's address yet.** Traefik
 itself is a rootless container behind `PublishPort`, and rootless podman's port forwarder
 rewrites every source to the bridge (10.89.x), so the header Traefik writes names
 10.89.x. switch-nexd treats that as "says nothing" and pairs ticketless CONNECTs by title
@@ -288,7 +287,7 @@ IP (same key, SANs copied from the old leaf — the 2026-09-17 reissue left
 **Recall persistence.** `-recall-file <path>` persists the IP-to-PID table that
 lets a console re-CONNECT to a secure port without replaying a full login. Left
 unset the table is memory-only and a restart refuses every console already
-mid-session. Live since 2026-09-16; the quadlet carries
+mid-session. The quadlet carries
 
 ```
 Volume=%h/openpak/deploy/switch-nex/state:/state:Z
@@ -368,9 +367,9 @@ now listens TCP there rather than UDP.
 
 ## Deployment (current)
 
-Deployed on quilted-waffle since 2026-09-16: `openpak-switch-nexd.service`
-(podman quadlet) serves all 14 Switch-era titles — auth through Traefik SNI,
-and since 2026-09-17 with `Network=host`, so the secure ports are bound by
+Runs on quilted-waffle as `openpak-switch-nexd.service`
+(podman quadlet), serving every Switch-era title — auth through Traefik SNI,
+with `Network=host`, so the secure ports are bound by
 the server itself and clients arrive with their real addresses. Each title
 also answers `GET /healthz` on its base+2 (e.g. `curl :22152/healthz` →
 `ok mario-kart-8-deluxe auth=22150/tls secure=22151/tls`); 200 only while

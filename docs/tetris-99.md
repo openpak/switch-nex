@@ -1,4 +1,4 @@
-# Tetris 99 — 2026-10-24
+# Tetris 99
 
 Tetris 99 (`010040600C5CE000`, update 2.6.0) is registered in `cmd/switch-nexd` as
 `tetris-99` on port block 23150 (auth 23150, secure 23151, healthz 23152), Eagle relay on

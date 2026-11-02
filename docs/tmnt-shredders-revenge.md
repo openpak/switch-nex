@@ -1,4 +1,4 @@
-# TMNT: Shredder's Revenge — 2026-10-24
+# TMNT: Shredder's Revenge
 
 Teenage Mutant Ninja Turtles: Shredder's Revenge (`0100FE701475A000`, update v589824) is
 registered in `cmd/switch-nexd` as `tmnt-shredders-revenge` on port block 23130. NEX serves

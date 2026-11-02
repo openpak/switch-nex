@@ -1,4 +1,4 @@
-# PAC-MAN 99 — 2026-10-24
+# PAC-MAN 99
 
 PAC-MAN 99 (`0100AD9012510000`, update v131072) is registered in `cmd/switch-nexd` as
 `pac-man-99` on port block 23140 (auth 23140, secure 23141, healthz 23142) with its Eagle
