@@ -7,6 +7,7 @@ OpenPak's Switch NEX Server.
 | Network | Nintendo Switch |
 | Protocol | NEX 4.x over PRUDPLite/TLS |
 | Image | `ghcr.io/openpak/switch-nex` |
+| Licence | AGPL-3.0-only |
 
 ## Titles
 
@@ -79,3 +80,7 @@ Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 - [Unexplained push](docs/unexplained-push.md)
 - [Protocol facts](SPEC.md)
 - [Migration record](MIGRATION.md)
+
+## Licence
+
+AGPL-3.0-only. See [LICENSE](LICENSE).
