@@ -29,7 +29,9 @@ if ! podman pull -q "$IMAGE" >/dev/null 2>&1; then
     echo "pull failed for $IMAGE; nothing to do"
     exit 0
 fi
-want=$(podman image inspect "$IMAGE" --format '{{.Digest}}')
+want=$(podman image inspect "$IMAGE" --format "{{.Id}}")
+# Image IDs, not digests: a container reports the per-platform manifest digest while
+# the pulled tag reports the manifest-list digest, so digests never compare equal.
 
 updated=0 deferred=0 current=0
 for f in "$UNITDIR"/openpak-switch-*.container; do
@@ -38,7 +40,7 @@ for f in "$UNITDIR"/openpak-switch-*.container; do
     title=${unit#openpak-switch-}
     container="switch-$title"
 
-    have=$(podman inspect "$container" --format '{{.ImageDigest}}' 2>/dev/null) || continue
+    have=$(podman inspect "$container" --format "{{.Image}}" 2>/dev/null) || continue
     if [ "$have" = "$want" ]; then
         current=$((current + 1))
         continue
