@@ -128,11 +128,12 @@ Pretendo's Monster Hunter XX server.
    `8c3661ff` Clubhouse. They are public constants baked into the game
    binaries, not secrets. PRUDPLite DATA frames are unsigned by protocol
    design; TLS carries the channel.
-5. **One unverified identity still stands in for accounts**: the PID derives
-   from the login username, which is accepted without proof, and nx-baas never
-   sees the player. This is the largest open item on the lineage and is written
-   up separately in `docs/identity-gap.md` — it is not a parity gap against the
-   prior measured server implementation (which binds to nx-baas) but a gap against our own `platforms/wiiu-3ds/games/nex`.
+5. **Identity is resolved through nx-baas and enforced.** Every login
+   presents the console's token; `switch-nexd` resolves it against the nx-baas
+   internal API (`NX_INTERNAL_URL`/`NX_INTERNAL_KEY`) and refuses logins it
+   cannot prove (`-require-identity`, default on; the honeypot alone runs with
+   it off). Production titles log `identity: enforcing` at start. The name-only
+   fallback in `docs/identity-gap.md` was the migration path to get here.
 
 ## Clubhouse Games 51 — fact provenance (2026-09-16)
 
