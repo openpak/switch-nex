@@ -307,7 +307,21 @@ func authenticationToken(r *rmc.Reader) (string, bool) {
 	if err != nil || token == "" {
 		return "", false
 	}
-	return token, true
+	return trimToken(token), true
+}
+
+// trimToken cuts a login token at the first byte a BAAS token cannot contain: a JWT or an
+// "nx2." claim is base64url segments joined by dots. An emulator once handed its title the
+// token without a terminator and the title sent 339 bytes of stale buffer behind it, which
+// nx-baas rightly refused (2306-0806 on every login, 2026-11-03). A retail console never
+// trips this; the cut is for the token, not a change in what is proven.
+func trimToken(token string) string {
+	if i := strings.IndexFunc(token, func(r rune) bool {
+		return !(r == '.' || r == '-' || r == '_' || r >= '0' && r <= '9' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z')
+	}); i >= 0 {
+		return token[:i]
+	}
+	return token
 }
 
 // loginResultCode maps a resolution failure onto the code the console acts on.

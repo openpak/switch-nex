@@ -8,6 +8,13 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-03 — v0.9.2: login token trimmed at the first non-token byte
+
+An emulator handed its title an id_token without a terminator; the title sent the token with
+339 bytes of stale buffer behind it and nx-baas refused every login (2306-0806). switch-nexd
+now cuts the login token at the first byte outside the base64url-and-dots alphabet before
+asking nx-baas. A retail console never trips this. Found in the Harbor title sweep (card #11).
+
 ## 2026-11-02 — v0.9.1: rankings contract for Mario Kart 8 Deluxe
 
 - `mario-kart-8-deluxe`: serves the OpenPak rankings contract (network `switch`) on `RANKINGS_ADDR` (for example `:9090`; off when empty), read-only, container network only. Boards: one time-trial board per course with a stored time (fastest first) and one board per tournament season with a stored score (highest first), straight from the existing Postgres tables. Rows carry the NEX pid only. The other titles keep their boards in memory or store none, so they serve nothing.
