@@ -55,13 +55,43 @@ type backend interface {
 	boards(ctx context.Context, title string) ([]boardInfo, error)
 	// list returns a board best first: score by order, then who set it first, then pid.
 	list(ctx context.Context, title, board string) ([]entry, error)
+	// Small opaque records a protocol keeps beside the scores (common data, tallies, votes).
+	putBlob(ctx context.Context, title, ns, k string, v []byte) error
+	deleteBlob(ctx context.Context, title, ns, k string) error
+	blobs(ctx context.Context, title, ns string) (map[string][]byte, error)
 }
 
 // Store is the shared score store.
 type Store struct{ be backend }
 
 // NewMemory returns a store that keeps scores in memory only.
-func NewMemory() *Store { return &Store{be: &memory{rows: map[key]entry{}}} }
+func NewMemory() *Store {
+	return &Store{be: &memory{rows: map[key]entry{}, kv: map[[3]string][]byte{}}}
+}
+
+// PutBlob stores an opaque record under (title, ns, k), replacing any earlier one.
+func (s *Store) PutBlob(ctx context.Context, title, ns, k string, v []byte) error {
+	if s == nil {
+		return nil
+	}
+	return s.be.putBlob(ctx, title, ns, k, v)
+}
+
+// DeleteBlob removes a record.
+func (s *Store) DeleteBlob(ctx context.Context, title, ns, k string) error {
+	if s == nil {
+		return nil
+	}
+	return s.be.deleteBlob(ctx, title, ns, k)
+}
+
+// Blobs returns every record of a namespace, for loading at startup.
+func (s *Store) Blobs(ctx context.Context, title, ns string) (map[string][]byte, error) {
+	if s == nil {
+		return nil, nil
+	}
+	return s.be.blobs(ctx, title, ns)
+}
 
 // Open returns a Postgres-backed store, or a memory store when dsn is empty.
 func Open(ctx context.Context, dsn string) (*Store, error) {
@@ -130,6 +160,33 @@ type key struct {
 type memory struct {
 	mu   sync.Mutex
 	rows map[key]entry
+	kv   map[[3]string][]byte
+}
+
+func (m *memory) putBlob(_ context.Context, title, ns, k string, v []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.kv[[3]string{title, ns, k}] = append([]byte(nil), v...)
+	return nil
+}
+
+func (m *memory) deleteBlob(_ context.Context, title, ns, k string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.kv, [3]string{title, ns, k})
+	return nil
+}
+
+func (m *memory) blobs(_ context.Context, title, ns string) (map[string][]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[string][]byte{}
+	for k, v := range m.kv {
+		if k[0] == title && k[1] == ns {
+			out[k[2]] = v
+		}
+	}
+	return out, nil
 }
 
 func better(order uint8, a, b int64) bool {

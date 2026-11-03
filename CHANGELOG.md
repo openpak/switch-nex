@@ -8,6 +8,13 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-03 — v0.10.3: Ranking2 boards, common data and Splatfest tallies survive a restart
+
+- Persistence audit (card openpak/prds#83): the Ranking2 in-game boards, Ranking2 and Ranking common data and the
+  Splatoon 2 Splatfest votes and team tallies were memory only. They are now written through to a new
+  `scores.blobs` table of the score store (Postgres with `SWITCH_NEX_DATABASE_URL`) and loaded on the first request
+  after a start. Covered by `TestRestartKeepsRankingState`.
+
 ## 2026-11-03 — v0.10.2: two players behind one router keep their LAN stations
 
 - Brings the `fix/same-public-ip-lan` work (commits 294a3bb, 6e23daf, until now only in a hand-built binary mounted

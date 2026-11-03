@@ -66,13 +66,18 @@ type rankingStore struct {
 	common map[uint64][]byte
 }
 
-func (rs *rankingStore) put(pid uint64, blob []byte) {
+func (rs *rankingStore) putMem(pid uint64, blob []byte) {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	if rs.common == nil {
 		rs.common = map[uint64][]byte{}
 	}
 	rs.common[pid] = blob
+}
+
+func (rs *rankingStore) put(env *Env, pid uint64, blob []byte) {
+	rs.putMem(pid, blob)
+	env.putBlob(nsRkCommon, fmt.Sprintf("%x", pid), blob)
 }
 
 func (rs *rankingStore) get(pid uint64) []byte {
@@ -82,6 +87,7 @@ func (rs *rankingStore) get(pid uint64) []byte {
 }
 
 func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	env.hydrate()
 	if env.Name == "splatoon-2" {
 		if resp, ok := rankingSplatoon2(env, c, msg); ok {
 			return resp
@@ -104,7 +110,7 @@ func rankingHandler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []by
 		// MK8D's profile is 132 bytes; the cap keeps a blob inside the QBuffer
 		// (u16) it is served back in.
 		if blob, err := r.Buffer(); err == nil && len(blob) <= commonDataMaxLen {
-			env.ranking.put(c.PID, blob)
+			env.ranking.put(env, c.PID, blob)
 			if env.mk8dReady() {
 				uid, _ := r.U64()
 				ctx, cancel := ctxDB()

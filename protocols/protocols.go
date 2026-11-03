@@ -248,6 +248,7 @@ type Env struct {
 	ranking     rankingStore
 	festivals   festivalStore // Splatoon 2 Splatfest tallies (splatoon2_fest.go)
 	r2common    r2CommonStore
+	persistOnce sync.Once // loads the durable copies of the stores above (persist.go)
 	smm2        smm2Store
 
 	// SMM2 and SMM2Blobs, both set, give Super Mario Maker 2 durable users and

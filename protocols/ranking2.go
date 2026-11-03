@@ -28,6 +28,7 @@
 package protocols
 
 import (
+	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -92,7 +93,7 @@ func (s *r2CommonStore) drop(pid uint64) {
 }
 
 // submit keeps the best score per (category, player).
-func (s *r2CommonStore) submit(category uint32, e r2Entry) {
+func (s *r2CommonStore) submit(category uint32, e r2Entry) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.boards == nil {
@@ -102,10 +103,14 @@ func (s *r2CommonStore) submit(category uint32, e r2Entry) {
 		s.boards[category] = map[uint64]r2Entry{}
 	}
 	if old, ok := s.boards[category][e.pid]; ok && old.score >= e.score {
-		return
+		return false
 	}
 	s.boards[category][e.pid] = e
+	return true
 }
+
+// load restores a persisted entry at startup.
+func (s *r2CommonStore) load(category uint32, e r2Entry) { s.submit(category, e) }
 
 // board returns a category's entries, best first.
 func (s *r2CommonStore) board(category uint32) []r2Entry {
@@ -125,6 +130,7 @@ func (s *r2CommonStore) board(category uint32) []r2Entry {
 }
 
 func ranking2Handler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
+	env.hydrate()
 	r := rmc.NewReader(msg.Body)
 	switch msg.MethodID {
 	case 0x01: // PutScore(list<Ranking2ScoreData>, u64 nexUniqueID) -> empty
@@ -161,11 +167,14 @@ func ranking2Handler(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []b
 		if err != nil {
 			return errorResp(msg, rmc.ResultRanking2InvalidArg)
 		}
-		env.r2common.put(c.PID, r2Common{userName: userName, mii: mii, binaryData: binaryData})
+		rc := r2Common{userName: userName, mii: mii, binaryData: binaryData}
+		env.r2common.put(c.PID, rc)
+		env.keepR2Common(c.PID, rc)
 		return success(msg, nil)
 
 	case 0x04: // DeleteCommonData -> empty
 		env.r2common.drop(c.PID)
+		env.deleteBlob(nsR2Common, fmt.Sprintf("%x", c.PID))
 		return success(msg, nil)
 
 	case 0x05: // GetRanking(Ranking2GetParam) -> Ranking2Info
@@ -230,7 +239,10 @@ func putRanking2Score(env *Env, c *prudplite.Connection, r *rmc.Reader) []byte {
 	}
 	uniqueID, _ := r.U64()
 	for _, s := range scores {
-		env.r2common.submit(s.category, r2Entry{pid: c.PID, nexUniqueID: uniqueID, misc: s.misc, score: s.score})
+		en := r2Entry{pid: c.PID, nexUniqueID: uniqueID, misc: s.misc, score: s.score}
+		if env.r2common.submit(s.category, en) {
+			env.keepR2Board(s.category, en)
+		}
 		keepRanking2Score(env, c.PID, s.category, s.score)
 	}
 	return nil

@@ -22,6 +22,14 @@ CREATE TABLE IF NOT EXISTS scores.entries (
   PRIMARY KEY (title, board, pid)
 );
 CREATE INDEX IF NOT EXISTS scores_entries_asc ON scores.entries (title, board, score, updated);
+CREATE TABLE IF NOT EXISTS scores.blobs (
+  title text NOT NULL,
+  ns text NOT NULL,
+  k text NOT NULL,
+  v bytea NOT NULL,
+  updated timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (title, ns, k)
+);
 `
 
 // migrate creates the schema; the advisory lock keeps the title processes, which all open
@@ -93,6 +101,35 @@ ORDER BY CASE WHEN ord = 0 THEN score ELSE -score END, updated, pid LIMIT $3`, t
 			return nil, err
 		}
 		out = append(out, entry{board: board, pid: uint64(pid), score: score, order: uint8(o), updated: upd})
+	}
+	return out, rows.Err()
+}
+
+func (p *pg) putBlob(ctx context.Context, title, ns, k string, v []byte) error {
+	_, err := p.pool.Exec(ctx, `INSERT INTO scores.blobs (title, ns, k, v) VALUES ($1,$2,$3,$4)
+ON CONFLICT (title, ns, k) DO UPDATE SET v = $4, updated = now()`, title, ns, k, v)
+	return err
+}
+
+func (p *pg) deleteBlob(ctx context.Context, title, ns, k string) error {
+	_, err := p.pool.Exec(ctx, `DELETE FROM scores.blobs WHERE title=$1 AND ns=$2 AND k=$3`, title, ns, k)
+	return err
+}
+
+func (p *pg) blobs(ctx context.Context, title, ns string) (map[string][]byte, error) {
+	rows, err := p.pool.Query(ctx, `SELECT k, v FROM scores.blobs WHERE title=$1 AND ns=$2`, title, ns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]byte{}
+	for rows.Next() {
+		var k string
+		var v []byte
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		out[k] = v
 	}
 	return out, rows.Err()
 }

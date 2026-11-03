@@ -23,7 +23,7 @@
 // These ids collide with other titles' Ranking methods (0x12 GetCompetitionInfo, 0x13 SubmitTime),
 // so everything here is gated on the title name.
 //
-// The team tallies answered to the game are in memory and reset on restart. Each player's summed
+// The team tallies and votes answered to the game are kept in the score store's blob table (persist.go) and survive a restart. Each player's summed
 // contribution (the score field of 0x14) is also kept in Env.Scores, board "fest<id>", and served
 // through the rankings contract; the first upload per (festival, player) is a splatfests_joined event.
 package protocols
@@ -112,6 +112,7 @@ func (s *festivalStore) festivalResult(id uint32) []byte {
 
 // rankingSplatoon2 handles the Splatfest methods; ok is false for any other method.
 func rankingSplatoon2(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) (resp []byte, ok bool) {
+	env.hydrate()
 	r := rmc.NewReader(msg.Body)
 	st := &env.festivals
 	switch msg.MethodID {
@@ -137,6 +138,7 @@ func rankingSplatoon2(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) (r
 			t.votes[c.PID] = team // a repeat vote replaces the earlier one
 		}
 		st.mu.Unlock()
+		env.keepFestVote(id, c.PID, team)
 		log.Printf("[%s] ranking: pid=%s festival %d vote team=%d", env.Name, redact.Tag(c.PID), id, team)
 		return success(msg, nil), true
 
@@ -153,11 +155,14 @@ func rankingSplatoon2(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) (r
 		if e0 != nil || e1 != nil || e2 != nil || e3 != nil || e4 != nil || team >= fest2Teams {
 			return errorResp(msg, rmc.ResultInvalidArgument), true
 		}
+		var sums [fest2Teams]uint64
 		st.mu.Lock()
 		if t := st.tally(id, true); t != nil {
 			t.scores[team] += uint64(score)
+			sums = t.scores
 		}
 		st.mu.Unlock()
+		env.keepFestSum(id, sums)
 		keepFestivalScore(env, c.PID, id, score)
 		// One Splatfest joined per (festival, player); the distinct key is the festival id.
 		env.Rewards.Event(emit.Event{ID: fmt.Sprintf("s2:fest:%d:%d", id, c.PID), Metric: "splatfests_joined",
@@ -171,8 +176,18 @@ func rankingSplatoon2(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) (r
 			return errorResp(msg, rmc.ResultInvalidArgument), true
 		}
 		st.mu.Lock()
+		var voters []uint64
+		if t := st.fests[id]; t != nil {
+			for pid := range t.votes {
+				voters = append(voters, pid)
+			}
+		}
 		delete(st.fests, id)
 		st.mu.Unlock()
+		for _, pid := range voters {
+			env.deleteBlob(nsFestVote, fmt.Sprintf("%d/%x", id, pid))
+		}
+		env.deleteBlob(nsFestSum, fmt.Sprint(id))
 		return success(msg, nil), true
 	}
 	return nil, false
