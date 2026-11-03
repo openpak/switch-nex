@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/openpak/switch-nex/protocols"
 )
@@ -24,6 +25,7 @@ func TestRankingsAutoPortsAreFree(t *testing.T) {
 
 func TestConfigureScoresPerTitle(t *testing.T) {
 	t.Setenv("SWITCH_NEX_DATABASE_URL", "")
+	t.Setenv("SWITCH_NEX_ALLOW_MEMORY", "1")
 	t.Setenv("RANKINGS_ADDR", "")
 	for _, tt := range titles {
 		env := protocols.NewEnv(tt.name, "127.0.0.1", tt.base)
@@ -36,5 +38,20 @@ func TestConfigureScoresPerTitle(t *testing.T) {
 		if env.Scores != nil && env.Scores.Durable() {
 			t.Errorf("%s: durable without a database url", tt.name)
 		}
+	}
+}
+
+// Without a database a title that needs one must not quietly keep scores in memory.
+func TestScoreStoreRefusesWithoutDatabase(t *testing.T) {
+	t.Setenv("SWITCH_NEX_ALLOW_MEMORY", "")
+	if st, err := openScoreStore("", 1, 0); err == nil || st != nil {
+		t.Fatalf("empty dsn accepted: %v %v", st, err)
+	}
+	if st, err := openScoreStore("postgres://x:y@127.0.0.1:1/none?sslmode=disable&connect_timeout=1", 2, time.Millisecond); err == nil || st != nil {
+		t.Fatalf("unreachable database accepted: %v %v", st, err)
+	}
+	t.Setenv("SWITCH_NEX_ALLOW_MEMORY", "1")
+	if st, err := openScoreStore("", 1, 0); err != nil || st == nil || st.Durable() {
+		t.Fatalf("explicit memory mode: %v %v", st, err)
 	}
 }

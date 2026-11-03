@@ -7,9 +7,9 @@ package protocols
 // key, because gathering ids restart with the process.
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	emit "github.com/openpak/rewards-emit"
@@ -23,100 +23,36 @@ func SessionMin() time.Duration {
 	return 3 * time.Minute
 }
 
-type sessionPair struct {
-	gid     string
-	pid     uint64
-	created time.Time
-}
-
-type sessionClock struct {
-	min     time.Duration
-	since   map[string]time.Time
-	emitted map[string]bool
-}
-
-func newSessionClock(min time.Duration) *sessionClock {
-	return &sessionClock{min: min, since: map[string]time.Time{}, emitted: map[string]bool{}}
-}
-
-// tick takes the gatherings now (key -> participants) and returns the pairs that just crossed
-// the minimum. A gathering with fewer than two players resets its players.
-func (c *sessionClock) tick(now time.Time, gs map[string][]uint64, created map[string]time.Time) (done []sessionPair) {
-	seen := map[string]bool{}
-	for g, pids := range gs {
-		if len(pids) < 2 {
-			continue
-		}
-		for _, pid := range pids {
-			k := fmt.Sprintf("%s/%d", g, pid)
-			seen[k] = true
-			if _, ok := c.since[k]; !ok {
-				c.since[k] = now
-			}
-			if !c.emitted[k] && now.Sub(c.since[k]) >= c.min {
-				c.emitted[k] = true
-				done = append(done, sessionPair{g, pid, created[g]})
-			}
-		}
-	}
-	for k := range c.since {
-		if !seen[k] {
-			delete(c.since, k)
-		}
-	}
-	for k := range c.emitted {
-		if !seen[k] {
-			delete(c.emitted, k)
-		}
-	}
-	sort.Slice(done, func(i, j int) bool { return done[i].gid+fmt.Sprint(done[i].pid) < done[j].gid+fmt.Sprint(done[j].pid) })
-	return done
-}
-
-// snapshot copies each gathering's participants under the title's lock.
-func (e *Env) sessionSnapshot() (map[string][]uint64, map[string]time.Time) {
+// sessionRooms copies each gathering's participants under the title's lock. The room id is the
+// gathering id plus its creation time: gathering ids restart with the process.
+func (e *Env) sessionRooms() []emit.Room {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	gs := map[string][]uint64{}
-	created := map[string]time.Time{}
+	var rooms []emit.Room
 	if e.Match == nil {
-		return gs, created
+		return rooms
 	}
 	for _, g := range e.Match.all() {
-		k := fmt.Sprintf("%d-%d", g.sess.GID, g.created.Unix())
+		r := emit.Room{ID: fmt.Sprintf("%d-%d", g.sess.GID, g.created.Unix())}
 		for pid := range g.participants {
-			gs[k] = append(gs[k], pid)
+			r.Players = append(r.Players, emit.Identity{Namespace: "switch", Subject: fmt.Sprintf("%016x", pid)})
 		}
-		created[k] = g.created
+		rooms = append(rooms, r)
 	}
-	return gs, created
+	return rooms
 }
 
 // WatchSessions reports this title's online sessions to rewards under metric (for example
-// "kart_sessions.mk8dx"). It returns a stop function; with rewards unconfigured it does nothing.
+// "kart_sessions.mk8dx"). The session clock is kept in the rewards-emit database when one is
+// configured, so a restart loses no half-served session. It returns a stop function; with
+// rewards unconfigured it does nothing.
 func (e *Env) WatchSessions(metric string, min, every time.Duration) (stop func()) {
 	if !e.Rewards.Enabled() {
 		return func() {}
 	}
-	done := make(chan struct{})
-	go func() {
-		clock := newSessionClock(min)
-		t := time.NewTicker(every)
-		defer t.Stop()
-		for {
-			gs, created := e.sessionSnapshot()
-			for _, p := range clock.tick(time.Now(), gs, created) {
-				e.Rewards.Event(emit.Event{
-					ID: fmt.Sprintf("%s:%s:%d", metric, p.gid, p.pid), Metric: metric,
-					Player: &emit.Identity{Namespace: "switch", Subject: fmt.Sprintf("%016x", p.pid)}, Keys: []string{p.gid},
-				})
-			}
-			select {
-			case <-t.C:
-			case <-done:
-				return
-			}
-		}
-	}()
-	return func() { close(done) }
+	s := emit.NewSessions(e.Rewards, metric, min)
+	e.Rewards.PersistSessions("sessions/"+metric, s)
+	ctx, cancel := context.WithCancel(context.Background())
+	s.Watch(ctx, every, e.sessionRooms)
+	return cancel
 }

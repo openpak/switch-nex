@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/openpak/switch-nex/internal/smm2store"
 	"github.com/openpak/switch-nex/protocols"
@@ -13,7 +13,8 @@ import (
 
 // configureSMM2 gives Super Mario Maker 2 durable users and course storage when
 // SMM2_DATABASE_URL is set, and serves the course site's read API on
-// SMM2_API_ADDR. Unset, the title keeps its in-memory profiles and empty lists.
+// SMM2_API_ADDR. Unset or unreachable, the title refuses to start
+// unless SWITCH_NEX_ALLOW_MEMORY=1 (then: in-memory profiles and empty lists).
 //
 //	SMM2_DATABASE_URL     postgres://... (database smm2, schema smm2)
 //	SMM2_S3_ENDPOINT      bucket endpoint this process dials
@@ -28,14 +29,16 @@ func configureSMM2(env *protocols.Env) {
 	// need not carry a secret: the shared .env supplies them.
 	getenv := func(k string) string { return os.ExpandEnv(os.Getenv(k)) }
 	dsn := getenv("SMM2_DATABASE_URL")
-	if dsn == "" {
-		return
+	var st *smm2store.Store
+	err := errors.New("SMM2_DATABASE_URL is not set")
+	if dsn != "" {
+		err = openWithRetry("smm2 store", dbAttempts, dbWait, func(ctx context.Context) (e error) {
+			st, e = smm2store.Open(ctx, dsn)
+			return e
+		})
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	st, err := smm2store.Open(ctx, dsn)
 	if err != nil {
-		log.Printf("[%s] smm2 store: %v (profiles stay in memory, no course storage)", env.Name, err)
+		requireDB(env.Name, "smm2 store", err)
 		return
 	}
 	pub := getenv("SMM2_S3_PUBLIC_URL")

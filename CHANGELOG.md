@@ -8,6 +8,19 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-03 — v0.10.4: no silent fall back to memory, reconnect table and session clock in Postgres
+
+- A title with Ranking or Ranking2 now refuses to start (after four attempts) when `SWITCH_NEX_DATABASE_URL` is
+  unset or unreachable; Mario Kart 8 Deluxe does the same for `MK8D_DATABASE_URL` and Super Mario Maker 2 for
+  `SMM2_DATABASE_URL`. `SWITCH_NEX_ALLOW_MEMORY=1` is the explicit local-development override. One score store
+  (two connections) now serves the whole process.
+- The `-recall-file` reconnect table (address to PID, 24 h TTL) is kept in the score store's blob table when
+  `SWITCH_NEX_DATABASE_URL` works. The first start carries the existing file over and leaves it in place; without a
+  database the file is used as before. The honeypot's `handshakes.jsonl` is a capture log, not player state, and stays a file.
+- rewards-emit v0.3.0: the session clock goes through `PersistSessions` (`sessions/<metric>`), so a restart no
+  longer loses a half-served session; with `REWARDS_EMIT_DATABASE_URL` the reward event outbox is durable too. Session
+  event ids are now `<metric>:<gathering>-<created>:switch:<pid hex>`; the SMM2 title no longer creates a second client.
+
 ## 2026-11-03 — v0.10.3: Ranking2 boards, common data and Splatfest tallies survive a restart
 
 - Persistence audit (card openpak/prds#83): the Ranking2 in-game boards, Ranking2 and Ranking common data and the

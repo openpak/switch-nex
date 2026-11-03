@@ -1250,6 +1250,17 @@ func main() {
 	// port repeatedly without replaying the full auth, so a short window
 	// refuses legitimate players mid-session.
 	recall := newRecall(24*time.Hour, *recallFile)
+	// The reconnect table goes to Postgres when there is one; a title that needs the database
+	// refuses to start in configureScores, so a failure here only keeps the file.
+	if st, err := scoreStore(); err == nil {
+		key := *only
+		if key == "" {
+			key = "_all"
+		}
+		recall.useStore(st, key)
+	} else {
+		log.Printf("recall: no database (%v); keeping %q", err, *recallFile)
+	}
 
 	// The key is a secret, so the environment is the better home for it: a
 	// command-line flag shows up in ps for every user on the box. Flags still
@@ -1298,14 +1309,18 @@ func main() {
 		svc := newService(t, *stationAddress, recall, ids)
 		svc.env.Connectivity = connectivityClient
 		if ms := sessionMetrics(t.name, svc.env); len(ms) > 0 {
-			svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
+			if svc.env.Rewards == nil {
+				svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
+			}
 			for _, m := range ms {
 				svc.env.WatchSessions(m, protocols.SessionMin(), 20*time.Second)
 			}
 		}
 		configureScores(svc.env, t.base)
 		if t.name == "super-mario-maker-2" {
-			svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
+			if svc.env.Rewards == nil {
+				svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
+			}
 			configureSMM2(svc.env)
 		}
 		if t.name == "mario-kart-8-deluxe" {

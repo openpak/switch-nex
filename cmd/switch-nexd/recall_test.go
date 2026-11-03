@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/openpak/switch-nex/internal/scorestore"
 	"os"
 	"path/filepath"
 	"testing"
@@ -139,6 +140,37 @@ func TestAddressClassification(t *testing.T) {
 	} {
 		if addressSaysNothing(host) != nothing {
 			t.Errorf("%q: says nothing = %v", host, !nothing)
+		}
+	}
+}
+
+// With the score store the reconnect table lives in the database: the first start carries the
+// file's entries over (leaving the file), a second instance on the same store sees them.
+func TestReconnectTableInTheStore(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "recall.json")
+	r, _ := testRecall(t)
+	r.file = file
+	r.noteLogin(mk8d, home, 1001)
+	r.flush()
+	before, _ := os.ReadFile(file)
+
+	st := scorestore.NewMemory()
+	r2 := newRecall(24*time.Hour, file)
+	r2.attach(st, "t")
+	if pid, how := r2.bind(mk8d, home); pid != 1001 || how != bindReconnect {
+		t.Fatalf("file entries lost in migration: pid=%d (%s)", pid, how)
+	}
+	r2.noteLogin(mk8d, "145.241.199.30", 1002)
+	r2.flush()
+	if after, _ := os.ReadFile(file); string(after) != string(before) {
+		t.Fatal("the file was rewritten while the database works")
+	}
+
+	r3 := newRecall(24*time.Hour, "")
+	r3.attach(st, "t")
+	for host, want := range map[string]uint64{home: 1001, "145.241.199.30": 1002} {
+		if pid, how := r3.bind(mk8d, host); pid != want || how != bindReconnect {
+			t.Fatalf("%s: pid=%d (%s), want %d", host, pid, how, want)
 		}
 	}
 }

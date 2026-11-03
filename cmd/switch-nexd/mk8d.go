@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/openpak/switch-nex/internal/mk8dstore"
 	"github.com/openpak/switch-nex/internal/rankingsapi"
@@ -14,8 +14,8 @@ import (
 
 // configureMK8D gives Mario Kart 8 Deluxe durable rankings, competitions,
 // tournaments and ghosts when MK8D_DATABASE_URL is set, and serves the
-// OpenKart read API on MK8D_API_ADDR. Unset, the title keeps its stateless
-// behaviour (empty boards, no DataStore).
+// OpenKart read API on MK8D_API_ADDR. Unset or unreachable, the title refuses
+// to start unless SWITCH_NEX_ALLOW_MEMORY=1 (then: empty boards, no DataStore).
 //
 //	MK8D_DATABASE_URL     postgres://... (database mk8d, schema mk8d)
 //	MK8D_S3_ENDPOINT      bucket endpoint this process dials
@@ -29,14 +29,16 @@ import (
 func configureMK8D(env *protocols.Env) {
 	getenv := func(k string) string { return os.ExpandEnv(os.Getenv(k)) }
 	dsn := getenv("MK8D_DATABASE_URL")
-	if dsn == "" {
-		return
+	var st *mk8dstore.Store
+	err := errors.New("MK8D_DATABASE_URL is not set")
+	if dsn != "" {
+		err = openWithRetry("mk8d store", dbAttempts, dbWait, func(ctx context.Context) (e error) {
+			st, e = mk8dstore.Open(ctx, dsn)
+			return e
+		})
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	st, err := mk8dstore.Open(ctx, dsn)
 	if err != nil {
-		log.Printf("[%s] mk8d store: %v (rankings stay empty)", env.Name, err)
+		requireDB(env.Name, "mk8d store", err)
 		return
 	}
 	env.MK8D = st

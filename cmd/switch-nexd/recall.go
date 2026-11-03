@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net"
@@ -8,6 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/openpak/switch-nex/internal/scorestore"
 )
 
 // recall pairs a ticketless secure CONNECT with the login it belongs to.
@@ -37,7 +40,10 @@ import (
 // household). Those are refused. Only the ticket separates them, which is what
 // the "prudps" scheme makes the client send.
 //
-// The seen table SURVIVES A RESTART (debounced writes to -recall-file, re-read
+// The seen table SURVIVES A RESTART: with SWITCH_NEX_DATABASE_URL it is kept in the score
+// store's blob table (Postgres, useStore); without one it falls back to debounced writes to
+// -recall-file. On the first start with a database the file is read and moved into it (the
+// file is left in place). Either way it is re-read
 // at startup), so a console mid-session that re-CONNECTs after a restart is
 // not refused for want of a login the server forgot. pending does not: a login
 // older than recallByTitleWindow is no use to anyone.
@@ -48,6 +54,9 @@ type recall struct {
 	names   map[string]uint64           // login name -> PID
 	ttl     time.Duration
 	file    string
+	store   *scorestore.Store // Postgres copy of the seen table; nil: the file only
+	key     string            // blob title the table is kept under
+	loop    sync.Once
 	dirty   atomic.Bool
 	now     func() time.Time // tests move the clock
 }
@@ -108,9 +117,47 @@ func newRecall(ttl time.Duration, file string) *recall {
 	}
 	r.load()
 	if file != "" {
-		go r.flushLoop()
+		r.loop.Do(func() { go r.flushLoop() })
 	}
 	return r
+}
+
+// recallNS and recallBlobKey place the seen table in the score store's blob table.
+const (
+	recallNS      = "recall"
+	recallBlobKey = "seen"
+)
+
+// useStore keeps the seen table in st under key (the titles this process serves). A table
+// already in the database wins; otherwise what the file held is carried over and written on
+// the next flush. The file itself is never touched again while the database works.
+func (r *recall) useStore(st *scorestore.Store, key string) {
+	if st == nil || !st.Durable() {
+		return
+	}
+	r.attach(st, key)
+}
+
+func (r *recall) attach(st *scorestore.Store, key string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	m, err := st.Blobs(ctx, key, recallNS)
+	if err != nil {
+		log.Printf("recall: database read failed (%v); keeping the file", err)
+		return
+	}
+	r.mu.Lock()
+	r.store, r.key = st, key
+	r.mu.Unlock()
+	if b, ok := m[recallBlobKey]; ok {
+		r.mu.Lock()
+		r.seen = map[string]map[uint64]int64{}
+		r.mu.Unlock()
+		r.parse(b, "database")
+	} else {
+		r.dirty.Store(true) // carry the file's entries (if any) into the database
+	}
+	r.loop.Do(func() { go r.flushLoop() })
 }
 
 // addressSaysNothing reports whether a source address is one a NAT or a proxy
@@ -257,13 +304,19 @@ func (r *recall) load() {
 	if err != nil {
 		return
 	}
+	r.parse(b, r.file)
+}
+
+func (r *recall) parse(b []byte, from string) {
 	var m map[string][]recallEntry
 	if json.Unmarshal(b, &m) != nil {
-		log.Printf("recall: %s is not in the current shape; starting empty", r.file)
+		log.Printf("recall: %s is not in the current shape; starting empty", from)
 		return
 	}
 	n := 0
 	now := r.now()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for k, es := range m {
 		for _, e := range es {
 			if e.PID == 0 || now.Sub(time.Unix(e.At, 0)) > r.ttl {
@@ -276,7 +329,7 @@ func (r *recall) load() {
 			n++
 		}
 	}
-	log.Printf("recall: restored %d entry(ies) from %s", n, r.file)
+	log.Printf("recall: restored %d entry(ies) from %s", n, from)
 }
 
 func (r *recall) flushLoop() {
@@ -294,6 +347,7 @@ func (r *recall) flush() {
 	now := r.now()
 	r.mu.Lock()
 	out := map[string][]recallEntry{}
+	st, key := r.store, r.key
 	n := 0
 	for k, pids := range r.seen {
 		for pid, at := range pids {
@@ -314,6 +368,20 @@ func (r *recall) flush() {
 
 	b, err := json.Marshal(out)
 	if err != nil {
+		return
+	}
+	if st != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := st.PutBlob(ctx, key, recallNS, recallBlobKey, b)
+		cancel()
+		if err == nil {
+			return
+		}
+		log.Printf("recall: database write failed (%v)", err)
+		r.dirty.Store(true)
+		return
+	}
+	if r.file == "" {
 		return
 	}
 	tmp := r.file + ".tmp"
