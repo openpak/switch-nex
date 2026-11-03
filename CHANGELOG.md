@@ -8,6 +8,9 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.11.0 — 2026-11-03
+- Per-RMC logging: one line per auth and secure RMC call (title, stage, protocol, method, reply size, ms) on stderr. Never the body.
+
 ## 2026-11-03 — v0.10.4: no silent fall back to memory, reconnect table and session clock in Postgres
 
 - A title with Ranking or Ranking2 now refuses to start (after four attempts) when `SWITCH_NEX_DATABASE_URL` is

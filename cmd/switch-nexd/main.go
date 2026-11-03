@@ -1397,7 +1397,10 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 		StreamID:  1,
 		AccessKey: t.accessKey,
 		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-			return handleAuthRMC(ids, recall, env, targetKey, c, msg)
+			start := time.Now()
+			out := handleAuthRMC(ids, recall, env, targetKey, c, msg)
+			logRMC(env.Name, "auth", msg, out, start)
+			return out
 		},
 	}
 	s.secure = &prudplite.Endpoint{
@@ -1440,7 +1443,10 @@ func newService(t title, stationAddress string, recall *recall, ids *identity) *
 			log.Printf("[%s] secure: connected pid=%s cid=%d host=%s ticket=%t", env.Name, redact.Tag(c.PID), c.CID, redact.Tag(c.Host), len(c.SessionKey) > 0)
 		},
 		OnRMC: func(c *prudplite.Connection, msg *rmc.RMCMessage) []byte {
-			return protocols.Dispatch(env, c, msg)
+			start := time.Now()
+			out := protocols.Dispatch(env, c, msg)
+			logRMC(env.Name, "secure", msg, out, start)
+			return out
 		},
 		OnDisconnect: func(c *prudplite.Connection) {
 			env.Disconnected(c.PID)
@@ -1737,4 +1743,10 @@ func randomRead(b []byte) (int, error) {
 	}
 	defer f.Close()
 	return f.Read(b)
+}
+
+// logRMC writes one line per RMC call: title, stage, protocol, method, reply size and
+// duration. Never the body, which carries tickets and player data.
+func logRMC(title, stage string, msg *rmc.RMCMessage, reply []byte, start time.Time) {
+	log.Printf("[%s] rmc stage=%s proto=0x%X method=0x%X reply=%dB ms=%d", title, stage, msg.Protocol, msg.MethodID, len(reply), time.Since(start).Milliseconds())
 }
