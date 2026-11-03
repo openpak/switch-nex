@@ -68,7 +68,13 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 	if dsn == "" {
 		return NewMemory(), nil
 	}
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	// Postgres is shared by every OpenPak service and has a hard connection cap: a few short connections.
+	cfg.MaxConns, cfg.MinConns, cfg.MaxConnIdleTime = 2, 0, 30*time.Second
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

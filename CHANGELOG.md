@@ -8,6 +8,10 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-03 — v0.10.1: score store keeps at most two short Postgres connections
+
+Postgres is shared and capped at 100 connections.
+
 ## 2026-11-03 — v0.10.0: session events for every matchmaking title, persisted rankings
 
 - Rewards: every title with a matchmaking store reports online sessions as `game_sessions.<title name>`
