@@ -8,6 +8,13 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-03 — v0.10.2: two players behind one router keep their LAN stations
+
+- Brings the `fix/same-public-ip-lan` work (commits 294a3bb, 6e23daf, until now only in a hand-built binary mounted
+  over the image on clubhouse-games-51) onto main: two consoles sharing one public IP are given each other's LAN
+  station instead of the NAT-mapped one. That binary predated the rankings listener, which is why
+  clubhouse-games-51 never started `RANKINGS_ADDR`; it runs the image binary again.
+
 ## 2026-11-03 — v0.10.1: score store keeps at most two short Postgres connections
 
 Postgres is shared and capped at 100 connections.
