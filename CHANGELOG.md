@@ -8,6 +8,20 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## 2026-11-03 — v0.10.0: session events for every matchmaking title, persisted rankings
+
+- Rewards: every title with a matchmaking store reports online sessions as `game_sessions.<title name>`
+  (36 titles; the Eagle titles super-mario-bros-35, pac-man-99 and tetris-99 included, counted from their
+  gatherings). The three family metrics (`kart_sessions.mk8dx`, `turf_sessions.s2`, `brawl_sessions.ult`) are kept.
+  tmnt-shredders-revenge and super-mario-odyssey have no matchmaking store and report none.
+- Rewards: `splatfests_joined` (distinct key: festival id) on Splatoon 2 UploadFestivalScore;
+  `kart_tournaments_entered` (key: tournament id) when a Mario Kart 8 Deluxe competition score is stored.
+- New `internal/scorestore`: scores of Ranking UploadScore / UploadScorePack, Ranking2 PutScore and the Splatoon 2
+  Splatfest contributions are kept per (title, board, player), best per board (order flag and update mode honoured),
+  in Postgres (`SWITCH_NEX_DATABASE_URL`, schema `scores`) or in memory without it, and served through the rankings
+  contract on `RANKINGS_ADDR` (`auto` = port base + 5). Answers to the game are unchanged. Mario Kart 8 Deluxe keeps its own store.
+- Not stored: Ranking 0x11 SubmitScore outside Mario Kart 8 Deluxe (layout unconfirmed), Mario Maker 2 point rankings.
+
 ## 2026-11-03 — v0.9.2: login token trimmed at the first non-token byte
 
 An emulator handed its title an id_token without a terminator; the title sent the token with

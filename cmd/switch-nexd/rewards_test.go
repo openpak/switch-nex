@@ -11,6 +11,7 @@ import (
 	"time"
 
 	emit "github.com/openpak/rewards-emit"
+	"github.com/openpak/switch-nex/protocols"
 	"github.com/openpak/switch-nex/rmc"
 )
 
@@ -35,7 +36,11 @@ func TestOnlineSessionReachesRewards(t *testing.T) {
 	key := titleAccessKey(t, name)
 	rw := emit.New(emit.Config{URL: sink.URL, Key: "k", Source: "t", Flush: 10 * time.Millisecond})
 	svc.env.Rewards = rw
-	stop := svc.env.WatchSessions(sessionMetric[name], 400*time.Millisecond, 50*time.Millisecond)
+	ms := sessionMetrics(name, svc.env)
+	if len(ms) != 2 || ms[0] != "kart_sessions.mk8dx" || ms[1] != "game_sessions.mario-kart-8-deluxe" {
+		t.Fatalf("metrics %v", ms)
+	}
+	stop := svc.env.WatchSessions(ms[0], 400*time.Millisecond, 50*time.Millisecond)
 
 	host := secureSession(t, authAddr, secureAddr, key, "host")
 	joiner := secureSession(t, authAddr, secureAddr, key, "joiner")
@@ -79,5 +84,41 @@ func TestOnlineSessionReachesRewards(t *testing.T) {
 	}
 	if len(got) != 2 || len(pids) != 2 {
 		t.Fatalf("host and joiner once each: %v", got)
+	}
+}
+
+// Every title with a matchmaking store reports game_sessions.<name>; the family metrics stay.
+func TestEveryMatchTitleReportsGameSessions(t *testing.T) {
+	family := map[string]string{}
+	var without []string
+	for _, tt := range titles {
+		env := protocols.NewEnv(tt.name, "127.0.0.1", tt.base)
+		tt.env(env)
+		ms := sessionMetrics(tt.name, env)
+		if env.Match == nil {
+			if len(ms) != 0 {
+				t.Fatalf("%s has no matchmaking store but reports %v", tt.name, ms)
+			}
+			without = append(without, tt.name)
+			continue
+		}
+		if ms[len(ms)-1] != "game_sessions."+tt.name {
+			t.Fatalf("%s: %v", tt.name, ms)
+		}
+		if len(ms) == 2 {
+			family[tt.name] = ms[0]
+		}
+	}
+	want := map[string]string{"mario-kart-8-deluxe": "kart_sessions.mk8dx", "splatoon-2": "turf_sessions.s2", "super-smash-bros-ultimate": "brawl_sessions.ult"}
+	if len(family) != 3 {
+		t.Fatalf("family metrics %v", family)
+	}
+	for k, v := range want {
+		if family[k] != v {
+			t.Fatalf("%s: %q", k, family[k])
+		}
+	}
+	if len(without) != 2 || without[0] != "tmnt-shredders-revenge" || without[1] != "super-mario-odyssey" {
+		t.Fatalf("titles without gatherings: %v", without)
 	}
 }

@@ -23,13 +23,17 @@
 // These ids collide with other titles' Ranking methods (0x12 GetCompetitionInfo, 0x13 SubmitTime),
 // so everything here is gated on the title name.
 //
-// ponytail: tallies are in memory and reset on restart; persistence is a later step once a console
-// shows a fest running.
+// The team tallies answered to the game are in memory and reset on restart. Each player's summed
+// contribution (the score field of 0x14) is also kept in Env.Scores, board "fest<id>", and served
+// through the rankings contract; the first upload per (festival, player) is a splatfests_joined event.
 package protocols
 
 import (
+	"fmt"
 	"log"
 	"sync"
+
+	emit "github.com/openpak/rewards-emit"
 
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/redact"
@@ -154,6 +158,10 @@ func rankingSplatoon2(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) (r
 			t.scores[team] += uint64(score)
 		}
 		st.mu.Unlock()
+		keepFestivalScore(env, c.PID, id, score)
+		// One Splatfest joined per (festival, player); the distinct key is the festival id.
+		env.Rewards.Event(emit.Event{ID: fmt.Sprintf("s2:fest:%d:%d", id, c.PID), Metric: "splatfests_joined",
+			Player: &emit.Identity{Namespace: "switch", Subject: fmt.Sprintf("%016x", c.PID)}, Keys: []string{fmt.Sprint(id)}})
 		log.Printf("[%s] ranking: pid=%s festival %d score team=%d +%d", env.Name, redact.Tag(c.PID), id, team, score)
 		return success(msg, nil), true
 

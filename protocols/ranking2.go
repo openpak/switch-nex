@@ -231,6 +231,7 @@ func putRanking2Score(env *Env, c *prudplite.Connection, r *rmc.Reader) []byte {
 	uniqueID, _ := r.U64()
 	for _, s := range scores {
 		env.r2common.submit(s.category, r2Entry{pid: c.PID, nexUniqueID: uniqueID, misc: s.misc, score: s.score})
+		keepRanking2Score(env, c.PID, s.category, s.score)
 	}
 	return nil
 }

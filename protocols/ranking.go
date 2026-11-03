@@ -27,8 +27,11 @@
 package protocols
 
 import (
+	"fmt"
 	"log"
 	"sync"
+
+	emit "github.com/openpak/rewards-emit"
 
 	"github.com/openpak/switch-nex/prudplite"
 	"github.com/openpak/switch-nex/redact"
@@ -160,12 +163,13 @@ func logUploadScore(env *Env, c *prudplite.Connection, body []byte) {
 
 // storeUploadScore keeps the score when the title has a store.
 func storeUploadScore(env *Env, c *prudplite.Connection, body []byte) {
-	if !env.mk8dReady() {
-		return
-	}
 	r := rmc.NewReader(body)
 	sd, err := readRankingScoreData(r)
 	if err != nil {
+		return
+	}
+	if !env.mk8dReady() {
+		keepScore(env, c.PID, sd)
 		return
 	}
 	uid, _ := r.U64()
@@ -189,7 +193,12 @@ func competitionUpload(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
 	defer cancel()
 	if err := env.MK8D.CompetitionUpload(ctx, c.PID, u); err != nil {
 		log.Printf("[%s] mk8d: competition upload: %v", env.Name, err)
+		return
 	}
+	// One tournament entered per (tournament, season, player): a better score re-uploaded
+	// never counts twice. The distinct key is the tournament id.
+	env.Rewards.Event(emit.Event{ID: fmt.Sprintf("mk8d:tour:%d:%d:%d:entered", u.ID, u.Season, c.PID), Metric: "kart_tournaments_entered",
+		Player: &emit.Identity{Namespace: "switch", Subject: fmt.Sprintf("%016x", c.PID)}, Keys: []string{fmt.Sprint(u.ID)}})
 }
 
 // competitionRanking answers GetCompetitionRankingScore: the last N+1 seasons.
@@ -252,13 +261,17 @@ func competitionInfo(env *Env, msg *rmc.RMCMessage) []byte {
 
 // scorePackUpload keeps an UploadScorePack metadata blob per player and category.
 func scorePackUpload(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) {
-	if !env.mk8dReady() {
+	if !env.mk8dReady() && env.Scores == nil {
 		return
 	}
 	r := rmc.NewReader(msg.Body)
 	sd, err := readRankingScoreData(r)
 	if err != nil {
 		logHex(env, c.PID, "UploadScorePack unparsed", msg.Body)
+		return
+	}
+	if !env.mk8dReady() {
+		keepScore(env, c.PID, sd)
 		return
 	}
 	meta, err := r.QBuffer()

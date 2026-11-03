@@ -11,6 +11,7 @@ package protocols
 import (
 	"fmt"
 	"github.com/openpak/switch-nex/internal/connectivity"
+	"github.com/openpak/switch-nex/internal/scorestore"
 	"log"
 	"sort"
 	"sync"
@@ -254,6 +255,12 @@ type Env struct {
 	// rankings, competitions and ghosts (mk8d.go). Unset: empty boards.
 	MK8D      MK8DBackend
 	MK8DBlobs MK8DBlobs
+
+	// Scores keeps the scores of the generic Ranking (UploadScore, UploadScorePack), Ranking2
+	// (PutScore) and the Splatoon 2 Splatfest contributions per player, best per board, and
+	// feeds the rankings contract (scores.go). Nil: scores are acknowledged and dropped.
+	// Mario Kart 8 Deluxe keeps its own store (MK8D) and leaves this nil.
+	Scores *scorestore.Store
 }
 
 // DSMode selects the DataStore behaviour.

@@ -63,6 +63,8 @@ Ports, environment and the production runbook: [deploy.md](docs/deploy.md).
 
 Rankings: with `MK8D_DATABASE_URL` set, `mario-kart-8-deluxe` also serves the OpenPak rankings contract (read-only, container network only) on `RANKINGS_ADDR` (for example `:9090`); empty leaves it off.
 
+Scores of the other titles: every title with Ranking (0x70) or Ranking2 (0x7A) keeps what the code parses (category and score; best per board, honouring the order flag and update mode) in `internal/scorestore`: Postgres schema `scores` when `SWITCH_NEX_DATABASE_URL` is set (created on start), memory otherwise. Splatoon 2 also keeps each player's summed Splatfest contribution (board `fest<id>`). `RANKINGS_ADDR` serves them through the rankings contract (network `switch`, pid = unsigned decimal NEX pid); the units share the host network, so set it per unit, or `RANKINGS_ADDR=auto` for `:<title port base + 5>` (Mario Golf :22135, Mario Tennis Aces :22175, SMB35 :22165, Kirby's Dream Buffet :22385, Splatoon 2 :22325, Clubhouse Games 51 :22875, Risk of Rain :22895 / Returns :23005 / 2 :23045, Pac-Man 99 :23145, Smash Ultimate :22355). Keep these ports off the public side like the MK8D one. Rewards events: every title with a matchmaking store reports `game_sessions.<title>` (plus its family metric); Splatoon 2 reports `splatfests_joined`, Mario Kart 8 Deluxe `kart_tournaments_entered`.
+
 ## Docs
 
 - [Protocol](docs/protocol.md)
