@@ -390,3 +390,43 @@ func (r *recall) flush() {
 		_ = os.Rename(tmp, r.file) // atomic replace
 	}
 }
+
+// forget removes the PIDs from every table, durable copy included: the seen table maps a public
+// address to the PIDs that played from it, so it must not outlive the account.
+func (r *recall) forget(pids []uint64) {
+	set := map[uint64]bool{}
+	for _, p := range pids {
+		set[p] = true
+	}
+	r.mu.Lock()
+	for t, list := range r.pending {
+		kept := list[:0]
+		for _, p := range list {
+			if !set[p.pid] {
+				kept = append(kept, p)
+			}
+		}
+		r.pending[t] = kept
+	}
+	changed := false
+	for k, m := range r.seen {
+		for pid := range m {
+			if set[pid] {
+				delete(m, pid)
+				changed = true
+			}
+		}
+		if len(m) == 0 {
+			delete(r.seen, k)
+		}
+	}
+	for name, pid := range r.names {
+		if set[pid] {
+			delete(r.names, name)
+		}
+	}
+	r.mu.Unlock()
+	if changed {
+		r.flush()
+	}
+}

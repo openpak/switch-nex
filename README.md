@@ -69,6 +69,7 @@ Scores of the other titles: every title with Ranking (0x70) or Ranking2 (0x7A) k
 
 - [Protocol](docs/protocol.md)
 - [Deploy](docs/deploy.md)
+- [Account erasure](docs/erasure.md): the DELETE route, what is erased and what is kept
 - [Parity record](docs/parity.md): per-title comparison with the measured server implementations
 - [Duck Game](docs/duck-game.md): relay investigation
 - [Full Metal Furies](docs/full-metal-furies.md)

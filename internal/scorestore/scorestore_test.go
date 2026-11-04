@@ -126,3 +126,46 @@ func TestContractOverHTTP(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+func TestErasePIDs(t *testing.T) {
+	ctx := context.Background()
+	for name, s := range stores(t) {
+		t.Run(name, func(t *testing.T) {
+			title := "test-erase-" + name
+			s.Submit(ctx, title, "7", 0xaaaa0001, 100, Desc, false)
+			s.Submit(ctx, title, "7", 0xbbbb0001, 200, Desc, false)
+			s.Submit(ctx, title+"-2", "9", 0xaaaa0001, 5, Asc, false)
+			s.PutBlob(ctx, title, "r2board", "12/aaaa0001", []byte("x"))
+			s.PutBlob(ctx, title, "r2board", "12/bbbb0001", []byte("x"))
+			s.PutBlob(ctx, title, "r2common", "aaaa0001", []byte("x"))
+			s.PutBlob(ctx, title, "rkcommon", "aaaa0001", []byte("x"))
+			s.PutBlob(ctx, title, "festvote", "3/aaaa0001", []byte("x"))
+			s.PutBlob(ctx, title, "festsum", "3", []byte("x"))
+			s.PutBlob(ctx, title, "recall", "seen", []byte("x"))
+			n, err := s.ErasePIDs(ctx, []uint64{0xaaaa0001})
+			if err != nil || n != 6 {
+				t.Fatalf("rows=%d err=%v (want 2 scores + 4 blobs)", n, err)
+			}
+			if rows, _ := s.be.list(ctx, title, "7"); len(rows) != 1 || rows[0].pid != 0xbbbb0001 {
+				t.Fatalf("scores %v", rows)
+			}
+			if m, _ := s.Blobs(ctx, title, "r2board"); len(m) != 1 {
+				t.Fatalf("r2board %v", m)
+			}
+			if m, _ := s.Blobs(ctx, title, "festsum"); len(m) != 1 {
+				t.Fatal("tally must stay")
+			}
+			if m, _ := s.Blobs(ctx, title, "recall"); len(m) != 1 {
+				t.Fatal("the recall table belongs to its process")
+			}
+			if n, err := s.ErasePIDs(ctx, []uint64{0xaaaa0001}); err != nil || n != 0 {
+				t.Fatalf("second run: %d %v", n, err)
+			}
+			// A PID above 2^63 survives the bigint wrap.
+			s.Submit(ctx, title, "8", 0xaaaaaaaaaaaa0001, 1, Desc, false)
+			if n, err := s.ErasePIDs(ctx, []uint64{0xaaaaaaaaaaaa0001}); err != nil || n != 1 {
+				t.Fatalf("high pid: %d %v", n, err)
+			}
+		})
+	}
+}

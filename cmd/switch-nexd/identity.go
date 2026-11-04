@@ -136,6 +136,22 @@ func (i *identity) resolve(idToken string) (*player, error) {
 	return p, nil
 }
 
+// forget drops what the process remembers about an erased account: its PIDs' proof records and
+// its voice-room membership.
+func (i *identity) forget(account string, pids []uint64) {
+	for _, p := range pids {
+		i.accounts.Delete(p)
+		i.members.Delete(p)
+	}
+	i.members.Range(func(k, v any) bool {
+		if v.(member).AccountID == account {
+			i.members.Delete(k)
+			i.accounts.Delete(k)
+		}
+		return true
+	})
+}
+
 // stillAllowed re-asks nx-baas about a player who logged in earlier. It
 // returns errBanned for a locked-out account, nil for one still allowed, and
 // any other error when nx-baas could not answer (the session is kept then).

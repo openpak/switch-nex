@@ -8,6 +8,20 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.14.0 - 2026-11-04
+
+- **Account erasure** (card openpak/prds#120): `DELETE /internal/accounts/{account_id}/data` with `Authorization: Bearer $ACCOUNT_ERASE_KEY`,
+  served on every title's healthz port (base+2, container network only). Env unset: 503. Answers `{"service":"switch-nex","rows":N}` and logs
+  one line `account erased`. The account's PIDs come from the account core's `switch` links (`SWITCH_NEX_CORE_ADDR/_KEY`, or `MK8D_CORE_ADDR/_KEY`);
+  with no core configured the route answers 502, never a silent success. See [docs/erasure.md](docs/erasure.md).
+- Erased per PID, in every title: `scores.entries` (including rows still waiting for an account link), the Ranking/Ranking2/Splatfest records in `scores.blobs`
+  (`r2board`, `r2common`, `rkcommon`, `festvote`), the reconnect table (address to PID, memory and database copy), the nx-baas proof and voice-room records, and the in-memory copies
+  (friends, notification data, title version, NAT class, Ranking records, Splatfest votes, SMM2 profile cache, tournaments).
+- Super Mario Maker 2 (`smm2.*`): the maker profile, unpublished and deleted courses with their bodies and relations in the bucket are deleted;
+  **published courses stay**, credited to nobody (owner 0), like published mods. Mario Kart 8 Deluxe (`mk8d.*`): profile, score packs, legacy score rows and every
+  ghost/data object with its bucket body are deleted; **tournaments a player created stay**, owner 0. The Splatfest tallies (sums) carry no player and stay.
+- `smm2store.Blobs.Delete`; `protocols.Env.ForgetPIDs`; `scorestore.Store.ErasePIDs`; `smm2store`/`mk8dstore` `ErasePIDs`.
+
 ## v0.13.1 - 2026-11-04
 
 - Docs: unsupported methods listed so the titles page promises nothing it does not do (openpak/prds#113).

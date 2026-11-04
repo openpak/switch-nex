@@ -77,6 +77,8 @@ type backend interface {
 	markMigrated(ctx context.Context, title string, e entry) error
 	// seed inserts a row only if the board has none for the player.
 	seed(ctx context.Context, title string, e entry) error
+	// erase removes every local row and blob record of the players (all titles); the count is rows removed.
+	erase(ctx context.Context, pids []uint64) (int, error)
 }
 
 // Store is the shared score store. With a Core set (UseCore) scores of players that have an account

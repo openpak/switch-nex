@@ -198,3 +198,19 @@ func (b *Blobs) Fetch(key string, limit int64) ([]byte, bool) {
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit))
 	return data, err == nil
 }
+
+// Delete removes an object through this process's own endpoint. An object that is already gone is
+// not an error (account erasure repeats safely).
+func (b *Blobs) Delete(key string) error {
+	req, _ := http.NewRequest("DELETE", b.presign("DELETE", b.cfg.Endpoint, key, time.Minute), nil)
+	resp, err := b.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 2048)) //nolint:errcheck
+	if resp.StatusCode/100 == 2 || resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return fmt.Errorf("delete %s: %s", key, resp.Status)
+}

@@ -27,6 +27,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/openpak/switch-nex/internal/connectivity"
+	"github.com/openpak/switch-nex/internal/mk8dstore"
+	"github.com/openpak/switch-nex/internal/smm2store"
 	"log"
 	"net"
 	"net/http"
@@ -1287,6 +1289,11 @@ func main() {
 	}
 
 	voice := &voiceIndex{ids: ids}
+	// Account erasure (card #120): DELETE /internal/accounts/{id}/data on each healthz listener.
+	erase := &eraser{key: os.Getenv("ACCOUNT_ERASE_KEY"), ids: ids, voice: voice, recal: recall, score: scoreStore}
+	if erase.key != "" {
+		erase.core = newCoreLinksFromEnv()
+	}
 	if *honeypotBase > 0 {
 		if *honeypotLogPath == "" {
 			log.Fatal("honeypot: -honeypot-log is required with -honeypot-base")
@@ -1334,6 +1341,15 @@ func main() {
 		// listener failed answers 503 there, which says more than a refused
 		// connection does. Every one of them also answers the voice lookup
 		// for the whole process (voice.go).
+		if st, ok := svc.env.SMM2.(*smm2store.Store); ok {
+			erase.sm2 = st
+			erase.sm2b, _ = svc.env.SMM2Blobs.(*smm2store.Blobs)
+		}
+		if st, ok := svc.env.MK8D.(*mk8dstore.Store); ok {
+			erase.mk = st
+			erase.mkb, _ = svc.env.MK8DBlobs.(*mk8dstore.Blobs)
+		}
+		svc.erase = erase
 		serveHealth(fmt.Sprintf(":%d", t.base+2), svc, voice)
 
 		authLn, err := listenTitle(fmt.Sprintf(":%d", t.base), tlsCfg.Clone())
@@ -1366,6 +1382,7 @@ type service struct {
 	auth      *prudplite.Endpoint
 	secure    *prudplite.Endpoint
 	ids       *identity // nil in tests that build a service without one
+	erase     *eraser   // account erasure route on healthz; nil: not served
 
 	// base is the title's port block; healthz reports base and base+1.
 	base int
@@ -1506,6 +1523,7 @@ func serveHealth(addr string, s *service, voice *voiceIndex) {
 	if voice != nil {
 		mux.HandleFunc("GET /internal/voice/gathering", voice.gathering)
 	}
+	s.erase.register(mux)
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(ln) }()
 }
