@@ -185,7 +185,8 @@ type tournament struct {
 	blob    []byte
 }
 
-// tournamentStore holds a title's tournaments in memory.
+// tournamentStore holds a title's tournaments in memory; the Env writes them through to the
+// score store's blob table (persist.go) and loads them back after a restart.
 type tournamentStore struct {
 	mu   sync.Mutex
 	next uint32
@@ -206,6 +207,13 @@ func (ts *tournamentStore) create(owner uint64, version uint8, blob []byte) tour
 	t := tournament{id: ts.next, owner: owner, version: version, blob: append([]byte(nil), blob...)}
 	ts.byID[t.id] = t
 	return t
+}
+
+func (ts *tournamentStore) get(id uint32) (tournament, bool) {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	t, ok := ts.byID[id]
+	return t, ok
 }
 
 func (ts *tournamentStore) all() []tournament {
@@ -265,7 +273,9 @@ func createTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 		}
 		t = tournament{id: id, owner: c.PID, version: version, blob: TournamentWithID(blob, id)}
 	} else {
+		env.hydrate()
 		t = env.tournaments.create(c.PID, version, blob)
+		env.keepTournament(t)
 	}
 	log.Printf("[%s] tournament %d created by pid=%s (%d bytes)", env.Name, t.id, redact.Tag(c.PID), len(blob))
 
@@ -276,6 +286,7 @@ func createTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage) []
 
 // searchTournaments answers the list: u32 count, then each entry framed.
 func searchTournaments(env *Env, msg *rmc.RMCMessage) []byte {
+	env.hydrate()
 	all := env.tournaments.all()
 	if env.mk8dReady() {
 		ctx, cancel := ctxDB()
@@ -311,9 +322,12 @@ func deleteTournament(env *Env, c *prudplite.Connection, msg *rmc.RMCMessage, r 
 		}
 		return success(msg, nil)
 	}
-	if !env.tournaments.remove(id, c.PID) {
+	env.hydrate()
+	t, ok := env.tournaments.get(id)
+	if !ok || !env.tournaments.remove(id, c.PID) {
 		return errorResp(msg, rmc.ResultPermissionDenied)
 	}
+	env.dropTournament(t)
 	return success(msg, nil)
 }
 

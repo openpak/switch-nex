@@ -8,6 +8,13 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.14.1 - 2026-11-04
+
+- **Permanent state** (openpak/prds#85): the tournaments of the non-MK8D titles (with the id counter, so an id is never reused) and the
+  notification data each player last published (the "visit a friend" source) are written through to the score store's blob table
+  (Postgres when `SWITCH_NEX_DATABASE_URL` is set; namespaces `tourn`, `tournseq`, `notif`) and loaded on first use after a restart.
+  Both namespaces are covered by account erasure. `friends` stays a cache refilled from nx-baas.
+
 ## v0.14.0 - 2026-11-04
 
 - **Account erasure** (card openpak/prds#120): `DELETE /internal/accounts/{account_id}/data` with `Authorization: Bearer $ACCOUNT_ERASE_KEY`,

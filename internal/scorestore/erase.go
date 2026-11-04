@@ -9,7 +9,7 @@ import (
 // blob namespaces whose key ends in the player's PID as unpadded lowercase hex, "<pid>" or
 // "<anything>/<pid>" (protocols/persist.go). The tallies (festsum) carry no PID and the
 // "recall" table belongs to the process that owns it.
-var pidBlobNS = []string{"r2board", "r2common", "rkcommon", "festvote"}
+var pidBlobNS = []string{"r2board", "r2common", "rkcommon", "festvote", "notif", "tourn"}
 
 // ErasePIDs removes everything the store holds for the players: their score rows (including the
 // rows still waiting for an account link) and the Ranking, Ranking2 and Splatfest records keyed by

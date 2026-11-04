@@ -199,8 +199,8 @@ type Env struct {
 	// friends is each principal's friend list as of its last login (nx-baas
 	// answers it with the identity). notifData is what each principal last
 	// published per notification type (MatchmakeExtension 0x09), the source
-	// of the "visit a friend" menu (0x0A/0x0D). Both in memory, like the
-	// sessions they describe.
+	// of the "visit a friend" menu (0x0A/0x0D). friends is in memory (refilled at
+	// login from nx-baas); notifData is written through to the score store's blob table.
 	friendsMu sync.Mutex
 	friends   map[uint64][]uint64
 	notifData map[uint64]map[uint32]notificationEvent
@@ -324,6 +324,8 @@ func (e *Env) FriendPIDs(pid uint64) []uint64 {
 }
 
 func (e *Env) putNotifData(pid uint64, ev notificationEvent) {
+	e.hydrate()
+	e.keepNotif(pid, ev)
 	e.friendsMu.Lock()
 	defer e.friendsMu.Unlock()
 	if e.notifData == nil {
@@ -336,6 +338,7 @@ func (e *Env) putNotifData(pid uint64, ev notificationEvent) {
 }
 
 func (e *Env) notifDataOf(pid uint64, typ uint32) (notificationEvent, bool) {
+	e.hydrate()
 	e.friendsMu.Lock()
 	defer e.friendsMu.Unlock()
 	ev, ok := e.notifData[pid][typ]

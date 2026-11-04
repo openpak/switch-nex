@@ -21,6 +21,9 @@ const (
 	nsRkCommon = "rkcommon" // key "<pid>" -> raw blob
 	nsFestVote = "festvote" // key "<festival>/<pid>" -> team u8
 	nsFestSum  = "festsum"  // key "<festival>" -> 3 x u64 team scores
+	nsNotif    = "notif"    // key "<type>/<pid>" -> JSON notificationEvent (what a player last published)
+	nsTourn    = "tourn"    // key "<id>/<owner pid>" -> JSON tournament (the non-MK8D in-memory store)
+	nsTournSeq = "tournseq" // key "next" -> u32, the highest tournament id ever handed out
 )
 
 func (e *Env) putBlob(ns, k string, v []byte) {
@@ -132,6 +135,51 @@ func (e *Env) hydrate() {
 				n++
 			}
 		}
+		if m, err := e.Scores.Blobs(ctx, e.Name, nsNotif); err == nil {
+			e.friendsMu.Lock()
+			if e.notifData == nil {
+				e.notifData = map[uint64]map[uint32]notificationEvent{}
+			}
+			for k, v := range m {
+				var ev notificationEvent
+				_, pidS, ok := strings.Cut(k, "/")
+				pid, err := strconv.ParseUint(pidS, 16, 64)
+				if !ok || err != nil || json.Unmarshal(v, &ev) != nil {
+					continue
+				}
+				if e.notifData[pid] == nil {
+					e.notifData[pid] = map[uint32]notificationEvent{}
+				}
+				e.notifData[pid][ev.Type] = ev
+				n++
+			}
+			e.friendsMu.Unlock()
+		} else {
+			log.Printf("[%s] persist: load notif: %v", e.Name, err)
+		}
+		e.tournaments.mu.Lock()
+		if m, err := e.Scores.Blobs(ctx, e.Name, nsTourn); err == nil {
+			if e.tournaments.byID == nil {
+				e.tournaments.byID = map[uint32]tournament{}
+			}
+			for _, v := range m {
+				var j tournamentJSON
+				if json.Unmarshal(v, &j) != nil {
+					continue
+				}
+				e.tournaments.byID[j.ID] = tournament{id: j.ID, owner: j.Owner, version: j.Version, blob: j.Blob}
+				e.tournaments.next = max(e.tournaments.next, j.ID)
+				n++
+			}
+		} else {
+			log.Printf("[%s] persist: load tournaments: %v", e.Name, err)
+		}
+		if m, err := e.Scores.Blobs(ctx, e.Name, nsTournSeq); err == nil {
+			if v := m["next"]; len(v) == 4 {
+				e.tournaments.next = max(e.tournaments.next, binary.BigEndian.Uint32(v))
+			}
+		}
+		e.tournaments.mu.Unlock()
 		if n > 0 {
 			log.Printf("[%s] persist: restored %d records", e.Name, n)
 		}
@@ -170,4 +218,29 @@ func (e *Env) keepFestSum(id uint32, scores [fest2Teams]uint64) {
 		binary.BigEndian.PutUint64(v[8*i:], s)
 	}
 	e.putBlob(nsFestSum, strconv.FormatUint(uint64(id), 10), v)
+}
+
+func (e *Env) keepNotif(pid uint64, ev notificationEvent) {
+	b, _ := json.Marshal(ev)
+	e.putBlob(nsNotif, fmt.Sprintf("%d/%x", ev.Type, pid), b)
+}
+
+type tournamentJSON struct {
+	ID      uint32 `json:"i"`
+	Owner   uint64 `json:"o"`
+	Version uint8  `json:"v"`
+	Blob    []byte `json:"b"`
+}
+
+// keepTournament writes a tournament and the id counter, so an id is never handed out twice.
+func (e *Env) keepTournament(t tournament) {
+	b, _ := json.Marshal(tournamentJSON{ID: t.id, Owner: t.owner, Version: t.version, Blob: t.blob})
+	e.putBlob(nsTourn, fmt.Sprintf("%d/%x", t.id, t.owner), b)
+	seq := make([]byte, 4)
+	binary.BigEndian.PutUint32(seq, t.id)
+	e.putBlob(nsTournSeq, "next", seq)
+}
+
+func (e *Env) dropTournament(t tournament) {
+	e.deleteBlob(nsTourn, fmt.Sprintf("%d/%x", t.id, t.owner))
 }
