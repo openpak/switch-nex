@@ -94,7 +94,10 @@ func (f *Fake) Submit(_ context.Context, req *pb.SubmitRequest, _ ...grpc.CallOp
 		if p.Order == "asc" {
 			better = req.Score < cur.Score
 		}
-		changed = better || p.Aggregation == "latest" || p.Aggregation == "force"
+		changed = better || p.Aggregation == "latest" || p.Aggregation == "force" || p.Aggregation == "sum"
+		if p.Aggregation == "sum" {
+			req.Score += cur.Score
+		}
 	}
 	f.tick++
 	if changed {

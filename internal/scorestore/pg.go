@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS scores.entries (
   updated timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (title, board, pid)
 );
+ALTER TABLE scores.entries ADD COLUMN IF NOT EXISTS uid bigint NOT NULL DEFAULT 0;
+ALTER TABLE scores.entries ADD COLUMN IF NOT EXISTS misc bigint NOT NULL DEFAULT 0;
+ALTER TABLE scores.entries ADD COLUMN IF NOT EXISTS latest boolean NOT NULL DEFAULT false;
+ALTER TABLE scores.entries ADD COLUMN IF NOT EXISTS is_add boolean NOT NULL DEFAULT false;
+ALTER TABLE scores.entries ADD COLUMN IF NOT EXISTS migrated boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS scores_entries_asc ON scores.entries (title, board, score, updated);
 CREATE TABLE IF NOT EXISTS scores.blobs (
   title text NOT NULL,
@@ -51,18 +56,50 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 
 type pg struct{ pool *pgxpool.Pool }
 
+// A write to a row that was already imported starts a new pending row state (migrated = false), so
+// a later upload of an unlinked-again player is imported too; the import is idempotent per board rule.
 func (p *pg) submit(ctx context.Context, title string, e entry, overwrite bool) error {
-	_, err := p.pool.Exec(ctx, `INSERT INTO scores.entries (title, board, pid, score, ord) VALUES ($1,$2,$3,$4,$5)
-ON CONFLICT (title, board, pid) DO UPDATE SET score = $4, ord = $5, updated = now()
-WHERE $6::boolean OR ($5::smallint = 0 AND $4::bigint < scores.entries.score) OR ($5::smallint = 1 AND $4::bigint > scores.entries.score)`,
-		title, e.board, int64(e.pid), e.score, int16(e.order), overwrite)
+	_, err := p.pool.Exec(ctx, `INSERT INTO scores.entries (title, board, pid, score, ord, uid, misc, latest, is_add) VALUES ($1,$2,$3,$4,$5,$7,$8,$6,false)
+ON CONFLICT (title, board, pid) DO UPDATE SET score = $4, ord = $5, uid = $7, misc = $8, latest = $6, is_add = false, migrated = false, updated = now()
+WHERE $6::boolean OR scores.entries.migrated OR ($5::smallint = 0 AND $4::bigint < scores.entries.score) OR ($5::smallint = 1 AND $4::bigint > scores.entries.score)`,
+		title, e.board, int64(e.pid), e.score, int16(e.order), overwrite, e.uid, e.misc)
 	return err
 }
 
 func (p *pg) add(ctx context.Context, title string, e entry) error {
-	_, err := p.pool.Exec(ctx, `INSERT INTO scores.entries (title, board, pid, score, ord) VALUES ($1,$2,$3,$4,$5)
-ON CONFLICT (title, board, pid) DO UPDATE SET score = scores.entries.score + $4, updated = now()`,
+	// A migrated row's sum is already in the core: start the pending sum again from this delta.
+	_, err := p.pool.Exec(ctx, `INSERT INTO scores.entries (title, board, pid, score, ord, is_add) VALUES ($1,$2,$3,$4,$5,true)
+ON CONFLICT (title, board, pid) DO UPDATE SET score = CASE WHEN scores.entries.migrated THEN $4 ELSE scores.entries.score + $4 END,
+  is_add = true, migrated = false, updated = now()`,
 		title, e.board, int64(e.pid), e.score, int16(e.order))
+	return err
+}
+
+func (p *pg) pending(ctx context.Context, title string, limit int) ([]pending, error) {
+	rows, err := p.pool.Query(ctx, `SELECT board, pid, score, ord, uid, misc, latest, is_add, updated FROM scores.entries
+WHERE title = $1 AND NOT migrated ORDER BY updated, board, pid LIMIT $2`, title, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pending
+	for rows.Next() {
+		var e entry
+		var pid int64
+		var o int16
+		if err := rows.Scan(&e.board, &pid, &e.score, &o, &e.uid, &e.misc, &e.latest, &e.add, &e.updated); err != nil {
+			return nil, err
+		}
+		e.pid, e.order = uint64(pid), uint8(o)
+		out = append(out, pending{title, e})
+	}
+	return out, rows.Err()
+}
+
+// markMigrated flags the row as imported only if it was not rewritten since it was read.
+func (p *pg) markMigrated(ctx context.Context, title string, e entry) error {
+	_, err := p.pool.Exec(ctx, `UPDATE scores.entries SET migrated = true WHERE title=$1 AND board=$2 AND pid=$3 AND updated = $4`,
+		title, e.board, int64(e.pid), e.updated)
 	return err
 }
 
@@ -132,4 +169,10 @@ func (p *pg) blobs(ctx context.Context, title, ns string) (map[string][]byte, er
 		out[k] = v
 	}
 	return out, rows.Err()
+}
+
+func (p *pg) seed(ctx context.Context, title string, e entry) error {
+	_, err := p.pool.Exec(ctx, `INSERT INTO scores.entries (title, board, pid, score, ord, uid, misc) VALUES ($1,$2,$3,$4,$5,$6,$7)
+ON CONFLICT (title, board, pid) DO NOTHING`, title, e.board, int64(e.pid), e.score, int16(e.order), e.uid, e.misc)
+	return err
 }

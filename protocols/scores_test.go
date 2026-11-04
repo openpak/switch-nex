@@ -11,6 +11,8 @@ import (
 	"time"
 
 	emit "github.com/openpak/rewards-emit"
+	"github.com/openpak/switch-nex/internal/lb"
+	"github.com/openpak/switch-nex/internal/lb/lbtest"
 	"github.com/openpak/switch-nex/internal/rankingsapi"
 	"github.com/openpak/switch-nex/internal/scorestore"
 	"github.com/openpak/switch-nex/rmc"
@@ -215,5 +217,39 @@ func TestMK8DCompetitionUploadEmitsTournamentEntered(t *testing.T) {
 	keys, _ := evs[0]["keys"].([]any)
 	if len(keys) != 1 || keys[0] != "31" {
 		t.Fatalf("keys %v", evs[0])
+	}
+}
+
+// With the core attached the Ranking2 board lives there: a put goes to the core, the answer to
+// GetRanking and EstimateMyRank is built from it, and nothing is kept in memory.
+func TestRanking2BoardIsServedFromTheCore(t *testing.T) {
+	e := scoredEnv("super-mario-bros-35")
+	ids := lbtest.NewIDs()
+	ids.Auto = true
+	e.Scores.UseCore(&scorestore.Core{C: &lb.Client{LB: lbtest.New(), ID: ids}})
+	put := func(pid uint64, cat, score uint32, misc uint64) {
+		w := rmc.NewWriter()
+		w.List(1)
+		w.StructOf(0, func(w *rmc.Writer) { w.U32(cat); w.U32(score); w.U64(misc) })
+		w.U64(pid + 1000)
+		if ok, _, errCode := decodeResponse(Dispatch(e, conn(pid), request(ProtoRanking2, 0x01, w.Bytes()))); errCode != 0 || !ok {
+			t.Fatalf("put: %#x", errCode)
+		}
+	}
+	put(1, 2, 40, 5)
+	put(1, 2, 30, 6) // not a best
+	put(2, 2, 50, 7)
+	rows, base, total := e.r2board(2, 0, 10)
+	if total != 2 || base != 0 || len(rows) != 2 || rows[0].pid != 2 || rows[0].misc != 7 || rows[0].nexUniqueID != 1002 || rows[1].score != 40 {
+		t.Fatalf("board %+v %d %d", rows, base, total)
+	}
+	if rank, score, n := e.r2rank(2, 1); rank != 2 || score != 40 || n != 2 {
+		t.Fatalf("rank %d %d %d", rank, score, n)
+	}
+	if rank, _, n := e.r2rank(2, 9); rank != 3 || n != 2 {
+		t.Fatalf("unranked rank %d of %d", rank, n)
+	}
+	if len(e.r2common.board(2)) != 0 {
+		t.Fatal("the board was also kept in memory")
 	}
 }

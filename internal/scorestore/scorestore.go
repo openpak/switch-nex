@@ -12,6 +12,8 @@ package scorestore
 
 import (
 	"context"
+	"errors"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +21,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/openpak/switch-nex/internal/lb"
 	"github.com/openpak/switch-nex/internal/rankingsapi"
 )
 
@@ -40,6 +43,16 @@ type entry struct {
 	score   int64
 	order   uint8
 	updated time.Time
+	uid     int64 // NEX unique id (Ranking2)
+	misc    int64 // Ranking2 misc value
+	latest  bool  // last upload wins
+	add     bool  // the score is a running sum
+}
+
+// pending is a local row waiting for its player's account link.
+type pending struct {
+	title string
+	e     entry
 }
 
 type boardInfo struct {
@@ -59,10 +72,20 @@ type backend interface {
 	putBlob(ctx context.Context, title, ns, k string, v []byte) error
 	deleteBlob(ctx context.Context, title, ns, k string) error
 	blobs(ctx context.Context, title, ns string) (map[string][]byte, error)
+	// pending lists rows not yet imported into the core; markMigrated flags one (never deletes).
+	pending(ctx context.Context, title string, limit int) ([]pending, error)
+	markMigrated(ctx context.Context, title string, e entry) error
+	// seed inserts a row only if the board has none for the player.
+	seed(ctx context.Context, title string, e entry) error
 }
 
-// Store is the shared score store.
-type Store struct{ be backend }
+// Store is the shared score store. With a Core set (UseCore) scores of players that have an account
+// link go to the core leaderboards service; the local rows are then only the queue of players that
+// have none yet (or whose upload met a core outage), imported by Import and never dropped.
+type Store struct {
+	be   backend
+	core *Core
+}
 
 // NewMemory returns a store that keeps scores in memory only.
 func NewMemory() *Store {
@@ -136,10 +159,23 @@ func (s *Store) Close() {
 // Submit records a score on a board: kept when better than the player's stored one (best is
 // the lowest for Asc, the highest for Desc), or always when overwrite is set.
 func (s *Store) Submit(ctx context.Context, title, board string, pid uint64, score int64, order uint8, overwrite bool) error {
+	return s.SubmitFull(ctx, title, board, pid, score, order, overwrite, 0, 0)
+}
+
+// SubmitFull is Submit with the Ranking2 unique id and misc value kept beside the score.
+func (s *Store) SubmitFull(ctx context.Context, title, board string, pid uint64, score int64, order uint8, overwrite bool, uid, misc int64) error {
 	if s == nil {
 		return nil
 	}
-	return s.be.submit(ctx, title, entry{board: board, pid: pid, score: score, order: order & 1}, overwrite)
+	e := entry{board: board, pid: pid, score: score, order: order & 1, uid: uid, misc: misc, latest: overwrite}
+	if s.core != nil {
+		if err := s.core.submit(ctx, title, e); err == nil {
+			return nil
+		} else if !errors.Is(err, lb.ErrNoLink) {
+			log.Printf("scores: %s board %s: core: %v (kept locally, imported later)", title, board, err)
+		}
+	}
+	return s.be.submit(ctx, title, e, overwrite)
 }
 
 // Add sums delta into the player's score on a board (a Splatfest contribution).
@@ -147,7 +183,15 @@ func (s *Store) Add(ctx context.Context, title, board string, pid uint64, delta 
 	if s == nil {
 		return nil
 	}
-	return s.be.add(ctx, title, entry{board: board, pid: pid, score: delta, order: order & 1})
+	e := entry{board: board, pid: pid, score: delta, order: order & 1, add: true}
+	if s.core != nil {
+		if err := s.core.submit(ctx, title, e); err == nil {
+			return nil
+		} else if !errors.Is(err, lb.ErrNoLink) {
+			log.Printf("scores: %s board %s: core: %v (kept locally, imported later)", title, board, err)
+		}
+	}
+	return s.be.add(ctx, title, e)
 }
 
 // --- memory ---------------------------------------------------------------
@@ -188,6 +232,19 @@ func (m *memory) blobs(_ context.Context, title, ns string) (map[string][]byte, 
 	}
 	return out, nil
 }
+
+func (m *memory) pending(context.Context, string, int) ([]pending, error) { return nil, nil }
+func (m *memory) seed(_ context.Context, title string, e entry) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k := key{title, e.board, e.pid}
+	if _, ok := m.rows[k]; !ok {
+		e.updated = time.Now()
+		m.rows[k] = e
+	}
+	return nil
+}
+func (m *memory) markMigrated(context.Context, string, entry) error { return nil }
 
 func better(order uint8, a, b int64) bool {
 	if order == Asc {

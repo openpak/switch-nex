@@ -8,6 +8,18 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.13.0 — 2026-11-04
+- **The Ranking / Ranking2 titles file their scores in the core leaderboards** (card #63, parent #40), the way Mario Kart 8 Deluxe does since v0.12.0.
+  Set `SWITCH_NEX_LEADERBOARDS_ADDR/_KEY` and `SWITCH_NEX_CORE_ADDR/_KEY` on a title's unit to turn it on (unset: the old local store and contract, unchanged).
+  Generic uploads, Ranking2 puts and Splatfest contributions (`fest<id>`, sum) go to the core for players with an account link; the Ranking2 board,
+  `GetRanking` and `EstimateMyRank` are read back from the core, so the board is no longer kept in memory or in the `r2board` blobs.
+- **Never dropped:** a score from a player with no link yet, or met by a core outage, stays in `scores.entries` (new columns `uid`, `misc`, `latest`, `is_add`, `migrated`);
+  an importer (start, then every ten minutes) moves those rows into the core when the link exists and only marks them `migrated`. Existing rows and the old `r2board` blobs
+  are imported the same way. Prod held 0 score rows and 0 `r2board` blobs at cut-over.
+- Kept where they were: Ranking2 common data (name, Mii, binary) and Ranking common data (blobs, keyed by PID), the Splatfest votes and team tallies (`festvote`, `festsum` blobs),
+  the reconnect table. The per-title rankings contract (`RANKINGS_ADDR`) is not served once the core is on; the website reads the core's `/t/<title>`.
+- Tests: routing between core and local rows, import once linked, core outage, restart, rows from before the core, Ranking2 served from the core.
+
 ## v0.12.0 — 2026-11-04
 - **Mario Kart 8 Deluxe scores moved to the core leaderboards service** (card #63, parent #40). Time trials, tournament seasons,
   the ranking reads (global, around, self, by PID, by unique id, group filter) and the OpenKart read API all go through

@@ -42,13 +42,13 @@ func keepScore(env *Env, pid uint64, sd RankingScore) {
 
 // keepRanking2Score stores one Ranking2 PutScore entry: higher is better, best kept (the
 // order the in-memory board already used).
-func keepRanking2Score(env *Env, pid uint64, category, score uint32) {
+func keepRanking2Score(env *Env, pid uint64, category, score uint32, uid, misc uint64) {
 	if env.Scores == nil {
 		return
 	}
 	ctx, cancel := scoreCtx()
 	defer cancel()
-	if err := env.Scores.Submit(ctx, env.Name, BoardRanking2(category), pid, int64(score), scorestore.Desc, false); err != nil {
+	if err := env.Scores.SubmitFull(ctx, env.Name, BoardRanking2(category), pid, int64(score), scorestore.Desc, false, int64(uid), int64(misc)); err != nil {
 		log.Printf("[%s] scores: store: %v", env.Name, err)
 	}
 }

@@ -239,11 +239,16 @@ func putRanking2Score(env *Env, c *prudplite.Connection, r *rmc.Reader) []byte {
 	}
 	uniqueID, _ := r.U64()
 	for _, s := range scores {
+		if env.Scores.HasCore() {
+			// The core holds the board; nothing is kept in memory or in blobs.
+			keepRanking2Score(env, c.PID, s.category, s.score, uniqueID, s.misc)
+			continue
+		}
 		en := r2Entry{pid: c.PID, nexUniqueID: uniqueID, misc: s.misc, score: s.score}
 		if env.r2common.submit(s.category, en) {
 			env.keepR2Board(s.category, en)
 		}
-		keepRanking2Score(env, c.PID, s.category, s.score)
+		keepRanking2Score(env, c.PID, s.category, s.score, uniqueID, s.misc)
 	}
 	return nil
 }
@@ -251,13 +256,10 @@ func putRanking2Score(env *Env, c *prudplite.Connection, r *rmc.Reader) []byte {
 // ranking2Info renders a category's board.
 func ranking2Info(env *Env, r *rmc.Reader) []byte {
 	category, offset, length := readRanking2GetParam(r)
-	all := env.r2common.board(category)
+	all, base, total := env.r2board(category, offset, length)
 
-	start := min(int(offset), len(all))
+	start := 0
 	end := len(all)
-	if length > 0 && start+int(length) < end {
-		end = start + int(length)
-	}
 
 	w := rmc.NewWriter()
 	w.StructOf(1, func(w *rmc.Writer) {
@@ -269,16 +271,41 @@ func ranking2Info(env *Env, r *rmc.Reader) []byte {
 				w.U64(e.misc)
 				w.U64(e.nexUniqueID)
 				w.U64(e.pid)
-				w.U32(uint32(i + 1)) // rank counts from one
+				w.U32(uint32(base + i + 1)) // rank counts from one
 				w.U32(e.score)
 				common.write(w)
 			})
 		}
 		w.U32(ranking2LowestRank)
-		w.U32(uint32(len(all)))
+		w.U32(uint32(total))
 		w.U32(0) // Season (i32)
 	})
 	return w.Bytes()
+}
+
+// r2board returns a window of a category's board, best first, the rank of its first row minus one,
+// and the board's size. The core serves it when the title has one; otherwise the in-memory board.
+func (e *Env) r2board(category, offset, length uint32) (rows []r2Entry, base, total int) {
+	if e.Scores.HasCore() {
+		ctx, cancel := scoreCtx()
+		defer cancel()
+		page, n, err := e.Scores.Page(ctx, e.Name, BoardRanking2(category), int(offset), int(length))
+		if err != nil {
+			log.Printf("[%s] ranking2: read board: %v", e.Name, err)
+			return nil, 0, 0
+		}
+		for _, r := range page {
+			rows = append(rows, r2Entry{pid: r.PID, nexUniqueID: uint64(r.UID), misc: uint64(r.Misc), score: uint32(r.Score)})
+		}
+		return rows, min(int(offset), n), n
+	}
+	all := e.r2common.board(category)
+	start := min(int(offset), len(all))
+	end := len(all)
+	if length > 0 && start+int(length) < end {
+		end = start + int(length)
+	}
+	return all[start:end], start, len(all)
 }
 
 // readRanking2GetParam pulls the category and window out of the get parameter,
@@ -293,6 +320,31 @@ func readRanking2GetParam(r *rmc.Reader) (category, offset, length uint32) {
 	return category, offset, length
 }
 
+// r2rank is the caller's rank on a category (just behind the last when unranked), its score and the
+// board's size.
+func (e *Env) r2rank(category uint32, pid uint64) (rank, score uint32, total int) {
+	if e.Scores.HasCore() {
+		ctx, cancel := scoreCtx()
+		defer cancel()
+		pos, sc, n, err := e.Scores.PositionOf(ctx, e.Name, BoardRanking2(category), pid)
+		if err != nil {
+			log.Printf("[%s] ranking2: rank: %v", e.Name, err)
+		}
+		if pos == 0 {
+			return uint32(n + 1), 0, n
+		}
+		return uint32(pos), uint32(sc), n
+	}
+	all := e.r2common.board(category)
+	rank = uint32(len(all) + 1)
+	for i, en := range all {
+		if en.pid == pid {
+			return uint32(i + 1), en.score, len(all)
+		}
+	}
+	return rank, 0, len(all)
+}
+
 // estimateMyRank answers where the caller sits. Our rank is exact — it is
 // computed over the whole list — so the sampling rate is one; the real service
 // estimates from a sample because it ranks millions of players.
@@ -301,21 +353,12 @@ func estimateMyRank(env *Env, c *prudplite.Connection, r *rmc.Reader) []byte {
 		return nil
 	}
 	category, _ := r.U32()
-	all := env.r2common.board(category)
-
-	rank := uint32(len(all) + 1) // unranked sits just behind the last
-	var score uint32
-	for i, e := range all {
-		if e.pid == c.PID {
-			rank, score = uint32(i+1), e.score
-			break
-		}
-	}
+	rank, score, total := env.r2rank(category, c.PID)
 
 	w := rmc.NewWriter()
 	w.StructOf(1, func(w *rmc.Writer) {
 		w.U32(rank)
-		w.U32(uint32(len(all)))
+		w.U32(uint32(total))
 		w.U32(score)
 		w.U32(category)
 		w.U32(0) // Season (i32)

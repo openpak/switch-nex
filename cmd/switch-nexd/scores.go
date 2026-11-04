@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/openpak/switch-nex/internal/lb"
 	"log"
 	"os"
 	"sync"
@@ -119,6 +120,11 @@ func configureScores(env *protocols.Env, base int) {
 		st = scorestore.NewMemory()
 	}
 	env.Scores = st
+	if useCoreScores(env, st) {
+		log.Printf("[%s] scores: durable=%v, in the core leaderboards (rankings contract: the core's /t/%s)", env.Name, st.Durable(), env.Name)
+		return
+	}
+	// No core configured (local development, or a unit not rolled yet): the old local store and contract.
 	addr := os.ExpandEnv(os.Getenv("RANKINGS_ADDR"))
 	if addr == "auto" {
 		addr = fmt.Sprintf(":%d", base+rankingsPortOffset)
@@ -127,4 +133,39 @@ func configureScores(env *protocols.Env, base int) {
 	src := scorestore.Source{Store: st, Title: env.Name, Name: func(b string) string { return names[b] }}
 	rankingsapi.Serve(addr, "switch", src)
 	log.Printf("[%s] scores: durable=%v rankings=%q", env.Name, st.Durable(), addr)
+}
+
+// useCoreScores connects the title's scores to the core leaderboards when SWITCH_NEX_LEADERBOARDS_ADDR
+// (and _KEY, SWITCH_NEX_CORE_ADDR, _KEY) are set, registers the title and starts the importer that
+// moves local rows of players that gained an account link. Reports whether the core is in use.
+//
+//	SWITCH_NEX_LEADERBOARDS_ADDR, SWITCH_NEX_LEADERBOARDS_KEY   core leaderboards gRPC and its internal key
+//	SWITCH_NEX_CORE_ADDR, SWITCH_NEX_CORE_KEY                    account core gRPC and its internal key
+func useCoreScores(env *protocols.Env, st *scorestore.Store) bool {
+	get := func(k string) string { return os.ExpandEnv(os.Getenv(k)) }
+	if get("SWITCH_NEX_LEADERBOARDS_ADDR") == "" {
+		return false
+	}
+	c, err := lb.Dial(get("SWITCH_NEX_LEADERBOARDS_ADDR"), get("SWITCH_NEX_LEADERBOARDS_KEY"), get("SWITCH_NEX_CORE_ADDR"), get("SWITCH_NEX_CORE_KEY"))
+	if err != nil {
+		requireDB(env.Name, "leaderboards core", err)
+		return false
+	}
+	core := &scorestore.Core{C: c, Name: func(title, board string) string { return boardNames[title][board] }}
+	if err := openWithRetry("scores title map", dbAttempts, dbWait, func(ctx context.Context) error { return core.Register(ctx, env.Name) }); err != nil {
+		requireDB(env.Name, "leaderboards core", err)
+		return false
+	}
+	st.UseCore(core)
+	go func() {
+		for {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			if _, err := st.Import(ctx, env.Name); err != nil {
+				log.Printf("[%s] scores: import into the core: %v", env.Name, err)
+			}
+			cancel()
+			time.Sleep(10 * time.Minute)
+		}
+	}()
+	return true
 }

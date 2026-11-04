@@ -56,6 +56,19 @@ func (e *Env) hydrate() {
 		n := 0
 		if m, err := e.Scores.Blobs(ctx, e.Name, nsR2Board); err == nil {
 			for k, v := range m {
+				if e.Scores.HasCore() {
+					// The core holds the boards: file the old blob as a local row (once) for the importer.
+					cat, pidS, ok := strings.Cut(k, "/")
+					c, err1 := strconv.ParseUint(cat, 10, 32)
+					pid, err2 := strconv.ParseUint(pidS, 16, 64)
+					if ok && err1 == nil && err2 == nil && len(v) == 20 {
+						if err := e.Scores.SeedPending(ctx, e.Name, BoardRanking2(uint32(c)), pid, int64(binary.BigEndian.Uint32(v[16:])),
+							int64(binary.BigEndian.Uint64(v)), int64(binary.BigEndian.Uint64(v[8:]))); err != nil {
+							log.Printf("[%s] persist: seed r2board: %v", e.Name, err)
+						}
+					}
+					continue
+				}
 				cat, pidS, ok := strings.Cut(k, "/")
 				c, err1 := strconv.ParseUint(cat, 10, 32)
 				pid, err2 := strconv.ParseUint(pidS, 16, 64)
@@ -132,6 +145,9 @@ type r2CommonJSON struct {
 }
 
 func (e *Env) keepR2Board(category uint32, en r2Entry) {
+	if e.Scores.HasCore() {
+		return
+	}
 	v := make([]byte, 20)
 	binary.BigEndian.PutUint64(v, en.nexUniqueID)
 	binary.BigEndian.PutUint64(v[8:], en.misc)
