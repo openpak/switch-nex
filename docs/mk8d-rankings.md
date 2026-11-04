@@ -19,7 +19,9 @@ Sources (facts only, no code): the NintendoClients wiki by Kinnay, MIT: *Ranking
 | `MK8D_S3_BUCKET` | default `nex-mk8d`, created if missing |
 | `MK8D_S3_ACCESS_KEY`, `MK8D_S3_SECRET_KEY` | MinIO credentials |
 | `MK8D_API_ADDR` | read API listener (production `:22854`) |
-| `RANKINGS_ADDR` | OpenPak rankings contract listener (`:9090`), empty = off |
+| `MK8D_LEADERBOARDS_ADDR`, `MK8D_LEADERBOARDS_KEY` | core leaderboards gRPC (`127.0.0.1:20211` on the box) and `$LEADERBOARDS_INTERNAL_KEY`; required |
+| `MK8D_CORE_ADDR`, `MK8D_CORE_KEY` | account core gRPC (`127.0.0.1:20001`) and `$ACCOUNT_INTERNAL_KEY`; PID to account links; required |
+| `RANKINGS_ADDR` | no longer served for this title; the website reads the core's contract (`/t/mario-kart-8-deluxe`) |
 
 Values go through `os.ExpandEnv`, so the quadlet names `$PGPASSWORD` and the shared `.env` supplies it.
 
@@ -27,10 +29,11 @@ Values go through `os.ExpandEnv`, so the quadlet names `$PGPASSWORD` and the sha
 
 | What | Where |
 | --- | --- |
-| Scores | `mk8d.scores`, key (category, pid) |
+| Scores | the core leaderboards service, title `mario-kart-8-deluxe` (Switch id `0100152000022000`): board `<course>` (ascending ms) and `t<competition>s<season>` (descending points, last upload wins); account = the PID's link in namespace `switch`; columns `uid`, `param` / `team`, `team_score`; info = group bytes / competition metadata. A PID with no account link is acknowledged and not stored. |
+| Legacy scores | `mk8d.scores`, `mk8d.competition_scores`: no longer written. `MigrateLegacy` copies every row into the core at start (oldest first) and sets `migrated`; rows are never deleted, a row whose PID has no link is retried every ten minutes |
 | Player common data (132 bytes on MK8D) | `mk8d.common_data`, key pid |
 | Score packs (UploadScorePack) | `mk8d.score_packs` |
-| Tournaments (matchmaking descriptors + competitions) | `mk8d.tournaments`, `mk8d.competition_scores` |
+| Tournaments (matchmaking descriptors; the season counter) | `mk8d.tournaments` |
 | Ghost metadata | `mk8d.objects`, ids from `mk8d.object_ids` (start 1000000) |
 | Ghost body | bucket `nex-mk8d`, key `ghost/<dataId>.bin` |
 
@@ -119,7 +122,8 @@ Only finished, public (permission 0) ghosts are listed or served.
 ## Tests
 
 `go test ./protocols ./internal/mk8dstore`. The Postgres tests (update semantics, rank modes, ties, groups,
-competitions, ghosts, the read API) run when `MK8D_TEST_DATABASE_URL` points at a scratch database.
+competitions, ghosts, the read API, the legacy migration, a restart) run against an in-memory fake of the core when `MK8D_TEST_DATABASE_URL` points at a scratch database.
+The group filter and the unique-id list have no index in the core: the adapter reads the board (at most 10000 entries) and filters.
 
 ## The console test that is needed
 

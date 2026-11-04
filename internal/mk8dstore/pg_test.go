@@ -3,6 +3,8 @@ package mk8dstore
 import (
 	"context"
 	"encoding/json"
+	"github.com/openpak/switch-nex/internal/lb"
+	"github.com/openpak/switch-nex/internal/lb/lbtest"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +34,7 @@ func testStore(t *testing.T) *Store {
 		s.pool.Exec(ctx, "DROP SCHEMA mk8d CASCADE")
 		s.Close()
 	})
+	s.Core = &Scores{C: &lb.Client{LB: lbtest.New(), ID: func() *lbtest.IDs { m := lbtest.NewIDs(); m.Auto = true; return m }()}, T: MK8DTitle}
 	s.pool.Exec(ctx, "TRUNCATE mk8d.scores, mk8d.common_data, mk8d.score_packs, mk8d.tournaments, mk8d.competition_scores, mk8d.objects")
 	return s
 }

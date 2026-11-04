@@ -8,6 +8,18 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.12.0 — 2026-11-04
+- **Mario Kart 8 Deluxe scores moved to the core leaderboards service** (card #63, parent #40). Time trials, tournament seasons,
+  the ranking reads (global, around, self, by PID, by unique id, group filter) and the OpenKart read API all go through
+  `openpak-leaderboards` (gRPC) with PID <-> account resolved through the account core's links (`internal/lb`). The server keeps the wire
+  and the common data/ghosts; it keeps no score table. `MK8D_LEADERBOARDS_ADDR/_KEY` and `MK8D_CORE_ADDR/_KEY` are required (the title
+  refuses to start without them, like the database).
+- **Migration:** `MigrateLegacy` copies `mk8d.scores` and `mk8d.competition_scores` into the core at start, oldest first, marks rows
+  `migrated` and never deletes them; a PID with no account link waits and is retried every ten minutes; a row on a last-upload-wins board is
+  skipped when the core already holds a newer entry. Production held 0 rows in both tables at cut-over.
+- The MK8D rankings contract (`RANKINGS_ADDR`) is no longer served by this title; the website reads the core's `/t/mario-kart-8-deluxe`.
+- Tests: legacy migration (no row dropped, unlinked PID waits, newer entry kept), a restart over the same core, core outage, no account link.
+
 ## v0.11.0 — 2026-11-03
 - Per-RMC logging: one line per auth and secure RMC call (title, stage, protocol, method, reply size, ms) on stderr. Never the body.
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -201,25 +202,45 @@ func items[T any](v []T) []T {
 }
 
 func (a *API) courses(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.Store.pool.Query(r.Context(), `SELECT c, sum(ranked)::int, sum(ghosts)::int FROM (
-SELECT category AS c, count(*) AS ranked, 0 AS ghosts FROM mk8d.scores GROUP BY category
-UNION ALL
-SELECT data_type::bigint, 0, count(*) FROM mk8d.objects WHERE status=1 AND permission=0 GROUP BY data_type
-) x GROUP BY c ORDER BY c`)
+	ranked := map[int64]int{}
+	if a.Store.Core != nil {
+		cs, err := a.Store.Core.Courses(r.Context())
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		for _, c := range cs {
+			ranked[c.Course] = c.Ranked
+		}
+	}
+	rows, err := a.Store.pool.Query(r.Context(), `SELECT data_type::bigint, count(*) FROM mk8d.objects WHERE status=1 AND permission=0 GROUP BY data_type`)
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	defer rows.Close()
-	var out []course
+	ghosts := map[int64]int{}
 	for rows.Next() {
-		var c course
-		if err := rows.Scan(&c.Course, &c.Ranked, &c.Ghosts); err != nil {
+		var c int64
+		var n int
+		if err := rows.Scan(&c, &n); err != nil {
 			fail(w, err)
 			return
 		}
-		out = append(out, c)
+		ghosts[c] = n
 	}
+	ids := map[int64]bool{}
+	for c := range ranked {
+		ids[c] = true
+	}
+	for c := range ghosts {
+		ids[c] = true
+	}
+	var out []course
+	for c := range ids {
+		out = append(out, course{Course: int(c), Ranked: ranked[c], Ghosts: ghosts[c]})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Course < out[j].Course })
 	writeJSON(w, http.StatusOK, map[string]any{"items": items(out)})
 }
 
@@ -232,31 +253,21 @@ func (a *API) rankings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var total int
-	if err := a.Store.pool.QueryRow(r.Context(), `SELECT count(*) FROM mk8d.scores WHERE category=$1`, int64(courseID)).Scan(&total); err != nil {
-		fail(w, err)
+	if a.Store.Core == nil {
+		fail(w, errNoCore)
 		return
 	}
-	rows, err := a.Store.pool.Query(r.Context(), `SELECT s.pid, s.score, s.updated,
-(SELECT o.data_id FROM mk8d.objects o WHERE o.owner=s.pid AND o.data_type=s.category AND o.status=1 AND o.permission=0
- ORDER BY o.data_id DESC LIMIT 1)
-FROM mk8d.scores s WHERE s.category=$1 ORDER BY s.score, s.updated, s.pid LIMIT $2 OFFSET $3`, int64(courseID), limit, offset)
+	pg, total, err := a.Store.Core.CoursePage(r.Context(), int64(courseID), offset, limit)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	defer rows.Close()
 	var out []rankItem
-	for rows.Next() {
-		var it rankItem
-		var pid, score int64
+	for _, p := range pg {
+		it := rankItem{Rank: p.Rank, Player: strconv.FormatUint(p.PID, 10), TimeMS: p.Score, Time: FormatTime(p.Score), Updated: p.Updated}
 		var ghost *int64
-		if err := rows.Scan(&pid, &score, &it.Updated, &ghost); err != nil {
-			fail(w, err)
-			return
-		}
-		it.Rank, it.Player, it.TimeMS, it.Time = offset+len(out)+1, strconv.FormatInt(pid, 10), score, FormatTime(score)
-		if ghost != nil {
+		if err := a.Store.pool.QueryRow(r.Context(), `SELECT o.data_id FROM mk8d.objects o WHERE o.owner=$1 AND o.data_type=$2 AND o.status=1 AND o.permission=0
+ ORDER BY o.data_id DESC LIMIT 1`, int64(p.PID), int64(courseID)).Scan(&ghost); err == nil && ghost != nil {
 			g := uint64(*ghost)
 			it.Ghost = &g
 		}
@@ -271,25 +282,19 @@ func (a *API) playerRankings(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, "pid must be a number")
 		return
 	}
-	n, _ := strconv.ParseInt(pid, 10, 64)
-	rows, err := a.Store.pool.Query(r.Context(), `SELECT s.category, s.score,
-(SELECT count(*) FROM mk8d.scores x WHERE x.category=s.category AND x.score < s.score) + 1,
-(SELECT count(*) FROM mk8d.scores x WHERE x.category=s.category)
-FROM mk8d.scores s WHERE s.pid=$1 ORDER BY s.category`, n)
+	n, _ := strconv.ParseUint(pid, 10, 64)
+	if a.Store.Core == nil {
+		fail(w, errNoCore)
+		return
+	}
+	ps, err := a.Store.Core.Player(r.Context(), n)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	defer rows.Close()
 	var out []playerRank
-	for rows.Next() {
-		var p playerRank
-		if err := rows.Scan(&p.Course, &p.TimeMS, &p.Rank, &p.Of); err != nil {
-			fail(w, err)
-			return
-		}
-		p.Time = FormatTime(p.TimeMS)
-		out = append(out, p)
+	for _, p := range ps {
+		out = append(out, playerRank{Course: int(p.Course), Rank: int(p.Rank), Of: int(p.Of), TimeMS: p.Score, Time: FormatTime(p.Score)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items(out)})
 }
@@ -334,9 +339,10 @@ func (a *API) objectJSON(ctx context.Context, o protocols.MK8DObject) Object {
 	}
 	c := int(o.DataType)
 	j.Course = &c
-	var score int64
-	if err := a.Store.pool.QueryRow(ctx, `SELECT score FROM mk8d.scores WHERE category=$1 AND pid=$2`, int64(o.DataType), int64(o.Owner)).Scan(&score); err == nil {
-		j.TimeMS, j.Time = &score, FormatTime(score)
+	if a.Store.Core != nil {
+		if score, ok := a.Store.Core.PlayerScore(ctx, int64(o.DataType), o.Owner); ok {
+			j.TimeMS, j.Time = &score, FormatTime(score)
+		}
 	}
 	return j
 }
@@ -395,8 +401,7 @@ func (a *API) body(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-const tournamentCols = `t.id, t.owner, t.name, t.description, t.community_code, t.attributes, t.starts, t.ends, t.season, t.created,
-(SELECT count(DISTINCT pid) FROM mk8d.competition_scores c WHERE c.competition=t.id)`
+const tournamentCols = `t.id, t.owner, t.name, t.description, t.community_code, t.attributes, t.starts, t.ends, t.season, t.created, 0`
 
 func scanTournament(row pgx.Row) (tournament, error) {
 	var t tournament
@@ -407,6 +412,16 @@ func scanTournament(row pgx.Row) (tournament, error) {
 	t.ID, t.Owner = uint32(id), strconv.FormatInt(owner, 10)
 	t.Attributes = items(t.Attributes)
 	return t, nil
+}
+
+// fillParticipants counts the players on the tournament's current season (the core holds the scores).
+func (a *API) fillParticipants(ctx context.Context, t *tournament) {
+	if a.Store.Core == nil {
+		return
+	}
+	if n, err := a.Store.Core.Participants(ctx, t.ID, uint32(t.Season)); err == nil {
+		t.Participants = int64(n)
+	}
 }
 
 func (a *API) tournaments(w http.ResponseWriter, r *http.Request) {
@@ -435,6 +450,10 @@ ORDER BY t.created DESC, t.id DESC LIMIT $1 OFFSET $2`, limit, offset)
 		}
 		out = append(out, t)
 	}
+	rows.Close()
+	for i := range out {
+		a.fillParticipants(r.Context(), &out[i])
+	}
 	writeJSON(w, http.StatusOK, page{total, offset, limit, items(out)})
 }
 
@@ -460,24 +479,17 @@ func (a *API) tournament(w http.ResponseWriter, r *http.Request) {
 	if season == 0 {
 		season = t.Season
 	}
-	rows, err := a.Store.pool.Query(r.Context(), `SELECT pid, score, team, updated FROM mk8d.competition_scores
-WHERE competition=$1 AND season=$2 ORDER BY score DESC, updated, pid LIMIT $3`, int64(id), season, maxLimit)
-	if err != nil {
-		fail(w, err)
-		return
-	}
-	defer rows.Close()
+	a.fillParticipants(r.Context(), &t)
 	t.Scores = []scoreItem{}
-	for rows.Next() {
-		var s scoreItem
-		var pid int64
-		var team int16
-		if err := rows.Scan(&pid, &s.Score, &team, &s.Updated); err != nil {
+	if a.Store.Core != nil {
+		ss, _, err := a.Store.Core.Season(r.Context(), uint32(id), uint32(season), maxLimit)
+		if err != nil {
 			fail(w, err)
 			return
 		}
-		s.Rank, s.Player, s.Team = len(t.Scores)+1, strconv.FormatInt(pid, 10), int(team)
-		t.Scores = append(t.Scores, s)
+		for _, s := range ss {
+			t.Scores = append(t.Scores, scoreItem{Rank: int(s.Rank), Player: strconv.FormatUint(s.PID, 10), Score: int64(s.Score), Team: int(s.TeamID), Updated: s.Updated})
+		}
 	}
 	t.Season = season
 	writeJSON(w, http.StatusOK, t)

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -32,8 +33,10 @@ CREATE TABLE IF NOT EXISTS mk8d.scores (
   param bigint NOT NULL DEFAULT 0,
   created timestamptz NOT NULL DEFAULT now(),
   updated timestamptz NOT NULL DEFAULT now(),
+  migrated boolean NOT NULL DEFAULT false,
   PRIMARY KEY (category, pid)
 );
+ALTER TABLE mk8d.scores ADD COLUMN IF NOT EXISTS migrated boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS mk8d_scores_board ON mk8d.scores (category, score, updated);
 CREATE INDEX IF NOT EXISTS mk8d_scores_unique ON mk8d.scores (unique_id);
 CREATE TABLE IF NOT EXISTS mk8d.common_data (
@@ -74,8 +77,10 @@ CREATE TABLE IF NOT EXISTS mk8d.competition_scores (
   team_score bigint NOT NULL DEFAULT 0,
   metadata bytea NOT NULL DEFAULT '',
   updated timestamptz NOT NULL DEFAULT now(),
+  migrated boolean NOT NULL DEFAULT false,
   PRIMARY KEY (competition, season, pid)
 );
+ALTER TABLE mk8d.competition_scores ADD COLUMN IF NOT EXISTS migrated boolean NOT NULL DEFAULT false;
 CREATE TABLE IF NOT EXISTS mk8d.objects (
   data_id bigint PRIMARY KEY DEFAULT nextval('mk8d.object_ids'),
   owner bigint NOT NULL,
@@ -97,7 +102,12 @@ CREATE INDEX IF NOT EXISTS mk8d_objects_owner ON mk8d.objects (owner, status);
 CREATE INDEX IF NOT EXISTS mk8d_objects_type ON mk8d.objects (data_type, status, updated DESC);`
 
 // Store implements protocols.MK8DBackend over Postgres.
-type Store struct{ pool *pgxpool.Pool }
+// Scores live in the core leaderboards service (Core); the mk8d.scores and mk8d.competition_scores
+// tables are the legacy copy, read once by MigrateLegacy and never written again.
+type Store struct {
+	pool *pgxpool.Pool
+	Core *Scores
+}
 
 var _ protocols.MK8DBackend = (*Store)(nil)
 
@@ -127,95 +137,37 @@ func bs(b []byte) []byte {
 	return b
 }
 
-// UploadScore stores a score. Update semantics: update mode 1 always
-// overwrites; any other mode keeps the best score, where best is the lowest
-// (time trials, the MK8D board) - ascending order.
+// UploadScore stores a score in the core; see Scores.UploadScore.
 func (s *Store) UploadScore(ctx context.Context, pid, uniqueID uint64, sc protocols.RankingScore) (bool, error) {
-	t, err := s.pool.Exec(ctx, `INSERT INTO mk8d.scores (category, pid, unique_id, score, order_by, update_mode, groups, param)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-ON CONFLICT (category, pid) DO UPDATE SET unique_id=$3, score=$4, order_by=$5, update_mode=$6, groups=$7, param=$8, updated=now()
-WHERE $6 = 1 OR $4 < mk8d.scores.score`,
-		int64(sc.Category), i64(pid), i64(uniqueID), int64(sc.Score), int16(sc.OrderBy), int16(sc.UpdateMode), bs(sc.Groups), i64(sc.Param))
-	return t.RowsAffected() > 0, err
+	if s.Core == nil {
+		return false, errNoCore
+	}
+	return s.Core.UploadScore(ctx, pid, uniqueID, sc)
 }
 
-// Ranking answers a board read. Ranks are global (the player's place on the
-// whole board), also for by-PID and by-unique-id lists.
+var errNoCore = errors.New("mk8d: leaderboards core is not configured")
+
+// Ranking answers a board read from the core; the common data of each row comes from here.
 func (s *Store) Ranking(ctx context.Context, q protocols.RankQuery) ([]protocols.RankRow, int, error) {
-	length := q.Length
-	if length == 0 || length > 255 {
-		length = 20
+	if s.Core == nil {
+		return nil, 0, errNoCore
 	}
-	args := []any{int64(q.Category)}
-	filter := ""
-	if q.GroupIndex != 0xFF {
-		args = append(args, int(q.GroupIndex), int(q.GroupNum))
-		filter = " AND length(groups) > $2 AND get_byte(groups, $2) = $3"
+	rows, total, err := s.Core.Ranking(ctx, q)
+	if err != nil || len(rows) == 0 {
+		return rows, total, err
 	}
-	base := `WITH r AS (SELECT s.*, row_number() OVER w AS rn, rank() OVER (ORDER BY score) AS rk
-FROM mk8d.scores s WHERE category = $1` + filter + ` WINDOW w AS (ORDER BY score, updated, pid))`
-	var total int
-	if err := s.pool.QueryRow(ctx, base+` SELECT count(*) FROM r`, args...).Scan(&total); err != nil {
-		return nil, 0, err
+	pids := make([]uint64, len(rows))
+	for i, r := range rows {
+		pids[i] = r.PID
 	}
-	order := `r.rk`
-	if q.Calc == 1 {
-		order = `r.rn`
-	}
-	var cond, tail string
-	switch {
-	case q.PIDs != nil:
-		ids := make([]int64, len(q.PIDs))
-		for i, p := range q.PIDs {
-			ids[i] = i64(p)
-		}
-		args = append(args, ids)
-		cond = fmt.Sprintf(" WHERE r.pid = ANY($%d)", len(args))
-		tail = fmt.Sprintf(" ORDER BY r.rn LIMIT %d", length)
-	case q.UniqueIDs != nil:
-		ids := make([]int64, len(q.UniqueIDs))
-		for i, p := range q.UniqueIDs {
-			ids[i] = i64(p)
-		}
-		args = append(args, ids)
-		cond = fmt.Sprintf(" WHERE r.unique_id = ANY($%d)", len(args))
-		tail = fmt.Sprintf(" ORDER BY r.rn LIMIT %d", length)
-	case q.Mode == protocols.RankModeSelf:
-		args = append(args, i64(q.Self))
-		cond = fmt.Sprintf(" WHERE r.pid = $%d", len(args))
-		tail = " LIMIT 1"
-	case q.Mode == protocols.RankModeAround:
-		args = append(args, i64(q.Self))
-		cond = fmt.Sprintf(` WHERE r.rn >= (SELECT greatest(1, rn - %d) FROM r WHERE pid = $%d)`, length/2, len(args))
-		tail = fmt.Sprintf(" ORDER BY r.rn LIMIT %d", length)
-	default:
-		off := min(q.Offset, protocols.RankingMaxOffset)
-		if off+length > protocols.RankingMaxOffset {
-			length = protocols.RankingMaxOffset - off
-		}
-		cond = fmt.Sprintf(" WHERE r.rn > %d", off)
-		tail = fmt.Sprintf(" ORDER BY r.rn LIMIT %d", length)
-	}
-	rows, err := s.pool.Query(ctx, base+` SELECT r.pid, r.unique_id, `+order+`, r.category, r.score, r.groups, r.param,
-COALESCE(c.data, ''::bytea), r.updated FROM r LEFT JOIN mk8d.common_data c ON c.pid = r.pid`+cond+tail, args...)
+	cd, err := s.CommonData(ctx, pids)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	var out []protocols.RankRow
-	for rows.Next() {
-		var (
-			r                        protocols.RankRow
-			pid, uid, ord, cat, scor int64
-			param                    int64
-		)
-		if err := rows.Scan(&pid, &uid, &ord, &cat, &scor, &r.Groups, &param, &r.CommonData, &r.Updated); err != nil {
-			return nil, 0, err
-		}
-		r.PID, r.UniqueID, r.Order, r.Category, r.Score, r.Param = uint64(pid), uint64(uid), uint32(ord), uint32(cat), uint32(scor), uint64(param)
-		out = append(out, r)
+	for i := range rows {
+		rows[i].CommonData = cd[rows[i].PID]
 	}
-	return out, total, rows.Err()
+	return rows, total, nil
 }
 
 func (s *Store) PutCommonData(ctx context.Context, pid, uniqueID uint64, blob []byte) error {
@@ -279,26 +231,18 @@ func (s *Store) ScorePacks(ctx context.Context, pids []uint64, category uint32) 
 
 // --- competitions ---------------------------------------------------------
 
-// CompetitionUpload stores a competition score; the last upload of a player in
+// CompetitionUpload stores a competition score in the core; the last upload of a player in
 // a season wins (the console sends its running total). An unknown competition
 // id gets a placeholder tournament row so it shows on the site.
 func (s *Store) CompetitionUpload(ctx context.Context, pid uint64, p protocols.CompetitionUpload) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
+	if s.Core == nil {
+		return errNoCore
 	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, `INSERT INTO mk8d.tournaments (id, season) VALUES ($1,$2)
+	if _, err := s.pool.Exec(ctx, `INSERT INTO mk8d.tournaments (id, season) VALUES ($1,$2)
 ON CONFLICT (id) DO UPDATE SET season = greatest(mk8d.tournaments.season, $2), updated=now()`, int64(p.ID), int64(max(p.Season, 1))); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO mk8d.competition_scores (competition, season, pid, score, team, team_score, metadata)
-VALUES ($1,$2,$3,$4,$5,$6,$7)
-ON CONFLICT (competition, season, pid) DO UPDATE SET score=$4, team=$5, team_score=$6, metadata=$7, updated=now()`,
-		int64(p.ID), int64(p.Season), i64(pid), int64(p.Score), int16(p.TeamID), int64(p.TeamScore), bs(p.Metadata)); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return s.Core.CompetitionUpload(ctx, pid, p)
 }
 
 func (s *Store) currentSeason(ctx context.Context, id uint32) (int64, bool, error) {
@@ -313,6 +257,9 @@ func (s *Store) currentSeason(ctx context.Context, id uint32) (int64, bool, erro
 // CompetitionScores answers seasons current-n .. current (n+1 seasons), top
 // scores first, ranks assigned by score.
 func (s *Store) CompetitionScores(ctx context.Context, id uint32, n uint32, top int) ([]protocols.CompetitionSeason, error) {
+	if s.Core == nil {
+		return nil, errNoCore
+	}
 	cur, ok, err := s.currentSeason(ctx, id)
 	if err != nil || !ok {
 		return nil, err
@@ -320,51 +267,51 @@ func (s *Store) CompetitionScores(ctx context.Context, id uint32, n uint32, top 
 	first := max(cur-int64(n), 1)
 	var out []protocols.CompetitionSeason
 	for season := first; season <= cur; season++ {
-		cs := protocols.CompetitionSeason{Season: uint32(season), TeamScores: make([]uint32, 4)}
-		rows, err := s.pool.Query(ctx, `SELECT pid, score, updated, team, metadata FROM mk8d.competition_scores
-WHERE competition=$1 AND season=$2 ORDER BY score DESC, updated, pid LIMIT $3`, int64(id), season, top)
+		scores, total, err := s.Core.Season(ctx, id, uint32(season), top)
 		if err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			var sc protocols.CompetitionScore
-			var pid, score int64
-			var team int16
-			if err := rows.Scan(&pid, &score, &sc.Updated, &team, &sc.Metadata); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			sc.Rank, sc.PID, sc.Score, sc.TeamID = uint32(len(cs.Scores)+1), uint64(pid), uint32(score), uint8(team)
-			cs.Scores = append(cs.Scores, sc)
-		}
-		rows.Close()
-		var n int64
-		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM mk8d.competition_scores WHERE competition=$1 AND season=$2`,
-			int64(id), season).Scan(&n); err != nil {
-			return nil, err
-		}
-		cs.Participants = uint32(n)
-		out = append(out, cs)
+		out = append(out, protocols.CompetitionSeason{Season: uint32(season), TeamScores: make([]uint32, 4), Scores: scores, Participants: uint32(total)})
 	}
 	return out, nil
 }
 
+// CompetitionList lists the tournaments, most players first (players of the current season).
 func (s *Store) CompetitionList(ctx context.Context, offset, limit int) ([]protocols.CompetitionSummary, error) {
-	rows, err := s.pool.Query(ctx, `SELECT t.id, (SELECT count(DISTINCT pid) FROM mk8d.competition_scores c WHERE c.competition=t.id) AS n
-FROM mk8d.tournaments t WHERE NOT t.deleted ORDER BY n DESC, t.id OFFSET $1 LIMIT $2`, offset, limit)
+	if s.Core == nil {
+		return nil, errNoCore
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id, season FROM mk8d.tournaments WHERE NOT deleted ORDER BY id LIMIT 500`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []protocols.CompetitionSummary
+	var all []protocols.CompetitionSummary
+	var seasons []int64
 	for rows.Next() {
-		var id, n int64
-		if err := rows.Scan(&id, &n); err != nil {
+		var id, season int64
+		if err := rows.Scan(&id, &season); err != nil {
+			rows.Close()
 			return nil, err
 		}
-		out = append(out, protocols.CompetitionSummary{ID: uint32(id), Participants: uint32(n), TeamScores: make([]uint32, 4)})
+		all = append(all, protocols.CompetitionSummary{ID: uint32(id), TeamScores: make([]uint32, 4)})
+		seasons = append(seasons, season)
 	}
-	return out, rows.Err()
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range all {
+		n, err := s.Core.Participants(ctx, all[i].ID, uint32(seasons[i]))
+		if err != nil {
+			return nil, err
+		}
+		all[i].Participants = uint32(n)
+	}
+	sort.SliceStable(all, func(i, j int) bool { return all[i].Participants > all[j].Participants })
+	if offset >= len(all) {
+		return nil, nil
+	}
+	return all[offset:min(offset+limit, len(all))], nil
 }
 
 // --- tournaments (matchmaking descriptors) --------------------------------
