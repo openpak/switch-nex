@@ -86,3 +86,9 @@ PRDs: openpak/prds (private)
 ## Licence
 
 AGPL-3.0-only. See [LICENSE](LICENSE).
+
+## Not supported
+
+- Super Mario Odyssey balloon DataStore methods 0x2F-0x35 (openpak/prds#115).
+- Splatoon 2 Splatfest GetEventMatchResult and methods 0x18/0x1A (openpak/prds#116).
+- Mario Kart 8 Deluxe object bodies need the S3 store configured; without it the body endpoint answers 501.

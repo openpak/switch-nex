@@ -8,6 +8,10 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.13.1 - 2026-11-04
+
+- Docs: unsupported methods listed so the titles page promises nothing it does not do (openpak/prds#113).
+
 ## v0.13.0 — 2026-11-04
 - **The Ranking / Ranking2 titles file their scores in the core leaderboards** (card #63, parent #40), the way Mario Kart 8 Deluxe does since v0.12.0.
   Set `SWITCH_NEX_LEADERBOARDS_ADDR/_KEY` and `SWITCH_NEX_CORE_ADDR/_KEY` on a title's unit to turn it on (unset: the old local store and contract, unchanged).
