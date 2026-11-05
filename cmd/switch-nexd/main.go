@@ -1328,7 +1328,7 @@ func main() {
 			if svc.env.Rewards == nil {
 				svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
 			}
-			configureSMM2(svc.env)
+			configureSMM2(svc.env, ids)
 		}
 		if t.name == "mario-kart-8-deluxe" {
 			configureMK8D(svc.env)

@@ -24,7 +24,10 @@ import (
 //	SMM2_API_ADDR, SMM2_API_KEY   read API listener and its X-Internal-Key
 //
 // Every value is passed through os.ExpandEnv.
-func configureSMM2(env *protocols.Env) {
+func configureSMM2(env *protocols.Env, ids *identity) {
+	if ids != nil {
+		env.AccountName = ids.displayName
+	}
 	// Values may name other variables ($PGPASSWORD, $MINIO_ROOT_USER) so the quadlet
 	// need not carry a secret: the shared .env supplies them.
 	getenv := func(k string) string { return os.ExpandEnv(os.Getenv(k)) }

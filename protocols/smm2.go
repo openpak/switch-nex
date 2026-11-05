@@ -316,7 +316,7 @@ var smm2EmptyAnswers = func() map[uint32][]byte {
 // getSMM2User looks a maker up in memory, then in the durable store.
 func (e *Env) getSMM2User(pid uint64) (*smm2User, bool) {
 	if u, ok := e.smm2.get(pid); ok {
-		return u, true
+		return e.withAccountName(pid, u), true
 	}
 	if e.SMM2 == nil {
 		return nil, false
@@ -328,11 +328,26 @@ func (e *Env) getSMM2User(pid uint64) (*smm2User, bool) {
 		return nil, false
 	}
 	e.smm2.put(pid, u)
-	return u, true
+	return e.withAccountName(pid, u), true
+}
+
+// withAccountName returns the maker with the account's display name when it is known, else as stored.
+// It copies: the stored profile is never rewritten by a read.
+func (e *Env) withAccountName(pid uint64, u *smm2User) *smm2User {
+	if e.AccountName == nil {
+		return u
+	}
+	if n := e.AccountName(pid); n != "" && n != u.Name {
+		c := *u
+		c.Name = n
+		return &c
+	}
+	return u
 }
 
 // putSMM2User stores a profile in memory and, when there is one, durably.
 func (e *Env) putSMM2User(pid uint64, u *smm2User) {
+	u = e.withAccountName(pid, u) // the game's own copy of the name never goes ahead of the account's
 	e.smm2.put(pid, u)
 	if e.SMM2 == nil {
 		return

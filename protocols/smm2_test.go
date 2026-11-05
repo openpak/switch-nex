@@ -209,3 +209,27 @@ func TestSMM2CourseWorldListsAreValidEmpties(t *testing.T) {
 		t.Fatalf("SearchCoursesLatest = %x, want an empty list and true", body)
 	}
 }
+
+// The account's display name wins over the maker name the game sent, on read and when the game
+// registers; a maker the process does not know keeps the name the game sent.
+func TestSMM2PrefersTheAccountName(t *testing.T) {
+	env := smm2Env()
+	env.AccountName = func(pid uint64) string {
+		if pid == 77 {
+			return "FromAccount"
+		}
+		return ""
+	}
+	if _, _, errCode := decodeResponse(Dispatch(env, conn(77), request(ProtoDataStore, 0x2F, registerUserBody("GameSent")))); errCode != 0 {
+		t.Fatalf("RegisterUser: %#x", errCode)
+	}
+	if u, ok := env.getSMM2User(77); !ok || u.Name != "FromAccount" {
+		t.Fatalf("signed-in maker: %+v", u)
+	}
+	if _, _, errCode := decodeResponse(Dispatch(env, conn(78), request(ProtoDataStore, 0x2F, registerUserBody("GameSent")))); errCode != 0 {
+		t.Fatalf("RegisterUser: %#x", errCode)
+	}
+	if u, ok := env.getSMM2User(78); !ok || u.Name != "GameSent" {
+		t.Fatalf("unknown maker: %+v", u)
+	}
+}

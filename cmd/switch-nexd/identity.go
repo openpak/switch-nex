@@ -136,6 +136,17 @@ func (i *identity) resolve(idToken string) (*player, error) {
 	return p, nil
 }
 
+// displayName is the OpenPak display name of a NEX PID whose login this process proved, or "".
+func (i *identity) displayName(pid uint64) string {
+	if i == nil {
+		return ""
+	}
+	if v, ok := i.members.Load(pid); ok {
+		return v.(member).Nickname
+	}
+	return ""
+}
+
 // forget drops what the process remembers about an erased account: its PIDs' proof records and
 // its voice-room membership.
 func (i *identity) forget(account string, pids []uint64) {

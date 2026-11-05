@@ -1,0 +1,5 @@
+# Identity-looking columns this adapter is allowed to keep. Checked in CI by openpak/.github scripts/dedup-lint.py.
+# One entry per line: table.column  # reason. Every entry needs a reason.
+users.name  # SMM2 maker profile the game registers itself (RegisterUser/SyncUserProfile); fallback only: reads and writes prefer the signed-in account's display name (Env.AccountName), the stored name serves makers who are not signed in (smm2 profile is shown to other players while offline)
+users.country  # the country the game reports in its own profile (region flag shown on the maker card); sent by the game on every start, not copied from the account, and not shown anywhere else
+users.mii  # the maker Mii the player builds inside SMM2 (wire QBuffer of the game's own Mii), game data with no account counterpart

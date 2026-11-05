@@ -257,6 +257,12 @@ type Env struct {
 	SMM2      SMM2Backend
 	SMM2Blobs SMM2Blobs
 
+	// AccountName, when set, answers the OpenPak display name of a NEX PID that has proven its login
+	// in this process. SMM2 prefers it over the maker name the game sent (card openpak/prds#131): the
+	// account is the source of a player's name, the stored maker name is only the fallback for a maker
+	// who is not signed in. Nil or "" means no account name is known.
+	AccountName func(pid uint64) string
+
 	// MK8D (and MK8DBlobs for ghost bodies) give Mario Kart 8 Deluxe durable
 	// rankings, competitions and ghosts (mk8d.go). Unset: empty boards.
 	MK8D      MK8DBackend
