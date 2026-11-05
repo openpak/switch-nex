@@ -8,6 +8,9 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.14.3 - 2026-11-05
+- **Clean stop (card openpak/prds#131):** SIGTERM/SIGINT exit 0 after a bounded (5 s) shutdown instead of Go's default status 2, which raised a false "unit failed" alert on every stop or restart.
+
 ## v0.14.2 - 2026-11-05
 
 - Data duplication audit (openpak/prds#131): SMM2 maker names follow the account. `Env.AccountName` (the display name of a NEX PID whose login this process proved, from the identity answer) overrides the maker name the game sent, on reads and when the game registers or syncs its profile; the stored `smm2.users.name` stays as the fallback for makers who are not signed in (0 rows today). `users.name`, `users.country` and `users.mii` are the game's own profile fields and are listed in `.dedup-allow` with that reason; the CI dedup-lint is wired. No schema change.

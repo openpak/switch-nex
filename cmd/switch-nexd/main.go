@@ -1222,6 +1222,7 @@ func main() {
 		return
 	}
 	log.SetFlags(log.LstdFlags | log.LUTC)
+	exitOnSignal(os.Exit)
 	connectivityClient, err := connectivity.FromEnvironment()
 	if err != nil {
 		log.Fatal("invalid shared connectivity configuration")
