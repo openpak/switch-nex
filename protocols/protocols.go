@@ -46,6 +46,9 @@ const (
 // plus the title's state and behaviour hooks. One Env per title.
 type Env struct {
 	Name string
+	// DataStoreTrace logs every DataStore call with masked request and response
+	// bodies (datastore_trace.go). Per-title, from SWITCH_NEX_TRACE_DATASTORE.
+	DataStoreTrace bool
 	// Rewards reports server-observed facts (a course uploaded) to the rewards service. Nil
 	// or disabled does nothing; it never blocks or fails a call.
 	Rewards            *emit.Client
@@ -406,6 +409,9 @@ func handlersFor(env *Env) map[uint16]handler {
 	}
 	if env.DataStore != DSOff {
 		h[ProtoDataStore] = dataStoreHandler
+		if env.DataStoreTrace {
+			h[ProtoDataStore] = tracedDataStore(dataStoreHandler)
+		}
 	}
 	if env.Ranking {
 		h[ProtoRanking] = rankingHandler

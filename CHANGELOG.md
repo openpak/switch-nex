@@ -8,6 +8,10 @@
 > reinstall them, or select them for current work. Use Harbor's README and
 > current handoff for builds and testing; old results do not establish Harbor parity.
 
+## v0.14.4 - 2026-11-06
+
+- **DataStore trace (card openpak/prds#143):** `SWITCH_NEX_TRACE_DATASTORE=<title>[,<title>]` logs every DataStore (0x73) call of those titles, including ones a stub answers, as `datastore-trace method=0x.. call=N req=.. resp=..` with masked hex bodies (the caller's own PID shown as `[pid]`, printable text runs of 6+ bytes as `[str:N]`, 4096 bytes max). Off by default. Used to map Super Smash Bros. Ultimate's undocumented methods 47-84 from one console session.
+
 ## v0.14.3 - 2026-11-05
 - **Clean stop (card openpak/prds#131):** SIGTERM/SIGINT exit 0 after a bounded (5 s) shutdown instead of Go's default status 2, which raised a false "unit failed" alert on every stop or restart.
 

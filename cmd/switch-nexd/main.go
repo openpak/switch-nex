@@ -1325,6 +1325,11 @@ func main() {
 			}
 		}
 		configureScores(svc.env, t.base)
+		for _, n := range strings.Split(os.Getenv("SWITCH_NEX_TRACE_DATASTORE"), ",") {
+			if strings.TrimSpace(n) == t.name {
+				svc.env.DataStoreTrace = true
+			}
+		}
 		if t.name == "super-mario-maker-2" {
 			if svc.env.Rewards == nil {
 				svc.env.Rewards = emit.FromEnv("switch-nex-" + t.name)
